@@ -1,0 +1,4027 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  api/
+    whatsapp/
+      route.ts
+  dashboard/
+    configuracion/
+      actions.ts
+      configuracion-client.tsx
+      page.tsx
+    justificacion/
+      page.tsx
+    reembolsos/
+      actions.ts
+      page.tsx
+      reembolsos-client.tsx
+    solicitudes/
+      actions.ts
+      page.tsx
+      solicitudes-client.tsx
+    layout.tsx
+    page.tsx
+  lib/
+    ocr.ts
+    supabase.ts
+    whatsapp.ts
+  favicon.ico
+  globals.css
+  layout.tsx
+  page.tsx
+lib/
+  supabase-server.ts
+  supabase.ts
+public/
+  file.svg
+  globe.svg
+  next.svg
+  vercel.svg
+  window.svg
+.gitignore
+AGENTS.md
+CLAUDE.md
+next.config.ts
+package.json
+postcss.config.mjs
+PROJECT_CONTEXT.md
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/api/whatsapp/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { 
+  procesarFacturaConIA, 
+  aplicarCorreccionConIA, 
+  aplicarCorreccionAudioConIA,
+  guardarImagenEnSupabase,
+  procesarFacturaPDFConIA,
+  guardarPDFEnSupabase,
+  verificarGastoDuplicado,
+  calcularHashBuffer
+} from '@/app/lib/ocr';
+import { enviarMensajeWhatsApp, enviarListaWhatsApp } from '@/app/lib/whatsapp';
+import { supabase } from '@/app/lib/supabase';
+
+const mensajesProcesados = new Set<string>();
+const facturasPendientes = new Map<string, any>();
+
+const CATEGORIAS_GASTO = [
+  { id: 'CAT_Airfare/train', title: 'Airfare/train' },
+  { id: 'CAT_Car Rental', title: 'Car Rental' },
+  { id: 'CAT_Food/Beverage', title: 'Food/Beverage' },
+  { id: 'CAT_Gas (Fuel)', title: 'Gas (Fuel)' },
+  { id: 'CAT_Hotel', title: 'Hotel' },
+  { id: 'CAT_Miscellaneous', title: 'Miscellaneous' },
+  { id: 'CAT_Parking & Tolls/Taxi', title: 'Parking & Tolls/Taxi' },
+  { id: 'CAT_Materiales', title: 'Materiales' },
+];
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
+  const challenge = searchParams.get('hub.challenge');
+
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return new NextResponse(challenge, { status: 200 });
+  }
+  return NextResponse.json({ error: 'Token incorrecto' }, { status: 403 });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+    if (message) {
+      const messageId = message.id;
+
+      if (mensajesProcesados.has(messageId)) {
+        return NextResponse.json({ status: 'duplicado_ignorado' }, { status: 200 });
+      }
+
+      mensajesProcesados.add(messageId);
+      setTimeout(() => mensajesProcesados.delete(messageId), 5 * 60 * 1000);
+
+      const telefonoEmpleado = message.from;
+      const tipoMensaje = message.type;
+
+      // 1. MANEJO DE MENSAJES INTERACTIVOS (SELECCIÓN DE PROYECTO, CATEGORÍA O MÉTODO DE PAGO)
+      if (tipoMensaje === 'interactive') {
+        const respuestaLista = message.interactive?.list_reply;
+        const idSeleccionado = respuestaLista?.id;
+        const tituloSeleccionado = respuestaLista?.title;
+
+        const facturaPendiente = facturasPendientes.get(telefonoEmpleado);
+
+        if (facturaPendiente) {
+          // A. Selección de Proyecto
+          if (idSeleccionado.startsWith('PROY_')) {
+            const proyectoId = idSeleccionado.replace('PROY_', '');
+            facturaPendiente.proyecto_id = proyectoId;
+            facturaPendiente.proyecto_nombre = tituloSeleccionado;
+            facturasPendientes.set(telefonoEmpleado, facturaPendiente);
+
+            await enviarListaWhatsApp(
+              telefonoEmpleado,
+              `✅ Proyecto seleccionado: *${tituloSeleccionado}*\n\nAhora selecciona la categoría de este gasto:`,
+              'Ver Categorías',
+              '🏷️ Categoría de Gasto',
+              CATEGORIAS_GASTO
+            );
+          } 
+          // B. Selección de Categoría
+          else if (idSeleccionado.startsWith('CAT_')) {
+            const categoriaNombre = idSeleccionado.replace('CAT_', '');
+            facturaPendiente.categoria = categoriaNombre;
+            facturasPendientes.set(telefonoEmpleado, facturaPendiente);
+
+            const { data: metodos } = await supabase
+              .from('metodos_pago')
+              .select('id, nombre')
+              .eq('empresa_id', facturaPendiente.empresa_id);
+
+            if (metodos && metodos.length > 0) {
+              const filasMetodos = metodos.map((m) => ({
+                id: `MET_${m.id}`,
+                title: m.nombre.substring(0, 24),
+              }));
+
+              await enviarListaWhatsApp(
+                telefonoEmpleado,
+                `✅ Categoría seleccionada: *${categoriaNombre}*\n\nPor último, indica con qué método de pago realizaste este gasto:`,
+                'Ver Métodos',
+                '💳 Método de Pago',
+                filasMetodos
+              );
+            } else {
+              await enviarMensajeWhatsApp(
+                telefonoEmpleado,
+                '⚠️ No hay métodos de pago configurados en tu empresa. Continuemos...'
+              );
+            }
+          } 
+          // C. Selección de Método de Pago
+          else if (idSeleccionado.startsWith('MET_')) {
+            const metodoId = idSeleccionado.replace('MET_', '');
+            facturaPendiente.metodo_pago_id = metodoId;
+            facturaPendiente.metodo_pago_nombre = tituloSeleccionado;
+            facturasPendientes.set(telefonoEmpleado, facturaPendiente);
+
+            const mensajeResumen = 
+`📌 *Resumen del Gasto a Registrar:*
+
+🏢 *Comercio:* ${facturaPendiente.comercio || 'No detectado'}
+💵 *Monto:* ${facturaPendiente.monto_total || 0} ${facturaPendiente.moneda || ''}
+📅 *Fecha:* ${facturaPendiente.fecha || 'No detectada'}
+🛒 *Concepto:* ${facturaPendiente.concepto || 'Sin detalle'}
+📁 *Proyecto:* ${facturaPendiente.proyecto_nombre || 'No asignado'}
+🏷️ *Categoría:* ${facturaPendiente.categoria || 'Sin categoría'}
+💳 *Método de Pago:* ${facturaPendiente.metodo_pago_nombre || 'No asignado'}
+
+_¿Los datos son correctos?_
+Responde *SI* para guardar o envía un texto/audio si deseas corregir algo.`;
+
+            await enviarMensajeWhatsApp(telefonoEmpleado, mensajeResumen);
+          }
+        }
+      }
+
+      // 2. MANEJO DE MENSAJES DE TEXTO
+      else if (tipoMensaje === 'text' && message.text?.body) {
+        const texto = message.text.body.trim();
+        const facturaPendiente = facturasPendientes.get(telefonoEmpleado);
+
+        if (!facturaPendiente) {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            'ℹ️ No tienes ninguna factura pendiente de confirmación. Envía la foto o PDF de un recibo para comenzar.'
+          );
+        } else if (texto.toUpperCase() === 'SI' || texto.toUpperCase() === 'SÍ') {
+          console.log(`✅ Guardando gasto en Supabase para [${telefonoEmpleado}]:`, facturaPendiente);
+
+          // Si requirió revisión por duplicidad de datos, el estado inicial cambia
+          const estadoGasto = facturaPendiente.requiere_revision_duplicado 
+            ? 'REVISION_DUPLICADO' 
+            : 'PENDIENTE';
+
+          const { error } = await supabase.from('gastos').insert({
+            usuario_id: facturaPendiente.usuario_id || null,
+            empresa_id: facturaPendiente.empresa_id || null,
+            proyecto_id: facturaPendiente.proyecto_id || null,
+            metodo_pago_id: facturaPendiente.metodo_pago_id || null,
+            categoria: facturaPendiente.categoria || 'Otros',
+            monto: facturaPendiente.monto_total || 0,
+            moneda: facturaPendiente.moneda || 'USD',
+            comercio: facturaPendiente.comercio,
+            fecha_gasto: facturaPendiente.fecha || new Date().toISOString().split('T')[0],
+            concepto: facturaPendiente.concepto,
+            url_comprobante: facturaPendiente.url_comprobante || null,
+            hash_comprobante: facturaPendiente.hash_comprobante || null,
+            datos_ocr: facturaPendiente,
+            estado: estadoGasto,
+          });
+
+          if (error) {
+            console.error('❌ Error guardando en Supabase:', error);
+            await enviarMensajeWhatsApp(
+              telefonoEmpleado,
+              '❌ Ocurrió un error guardando el gasto en la base de datos. Inténtalo nuevamente.'
+            );
+            return NextResponse.json({ status: 'error_supabase' }, { status: 200 });
+          }
+
+          facturasPendientes.delete(telefonoEmpleado);
+
+          const notaEstado = facturaPendiente.requiere_revision_duplicado 
+            ? '\n\n⚠️ *Nota:* Guardado en estado *EN REVISIÓN* para validación del administrador por coincidencia de datos.'
+            : '';
+
+          const mensajeConfirmacionFinal = 
+`🎉 *¡Gasto registrado con éxito!*
+
+🏢 *Comercio:* ${facturaPendiente.comercio || 'No especificado'}
+💵 *Monto:* ${facturaPendiente.monto_total || 0} ${facturaPendiente.moneda || ''}
+📅 *Fecha:* ${facturaPendiente.fecha || 'No especificada'}
+🛒 *Concepto:* ${facturaPendiente.concepto || 'Sin detalle'}
+📁 *Proyecto:* ${facturaPendiente.proyecto_nombre || 'General'}
+🏷️ *Categoría:* ${facturaPendiente.categoria || 'Sin categoría'}
+💳 *Método:* ${facturaPendiente.metodo_pago_nombre || 'Efectivo'}${notaEstado}
+
+_Almacenado correctamente junto con su comprobante._`;
+
+          await enviarMensajeWhatsApp(telefonoEmpleado, mensajeConfirmacionFinal);
+        } else {
+          console.log(`✏️ Aplicando corrección por texto para [${telefonoEmpleado}]: "${texto}"`);
+          const datosActualizados = await aplicarCorreccionConIA(facturaPendiente, texto);
+
+          datosActualizados.proyecto_id = facturaPendiente.proyecto_id;
+          datosActualizados.proyecto_nombre = facturaPendiente.proyecto_nombre;
+          datosActualizados.categoria = facturaPendiente.categoria;
+          datosActualizados.metodo_pago_id = facturaPendiente.metodo_pago_id;
+          datosActualizados.metodo_pago_nombre = facturaPendiente.metodo_pago_nombre;
+          datosActualizados.empresa_id = facturaPendiente.empresa_id;
+          datosActualizados.usuario_id = facturaPendiente.usuario_id;
+          datosActualizados.url_comprobante = facturaPendiente.url_comprobante;
+          datosActualizados.hash_comprobante = facturaPendiente.hash_comprobante;
+          datosActualizados.requiere_revision_duplicado = facturaPendiente.requiere_revision_duplicado;
+
+          facturasPendientes.set(telefonoEmpleado, datosActualizados);
+
+          const mensajeActualizado = 
+`✏️ *¡Datos actualizados!*
+
+🏢 *Comercio:* ${datosActualizados.comercio || 'No detectado'}
+💵 *Monto:* ${datosActualizados.monto_total || 0} ${datosActualizados.moneda || ''}
+📅 *Fecha:* ${datosActualizados.fecha || 'No detectada'}
+🛒 *Concepto:* ${datosActualizados.concepto || 'Sin detalle'}
+📁 *Proyecto:* ${datosActualizados.proyecto_nombre || 'No asignado'}
+🏷️ *Categoría:* ${datosActualizados.categoria || 'Sin categoría'}
+💳 *Método:* ${datosActualizados.metodo_pago_nombre || 'No asignado'}
+
+_¿Los datos están correctos ahora?_
+Responde *SI* para guardar o indícame otra corrección.`;
+
+          await enviarMensajeWhatsApp(telefonoEmpleado, mensajeActualizado);
+        }
+      } 
+
+      // 3. MANEJO DE NOTAS DE VOZ
+      else if (tipoMensaje === 'audio' || tipoMensaje === 'voice') {
+        const facturaPendiente = facturasPendientes.get(telefonoEmpleado);
+
+        if (!facturaPendiente) {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            'ℹ️ No tienes ninguna factura pendiente para corregir. Envía primero una foto o PDF del recibo.'
+          );
+        } else {
+          const idAudio = message.audio?.id || message.voice?.id;
+          console.log(`🎙️ Procesando nota de voz de corrección para [${telefonoEmpleado}]...`);
+
+          const datosActualizados = await aplicarCorreccionAudioConIA(facturaPendiente, idAudio);
+
+          datosActualizados.proyecto_id = facturaPendiente.proyecto_id;
+          datosActualizados.proyecto_nombre = facturaPendiente.proyecto_nombre;
+          datosActualizados.categoria = facturaPendiente.categoria;
+          datosActualizados.metodo_pago_id = facturaPendiente.metodo_pago_id;
+          datosActualizados.metodo_pago_nombre = facturaPendiente.metodo_pago_nombre;
+          datosActualizados.empresa_id = facturaPendiente.empresa_id;
+          datosActualizados.usuario_id = facturaPendiente.usuario_id;
+          datosActualizados.url_comprobante = facturaPendiente.url_comprobante;
+          datosActualizados.hash_comprobante = facturaPendiente.hash_comprobante;
+          datosActualizados.requiere_revision_duplicado = facturaPendiente.requiere_revision_duplicado;
+
+          facturasPendientes.set(telefonoEmpleado, datosActualizados);
+
+          const mensajeActualizado = 
+`🎙️ *¡Datos actualizados por nota de voz!*
+
+🏢 *Comercio:* ${datosActualizados.comercio || 'No detectado'}
+💵 *Monto:* ${datosActualizados.monto_total || 0} ${datosActualizados.moneda || ''}
+📅 *Fecha:* ${datosActualizados.fecha || 'No detectada'}
+🛒 *Concepto:* ${datosActualizados.concepto || 'Sin detalle'}
+📁 *Proyecto:* ${datosActualizados.proyecto_nombre || 'No asignado'}
+🏷️ *Categoría:* ${datosActualizados.categoria || 'Sin categoría'}
+💳 *Método:* ${datosActualizados.metodo_pago_nombre || 'No asignado'}
+
+_¿Los datos están correctos ahora?_
+Responde *SI* para guardar o indícame otra corrección.`;
+
+          await enviarMensajeWhatsApp(telefonoEmpleado, mensajeActualizado);
+        }
+      }
+
+      // 4. MANEJO DE IMÁGENES (NUEVA FACTURA FÍSICA)
+      else if (tipoMensaje === 'image') {
+        const idImagen = message.image?.id;
+        console.log(`📸 Procesando factura e imagen de [${telefonoEmpleado}]...`);
+
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('id, empresa_id')
+          .eq('telefono_whatsapp', telefonoEmpleado)
+          .maybeSingle();
+
+        if (!usuario || !usuario.empresa_id) {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '⚠️ Tu número de teléfono no está registrado en ninguna empresa. Por favor, contacta a tu administrador.'
+          );
+          return NextResponse.json({ status: 'usuario_no_registrado' }, { status: 200 });
+        }
+
+        const [resultado, urlComprobante] = await Promise.all([
+          procesarFacturaConIA(idImagen),
+          guardarImagenEnSupabase(idImagen),
+        ]);
+
+        if (resultado === 'ERROR_SATURACION') {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '⏳ *Servicio de IA con alta demanda*\n\nNuestros servidores de lectura están experimentando una alta saturación temporal. Por favor, reintenta enviar la imagen en un par de minutos.'
+          );
+        } else if (resultado && typeof resultado === 'object') {
+          resultado.empresa_id = usuario.empresa_id;
+          resultado.usuario_id = usuario.id;
+          resultado.url_comprobante = urlComprobante;
+
+          // Generar HASH del archivo subido
+          let hashArchivo: string | null = null;
+          if (urlComprobante) {
+            try {
+              const resFile = await fetch(urlComprobante);
+              const arrayBuf = await resFile.arrayBuffer();
+              hashArchivo = calcularHashBuffer(Buffer.from(arrayBuf));
+              resultado.hash_comprobante = hashArchivo;
+            } catch (e) {
+              console.error('❌ Error calculando hash de la imagen:', e);
+            }
+          }
+
+          // VERIFICACIÓN DE DUPLICADOS EN 2 NIVELES
+          const validacion = await verificarGastoDuplicado(
+            usuario.empresa_id,
+            resultado.comercio,
+            resultado.monto_total,
+            resultado.fecha,
+            hashArchivo
+          );
+
+          // NIVEL 1: Si el archivo es exacto, CANCELAMOS EL FLUJO
+          if (validacion.esHashDuplicado) {
+            facturasPendientes.delete(telefonoEmpleado);
+            await enviarMensajeWhatsApp(
+              telefonoEmpleado,
+              validacion.mensajeBloqueo || '⛔ Esta foto ya fue subida anteriormente. Flujo cancelado por duplicado.'
+            );
+            return NextResponse.json({ status: 'duplicado_hash_bloqueado' }, { status: 200 });
+          }
+
+          // NIVEL 2: Si coinciden los datos, enviamos ALERTA y marcamos para REVISIÓN
+          if (validacion.esDatosCoincidentes) {
+            resultado.requiere_revision_duplicado = true;
+            await enviarMensajeWhatsApp(telefonoEmpleado, validacion.mensajeAlerta!);
+          }
+
+          facturasPendientes.set(telefonoEmpleado, resultado);
+
+          const { data: proyectos } = await supabase
+            .from('proyectos')
+            .select('id, nombre')
+            .eq('empresa_id', usuario.empresa_id)
+            .eq('activo', true);
+
+          if (proyectos && proyectos.length > 0) {
+            const filasProyectos = proyectos.map((p) => ({
+              id: `PROY_${p.id}`,
+              title: p.nombre.substring(0, 24),
+            }));
+
+            const mensajeFactura = 
+`📸 *¡Factura procesada!*
+
+🏢 *Comercio:* ${resultado.comercio || 'No detectado'}
+💵 *Monto:* ${resultado.monto_total || 0} ${resultado.moneda || ''}
+📅 *Fecha:* ${resultado.fecha || 'No detectada'}
+🛒 *Concepto:* ${resultado.concepto || 'Sin detalle'}
+
+👇 *Selecciona el proyecto al que pertenece este gasto:*`;
+
+            await enviarListaWhatsApp(
+              telefonoEmpleado,
+              mensajeFactura,
+              'Ver Proyectos',
+              '📁 Asignar Proyecto',
+              filasProyectos
+            );
+          } else {
+            await enviarMensajeWhatsApp(
+              telefonoEmpleado,
+              `📸 *¡Factura procesada!*\n\n🏢 *Comercio:* ${resultado.comercio}\n💵 *Monto:* ${resultado.monto_total} ${resultado.moneda}\n\nResponde *SI* para guardar.`
+            );
+          }
+        } else {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '❌ No pude leer la información del recibo claramente. Por favor envía una foto con mejor iluminación.'
+          );
+        }
+      }
+
+      // 5. MANEJO DE DOCUMENTOS PDF (FACTURAS DIGITALES)
+      else if (tipoMensaje === 'document') {
+        const mimeType = message.document?.mime_type;
+        const idDocumento = message.document?.id;
+
+        if (mimeType !== 'application/pdf') {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '⚠️ Por el momento solo aceptamos comprobantes digitales en formato PDF.'
+          );
+          return NextResponse.json({ status: 'formato_no_soportado' }, { status: 200 });
+        }
+
+        console.log(`📄 Procesando factura PDF de [${telefonoEmpleado}]...`);
+
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('id, empresa_id')
+          .eq('telefono_whatsapp', telefonoEmpleado)
+          .maybeSingle();
+
+        if (!usuario || !usuario.empresa_id) {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '⚠️ Tu número de teléfono no está registrado en ninguna empresa. Por favor, contacta a tu administrador.'
+          );
+          return NextResponse.json({ status: 'usuario_no_registrado' }, { status: 200 });
+        }
+
+        const [resultado, urlComprobante] = await Promise.all([
+          procesarFacturaPDFConIA(idDocumento),
+          guardarPDFEnSupabase(idDocumento),
+        ]);
+
+        if (resultado === 'ERROR_SATURACION') {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '⏳ *Servicio de IA con alta demanda*\n\nNuestros servidores de lectura están experimentando una alta saturación temporal. Por favor, reintenta enviar el PDF en un par de minutos.'
+          );
+        } else if (resultado && typeof resultado === 'object') {
+          resultado.empresa_id = usuario.empresa_id;
+          resultado.usuario_id = usuario.id;
+          resultado.url_comprobante = urlComprobante;
+
+          // Generar HASH del archivo PDF subido
+          let hashArchivo: string | null = null;
+          if (urlComprobante) {
+            try {
+              const resFile = await fetch(urlComprobante);
+              const arrayBuf = await resFile.arrayBuffer();
+              hashArchivo = calcularHashBuffer(Buffer.from(arrayBuf));
+              resultado.hash_comprobante = hashArchivo;
+            } catch (e) {
+              console.error('❌ Error calculando hash del PDF:', e);
+            }
+          }
+
+          // VERIFICACIÓN DE DUPLICADOS EN 2 NIVELES
+          const validacion = await verificarGastoDuplicado(
+            usuario.empresa_id,
+            resultado.comercio,
+            resultado.monto_total,
+            resultado.fecha,
+            hashArchivo
+          );
+
+          // NIVEL 1: Si el archivo es exacto, CANCELAMOS EL FLUJO
+          if (validacion.esHashDuplicado) {
+            facturasPendientes.delete(telefonoEmpleado);
+            await enviarMensajeWhatsApp(
+              telefonoEmpleado,
+              validacion.mensajeBloqueo || '⛔ Este documento PDF ya fue subido anteriormente. Flujo cancelado por duplicado.'
+            );
+            return NextResponse.json({ status: 'duplicado_hash_bloqueado' }, { status: 200 });
+          }
+
+          // NIVEL 2: Si coinciden los datos, enviamos ALERTA y marcamos para REVISIÓN
+          if (validacion.esDatosCoincidentes) {
+            resultado.requiere_revision_duplicado = true;
+            await enviarMensajeWhatsApp(telefonoEmpleado, validacion.mensajeAlerta!);
+          }
+
+          facturasPendientes.set(telefonoEmpleado, resultado);
+
+          const { data: proyectos } = await supabase
+            .from('proyectos')
+            .select('id, nombre')
+            .eq('empresa_id', usuario.empresa_id)
+            .eq('activo', true);
+
+          if (proyectos && proyectos.length > 0) {
+            const filasProyectos = proyectos.map((p) => ({
+              id: `PROY_${p.id}`,
+              title: p.nombre.substring(0, 24),
+            }));
+
+            const mensajeFactura = 
+`📄 *¡Documento PDF procesado!*
+
+🏢 *Comercio:* ${resultado.comercio || 'No detectado'}
+💵 *Monto:* ${resultado.monto_total || 0} ${resultado.moneda || ''}
+📅 *Fecha:* ${resultado.fecha || 'No detectada'}
+🛒 *Concepto:* ${resultado.concepto || 'Sin detalle'}
+
+👇 *Selecciona el proyecto al que pertenece este gasto:*`;
+
+            await enviarListaWhatsApp(
+              telefonoEmpleado,
+              mensajeFactura,
+              'Ver Proyectos',
+              '📁 Asignar Proyecto',
+              filasProyectos
+            );
+          } else {
+            await enviarMensajeWhatsApp(
+              telefonoEmpleado,
+              `📄 *¡PDF procesado!*\n\n🏢 *Comercio:* ${resultado.comercio}\n💵 *Monto:* ${resultado.monto_total} ${resultado.moneda}\n\nResponde *SI* para guardar.`
+            );
+          }
+        } else {
+          await enviarMensajeWhatsApp(
+            telefonoEmpleado,
+            '❌ No pude extraer la información del archivo PDF. Asegúrate de que sea una factura legible.'
+          );
+        }
+      }
+    }
+
+    return NextResponse.json({ status: 'ok' }, { status: 200 });
+  } catch (error) {
+    console.error('❌ Error en el webhook:', error);
+    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
+  }
+}
+</file>
+
+<file path="app/dashboard/configuracion/actions.ts">
+'use server';
+
+import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { revalidatePath } from 'next/cache';
+
+export async function crearProyecto(nombre: string) {
+  const { data, error } = await supabaseServer
+    .from('proyectos')
+    .insert({ empresa_id: EMPRESA_ID, nombre, activo: true })
+    .select()
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  revalidatePath('/dashboard/configuracion');
+  return { data, error: null };
+}
+
+export async function toggleProyecto(id: string, activo: boolean) {
+  const { error } = await supabaseServer
+    .from('proyectos')
+    .update({ activo })
+    .eq('id', id)
+    .eq('empresa_id', EMPRESA_ID);
+
+  if (error) return { error: error.message };
+  revalidatePath('/dashboard/configuracion');
+  return { error: null };
+}
+
+export async function eliminarProyecto(id: string) {
+  const { error } = await supabaseServer
+    .from('proyectos')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', EMPRESA_ID);
+
+  if (error) return { error: error.message };
+  revalidatePath('/dashboard/configuracion');
+  return { error: null };
+}
+
+export async function crearMetodoPago(nombre: string) {
+  const { data, error } = await supabaseServer
+    .from('metodos_pago')
+    .insert({ empresa_id: EMPRESA_ID, nombre })
+    .select()
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  revalidatePath('/dashboard/configuracion');
+  return { data, error: null };
+}
+
+export async function eliminarMetodoPago(id: string) {
+  const { error } = await supabaseServer
+    .from('metodos_pago')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', EMPRESA_ID);
+
+  if (error) return { error: error.message };
+  revalidatePath('/dashboard/configuracion');
+  return { error: null };
+}
+</file>
+
+<file path="app/dashboard/configuracion/configuracion-client.tsx">
+'use client';
+
+import { useState, useTransition } from 'react';
+import { Settings, Users, FolderKanban, CreditCard, Plus, Trash2, Edit3, Check, X } from 'lucide-react';
+import {
+  crearProyecto, toggleProyecto, eliminarProyecto,
+  crearMetodoPago, eliminarMetodoPago,
+} from './actions';
+
+type Empresa  = { id: string; nombre: string; moneda: string; creado_en: string };
+type Usuario  = { id: string; nombre: string; email: string | null; telefono_whatsapp: string; rol: string; creado_en: string };
+type Proyecto = { id: string; nombre: string; activo: boolean; creado_en: string };
+type Metodo   = { id: string; nombre: string; creado_en: string };
+
+function SectionHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+      <div>
+        <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>{title}</div>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{subtitle}</div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function RolBadge({ rol }: { rol: string }) {
+  return (
+    <span className={`badge ${rol === 'ADMIN' ? 'pagado' : 'aprobado'}`}>
+      <span className="badge-dot" />
+      {rol === 'ADMIN' ? 'Admin' : 'Empleado'}
+    </span>
+  );
+}
+
+export default function ConfiguracionClient({ empresa, usuarios, proyectos: initProyectos, metodos: initMetodos }: {
+  empresa: Empresa | null;
+  usuarios: Usuario[];
+  proyectos: Proyecto[];
+  metodos: Metodo[];
+}) {
+  const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos'>('usuarios');
+  const [proyectos, setProyectos] = useState(initProyectos);
+  const [metodos, setMetodos] = useState(initMetodos);
+  const [newProyecto, setNewProyecto] = useState('');
+  const [newMetodo, setNewMetodo] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  function toast(msg: string) {
+    setFeedback(msg);
+    setTimeout(() => setFeedback(null), 3000);
+  }
+
+  const TABS = [
+    { id: 'usuarios' as const,  label: 'Usuarios',        icon: Users,        count: usuarios.length },
+    { id: 'proyectos' as const, label: 'Proyectos',       icon: FolderKanban, count: proyectos.length },
+    { id: 'metodos' as const,   label: 'Métodos de Pago', icon: CreditCard,   count: metodos.length },
+  ];
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title"><Settings size={24} strokeWidth={2} />Gestión de Organización</h1>
+        <p className="page-subtitle">
+          Administra usuarios, proyectos y métodos de pago. Los cambios se reflejan en tiempo real en los desplegables de WhatsApp.
+        </p>
+      </div>
+
+      {feedback && (
+        <div style={{ position: 'fixed', top: '20px', right: '24px', zIndex: 200, background: feedback.startsWith('❌') ? 'var(--rendy-danger)' : 'var(--rendy-accent)', color: 'white', padding: '12px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+          {feedback}
+        </div>
+      )}
+
+      {/* Org Card */}
+      {empresa && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '52px', height: '52px', borderRadius: '14px', flexShrink: 0, background: 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: 'white' }}>
+              {empresa.nombre.charAt(0).toUpperCase()}{empresa.nombre.split(' ')[1]?.charAt(0).toUpperCase() ?? ''}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{empresa.nombre}</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                ID: <span style={{ fontFamily: 'monospace', color: 'var(--text-accent)' }}>{empresa.id.slice(0, 18)}…</span>
+                {' · '}Moneda base: <span style={{ color: 'var(--rendy-accent)', fontWeight: 600 }}>{empresa.moneda}</span>
+                {' · '}Activo desde {new Date(empresa.creado_en).toLocaleDateString('es-VE')}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--bg-surface)', padding: '6px', borderRadius: '10px', border: '1px solid var(--bg-border)', width: 'fit-content' }}>
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              id={`config-tab-${tab.id}`}
+              onClick={() => setActiveTab(tab.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, transition: 'all 150ms ease', background: activeTab === tab.id ? 'rgba(99,102,241,0.2)' : 'transparent', color: activeTab === tab.id ? 'var(--rendy-primary-light)' : 'var(--text-muted)' }}
+            >
+              <Icon size={15} />
+              {tab.label}
+              <span style={{ background: activeTab === tab.id ? 'var(--rendy-primary)' : 'var(--bg-elevated)', color: activeTab === tab.id ? 'white' : 'var(--text-muted)', fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '10px' }}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Usuarios ── */}
+      {activeTab === 'usuarios' && (
+        <div className="card">
+          <div style={{ padding: '20px 24px 0' }}>
+            <SectionHeader
+              title="Usuarios de la Organización"
+              subtitle="Los empleados con WhatsApp registrado pueden enviar recibos vía chat."
+              action={<button id="config-add-usuario-btn" className="btn btn-primary btn-sm"><Plus size={13} /> Agregar Usuario</button>}
+            />
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            {usuarios.length === 0 ? (
+              <div className="empty-state" style={{ padding: '40px' }}>
+                <div className="empty-state-title">Sin usuarios registrados</div>
+              </div>
+            ) : (
+              <table className="rendy-table" aria-label="Usuarios de la organización">
+                <thead>
+                  <tr><th>Nombre</th><th>Email</th><th>WhatsApp</th><th>Rol</th><th>Alta</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                  {usuarios.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: u.rol === 'ADMIN' ? 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))' : 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'white' }}>
+                            {u.nombre.charAt(0)}
+                          </div>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.nombre}</span>
+                        </div>
+                      </td>
+                      <td>{u.email ?? '—'}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{u.telefono_whatsapp}</td>
+                      <td><RolBadge rol={u.rol} /></td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{new Date(u.creado_en).toLocaleDateString('es-VE')}</td>
+                      <td>
+                        <button id={`usuario-edit-${u.id}`} className="btn btn-ghost btn-sm" aria-label={`Editar ${u.nombre}`}><Edit3 size={12} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Proyectos ── */}
+      {activeTab === 'proyectos' && (
+        <div className="card">
+          <div style={{ padding: '20px 24px 0' }}>
+            <SectionHeader
+              title="Proyectos"
+              subtitle="Los proyectos activos aparecen en los desplegables de WhatsApp en tiempo real."
+              action={
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    id="config-new-proyecto-input"
+                    value={newProyecto}
+                    onChange={(e) => setNewProyecto(e.target.value)}
+                    placeholder="Nombre del proyecto…"
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: '7px', padding: '6px 12px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', width: '200px' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newProyecto.trim()) {
+                        startTransition(async () => {
+                          const res = await crearProyecto(newProyecto.trim());
+                          if (res.data) { setProyectos((ps) => [...ps, res.data!]); setNewProyecto(''); toast('✅ Proyecto creado'); }
+                          else toast(`❌ ${res.error}`);
+                        });
+                      }
+                    }}
+                  />
+                  <button
+                    id="config-add-proyecto-btn"
+                    className="btn btn-primary btn-sm"
+                    disabled={isPending}
+                    onClick={() => {
+                      if (!newProyecto.trim()) return;
+                      startTransition(async () => {
+                        const res = await crearProyecto(newProyecto.trim());
+                        if (res.data) { setProyectos((ps) => [...ps, res.data!]); setNewProyecto(''); toast('✅ Proyecto creado'); }
+                        else toast(`❌ ${res.error}`);
+                      });
+                    }}
+                  >
+                    <Plus size={13} /> Crear
+                  </button>
+                </div>
+              }
+            />
+          </div>
+          <div style={{ padding: '0 24px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px' }}>
+            {proyectos.map((p) => (
+              <div key={p.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: p.activo ? 'var(--rendy-accent)' : 'var(--text-muted)', boxShadow: p.activo ? '0 0 8px var(--rendy-accent)' : 'none' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{p.nombre}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    id={`proyecto-toggle-${p.id}`}
+                    className="btn btn-ghost btn-sm"
+                    disabled={isPending}
+                    title={p.activo ? 'Desactivar' : 'Activar'}
+                    aria-label={p.activo ? `Desactivar ${p.nombre}` : `Activar ${p.nombre}`}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const res = await toggleProyecto(p.id, !p.activo);
+                        if (!res.error) setProyectos((ps) => ps.map((x) => x.id === p.id ? { ...x, activo: !x.activo } : x));
+                        else toast(`❌ ${res.error}`);
+                      });
+                    }}
+                  >
+                    {p.activo ? <X size={12} /> : <Check size={12} />}
+                  </button>
+                  <button
+                    id={`proyecto-delete-${p.id}`}
+                    className="btn btn-danger btn-sm"
+                    disabled={isPending}
+                    aria-label={`Eliminar ${p.nombre}`}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const res = await eliminarProyecto(p.id);
+                        if (!res.error) { setProyectos((ps) => ps.filter((x) => x.id !== p.id)); toast('✅ Proyecto eliminado'); }
+                        else toast(`❌ ${res.error}`);
+                      });
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Métodos de Pago ── */}
+      {activeTab === 'metodos' && (
+        <div className="card">
+          <div style={{ padding: '20px 24px 0' }}>
+            <SectionHeader
+              title="Métodos de Pago"
+              subtitle="Los métodos configurados aquí aparecen en los desplegables de WhatsApp al registrar un gasto."
+              action={
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    id="config-new-metodo-input"
+                    value={newMetodo}
+                    onChange={(e) => setNewMetodo(e.target.value)}
+                    placeholder="Ej: American Express…"
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: '7px', padding: '6px 12px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', width: '200px' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newMetodo.trim()) {
+                        startTransition(async () => {
+                          const res = await crearMetodoPago(newMetodo.trim());
+                          if (res.data) { setMetodos((ms) => [...ms, res.data!]); setNewMetodo(''); toast('✅ Método creado'); }
+                          else toast(`❌ ${res.error}`);
+                        });
+                      }
+                    }}
+                  />
+                  <button
+                    id="config-add-metodo-btn"
+                    className="btn btn-primary btn-sm"
+                    disabled={isPending}
+                    onClick={() => {
+                      if (!newMetodo.trim()) return;
+                      startTransition(async () => {
+                        const res = await crearMetodoPago(newMetodo.trim());
+                        if (res.data) { setMetodos((ms) => [...ms, res.data!]); setNewMetodo(''); toast('✅ Método creado'); }
+                        else toast(`❌ ${res.error}`);
+                      });
+                    }}
+                  >
+                    <Plus size={13} /> Agregar
+                  </button>
+                </div>
+              }
+            />
+          </div>
+          <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {metodos.map((m) => (
+              <div key={m.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <CreditCard size={15} style={{ color: 'var(--text-accent)' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{m.nombre}</span>
+                </div>
+                <button
+                  id={`metodo-delete-${m.id}`}
+                  className="btn btn-danger btn-sm"
+                  disabled={isPending}
+                  aria-label={`Eliminar ${m.nombre}`}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const res = await eliminarMetodoPago(m.id);
+                      if (!res.error) { setMetodos((ms) => ms.filter((x) => x.id !== m.id)); toast('✅ Método eliminado'); }
+                      else toast(`❌ ${res.error}`);
+                    });
+                  }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+</file>
+
+<file path="app/dashboard/configuracion/page.tsx">
+import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import ConfiguracionClient from './configuracion-client';
+
+async function getConfigData() {
+  const [{ data: empresa }, { data: usuarios }, { data: proyectos }, { data: metodos }] = await Promise.all([
+    supabaseServer.from('empresas').select('*').eq('id', EMPRESA_ID).single(),
+    supabaseServer.from('usuarios').select('*').eq('empresa_id', EMPRESA_ID).order('creado_en'),
+    supabaseServer.from('proyectos').select('*').eq('empresa_id', EMPRESA_ID).order('creado_en'),
+    supabaseServer.from('metodos_pago').select('*').eq('empresa_id', EMPRESA_ID).order('creado_en'),
+  ]);
+
+  return { empresa, usuarios: usuarios ?? [], proyectos: proyectos ?? [], metodos: metodos ?? [] };
+}
+
+export default async function ConfiguracionPage() {
+  const data = await getConfigData();
+  return <ConfiguracionClient {...data} />;
+}
+</file>
+
+<file path="app/dashboard/justificacion/page.tsx">
+import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { ClipboardCheck, AlertTriangle } from 'lucide-react';
+
+async function getJustificacionData() {
+  // Solicitudes aprobadas con sus gastos asociados
+  const { data: solicitudes } = await supabaseServer
+    .from('solicitudes_viaticos')
+    .select('id, usuario_id, proyecto_id, monto_aprobado, monto_solicitado, estado, creado_en')
+    .eq('empresa_id', EMPRESA_ID)
+    .eq('estado', 'APROBADO')
+    .order('creado_en', { ascending: false });
+
+  const { data: gastos } = await supabaseServer
+    .from('gastos')
+    .select('solicitud_id, monto')
+    .eq('empresa_id', EMPRESA_ID)
+    .not('solicitud_id', 'is', null);
+
+  const { data: usuarios } = await supabaseServer
+    .from('usuarios')
+    .select('id, nombre')
+    .eq('empresa_id', EMPRESA_ID);
+
+  const { data: proyectos } = await supabaseServer
+    .from('proyectos')
+    .select('id, nombre')
+    .eq('empresa_id', EMPRESA_ID);
+
+  const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
+  const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
+
+  // Suma gastos por solicitud
+  const gastosBySol: Record<string, number> = {};
+  const countBySol: Record<string, number> = {};
+  for (const g of gastos ?? []) {
+    if (!g.solicitud_id) continue;
+    gastosBySol[g.solicitud_id] = (gastosBySol[g.solicitud_id] ?? 0) + (g.monto ?? 0);
+    countBySol[g.solicitud_id] = (countBySol[g.solicitud_id] ?? 0) + 1;
+  }
+
+  return (solicitudes ?? []).map((s) => ({
+    id: s.id,
+    empleado: usuMap[s.usuario_id] ?? 'Usuario',
+    proyecto: s.proyecto_id ? (proyMap[s.proyecto_id] ?? 'Sin proyecto') : 'Sin proyecto',
+    monto_otorgado: s.monto_aprobado ?? s.monto_solicitado ?? 0,
+    monto_gastado: gastosBySol[s.id] ?? 0,
+    gastos_count: countBySol[s.id] ?? 0,
+    fecha_aprobacion: new Date(s.creado_en).toLocaleDateString('es-VE'),
+  }));
+}
+
+function JustificacionCard({ item }: { item: Awaited<ReturnType<typeof getJustificacionData>>[0] }) {
+  const pct = item.monto_otorgado > 0
+    ? Math.min(Math.round((item.monto_gastado / item.monto_otorgado) * 100), 100)
+    : 0;
+  const restante = item.monto_otorgado - item.monto_gastado;
+  const isCompleto = pct >= 100;
+  const isAlerta = pct < 40 && item.gastos_count === 0;
+
+  let barClass = '';
+  if (isCompleto) barClass = 'accent';
+  else if (isAlerta) barClass = 'warning';
+
+  return (
+    <div className="card" id={`justificacion-${item.id}`}>
+      <div style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, color: 'white' }}>
+              {item.empleado.charAt(0)}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{item.empleado}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{item.proyecto}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isAlerta && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--rendy-warning)', fontSize: '12px' }}>
+                <AlertTriangle size={13} /> Sin justificar
+              </span>
+            )}
+            <span style={{ fontFamily: 'monospace', fontSize: '10px', color: 'var(--text-muted)' }}>
+              {item.id.slice(0, 8)}…
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+          {[
+            { label: 'Monto Otorgado', value: `$${item.monto_otorgado.toLocaleString('es-VE')}`, color: 'var(--text-primary)' },
+            { label: 'Justificado (WhatsApp)', value: `$${item.monto_gastado.toLocaleString('es-VE')}`, color: 'var(--rendy-accent)' },
+            { label: 'Restante', value: `$${restante.toLocaleString('es-VE')}`, color: restante > 0 ? 'var(--rendy-warning)' : 'var(--rendy-accent)' },
+          ].map((m) => (
+            <div key={m.label} style={{ background: 'var(--bg-elevated)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--bg-border)' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{m.label}</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: m.color }}>{m.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              {item.gastos_count} comprobante{item.gastos_count !== 1 ? 's' : ''} vía WhatsApp
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: isCompleto ? 'var(--rendy-accent)' : isAlerta ? 'var(--rendy-warning)' : 'var(--text-primary)' }}>
+              {pct}% justificado
+            </span>
+          </div>
+          <div className="progress-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${item.empleado}: ${pct}% justificado`}>
+            <div className={`progress-fill ${barClass}`} style={{ width: `${pct}%` }} />
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+            Aprobado el {item.fecha_aprobacion}
+            {isCompleto && <span style={{ color: 'var(--rendy-accent)', marginLeft: '8px', fontWeight: 600 }}>✓ Completo</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default async function JustificacionPage() {
+  const items = await getJustificacionData();
+
+  const completados = items.filter((j) => j.monto_gastado >= j.monto_otorgado).length;
+  const alertas = items.filter((j) => j.gastos_count === 0).length;
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title"><ClipboardCheck size={24} strokeWidth={2} />Progreso de Justificación</h1>
+        <p className="page-subtitle">
+          Monitoreo en tiempo real del avance de justificación. Los comprobantes se registran automáticamente vía WhatsApp.
+        </p>
+      </div>
+
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
+        <div className="kpi-card">
+          <div className="kpi-card-label">Viáticos Aprobados Activos</div>
+          <div className="kpi-card-value">{items.length}</div>
+          <div className="kpi-card-delta up">En seguimiento</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-card-label">Completamente Justificados</div>
+          <div className="kpi-card-value" style={{ color: 'var(--rendy-accent)' }}>{completados}</div>
+          <div className="kpi-card-delta up">100% comprobado</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-card-label">Sin Comprobantes (alerta)</div>
+          <div className="kpi-card-value" style={{ color: 'var(--rendy-warning)' }}>{alertas}</div>
+          <div className="kpi-card-delta down">Requieren atención</div>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon"><ClipboardCheck size={22} /></div>
+            <div className="empty-state-title">Sin viáticos aprobados</div>
+            <div className="empty-state-desc">Los viáticos aprobados con gastos registrados via WhatsApp aparecerán aquí.</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))', gap: '16px' }}>
+          {items.map((j) => <JustificacionCard key={j.id} item={j} />)}
+        </div>
+      )}
+    </>
+  );
+}
+</file>
+
+<file path="app/dashboard/reembolsos/actions.ts">
+'use server';
+
+import { supabaseServer } from '@/lib/supabase-server';
+import { revalidatePath } from 'next/cache';
+
+export async function actualizarEstadoReembolso(id: string, estado: 'APROBADO' | 'RECHAZADO') {
+  const { error } = await supabaseServer
+    .from('gastos')
+    .update({ estado })
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/dashboard/reembolsos');
+  revalidatePath('/dashboard');
+  return { error: null };
+}
+</file>
+
+<file path="app/dashboard/reembolsos/page.tsx">
+import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import ReembolsosClient from './reembolsos-client';
+
+async function getReembolsosData() {
+  // Gastos sin solicitud_id = gastos propios del empleado que requieren reembolso
+  const [{ data: gastos }, { data: usuarios }, { data: proyectos }, { data: metodos }] = await Promise.all([
+    supabaseServer
+      .from('gastos')
+      .select('*')
+      .eq('empresa_id', EMPRESA_ID)
+      .is('solicitud_id', null)
+      .order('creado_en', { ascending: false }),
+    supabaseServer.from('usuarios').select('id, nombre').eq('empresa_id', EMPRESA_ID),
+    supabaseServer.from('proyectos').select('id, nombre').eq('empresa_id', EMPRESA_ID),
+    supabaseServer.from('metodos_pago').select('id, nombre').eq('empresa_id', EMPRESA_ID),
+  ]);
+
+  const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
+  const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
+  const metMap = Object.fromEntries((metodos ?? []).map((m) => [m.id, m.nombre]));
+
+  return (gastos ?? []).map((g) => ({
+    id: g.id,
+    empleado: g.usuario_id ? (usuMap[g.usuario_id] ?? 'Usuario') : 'Sin asignar',
+    categoria: g.categoria,
+    comercio: g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—',
+    monto: g.monto,
+    moneda: g.moneda ?? (g.datos_ocr as any)?.moneda ?? 'USD',
+    fecha_gasto: g.fecha_gasto,
+    proyecto: g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—',
+    metodo_pago: g.metodo_pago_id ? (metMap[g.metodo_pago_id] ?? '—') : (g.datos_ocr as any)?.metodo_pago_nombre ?? '—',
+    estado: g.estado,
+    url_comprobante: g.url_comprobante ?? null,
+    concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
+  }));
+}
+
+export type Reembolso = Awaited<ReturnType<typeof getReembolsosData>>[0];
+
+export default async function ReembolsosPage() {
+  const reembolsos = await getReembolsosData();
+  return <ReembolsosClient reembolsos={reembolsos} />;
+}
+</file>
+
+<file path="app/dashboard/reembolsos/reembolsos-client.tsx">
+'use client';
+
+import { useState, useTransition } from 'react';
+import { RotateCcw, Search, Receipt, ExternalLink } from 'lucide-react';
+import type { Reembolso } from './page';
+import { actualizarEstadoReembolso } from './actions';
+
+const ESTADO_CONFIG: Record<string, { label: string; badgeClass: string; next: string; nextLabel: string }> = {
+  PENDIENTE: { label: 'Pendiente',  badgeClass: 'pendiente', next: 'APROBADO',  nextLabel: 'Marcar Procesado' },
+  APROBADO:  { label: 'Procesado', badgeClass: 'amber',     next: 'RECHAZADO', nextLabel: 'Marcar Pagado' },
+  RECHAZADO: { label: 'Pagado',    badgeClass: 'pagado',    next: '',           nextLabel: '' },
+};
+
+function StatusBadge({ estado }: { estado: string }) {
+  const cfg = ESTADO_CONFIG[estado] ?? { label: estado, badgeClass: 'pendiente' };
+  return (
+    <span className={`badge ${cfg.badgeClass}`}>
+      <span className="badge-dot" />
+      {cfg.label}
+    </span>
+  );
+}
+
+export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso[] }) {
+  const [search, setSearch] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('TODOS');
+  const [isPending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const filtered = reembolsos.filter((r) => {
+    const matchSearch =
+      r.empleado.toLowerCase().includes(search.toLowerCase()) ||
+      r.comercio.toLowerCase().includes(search.toLowerCase()) ||
+      r.id.toLowerCase().includes(search.toLowerCase());
+    const matchEstado = filtroEstado === 'TODOS' || r.estado === filtroEstado;
+    return matchSearch && matchEstado;
+  });
+
+  const totalPendiente = reembolsos.filter((r) => r.estado === 'PENDIENTE').reduce((s, r) => s + r.monto, 0);
+  const totalProcesado = reembolsos.filter((r) => r.estado === 'APROBADO').reduce((s, r) => s + r.monto, 0);
+  const totalPagado = reembolsos.filter((r) => r.estado === 'RECHAZADO').reduce((s, r) => s + r.monto, 0);
+
+  function handleCambioEstado(id: string, nextEstado: string) {
+    startTransition(async () => {
+      const res = await actualizarEstadoReembolso(id, nextEstado as any);
+      setFeedback(res.error ? `❌ ${res.error}` : '✅ Estado actualizado');
+      setTimeout(() => setFeedback(null), 3000);
+    });
+  }
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title"><RotateCcw size={24} strokeWidth={2} />Gestión de Reembolsos</h1>
+        <p className="page-subtitle">Gastos con fondos propios registrados vía WhatsApp que requieren reembolso al empleado.</p>
+      </div>
+
+      {feedback && (
+        <div style={{ position: 'fixed', top: '20px', right: '24px', zIndex: 200, background: feedback.startsWith('✅') ? 'var(--rendy-accent)' : 'var(--rendy-danger)', color: 'white', padding: '12px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+          {feedback}
+        </div>
+      )}
+
+      {/* KPI Summary */}
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
+        <div className="kpi-card">
+          <div className="kpi-card-label">Pendiente de Pago</div>
+          <div className="kpi-card-value" style={{ color: 'var(--rendy-warning)' }}>${totalPendiente.toLocaleString('es-VE')}</div>
+          <div className="kpi-card-delta down">{reembolsos.filter((r) => r.estado === 'PENDIENTE').length} gastos</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-card-label">En Proceso</div>
+          <div className="kpi-card-value">${totalProcesado.toLocaleString('es-VE')}</div>
+          <div className="kpi-card-delta up">Transferencia iniciada</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-card-label">Pagados</div>
+          <div className="kpi-card-value" style={{ color: 'var(--rendy-accent)' }}>${totalPagado.toLocaleString('es-VE')}</div>
+          <div className="kpi-card-delta up">Completados</div>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input
+            id="reembolsos-search"
+            type="search"
+            placeholder="Buscar por empleado, comercio o ID…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: '8px', padding: '9px 12px 9px 36px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}
+          />
+        </div>
+        {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((e) => (
+          <button
+            key={e}
+            id={`filter-reembolsos-${e.toLowerCase()}`}
+            onClick={() => setFiltroEstado(e)}
+            className="btn btn-ghost btn-sm"
+            style={filtroEstado === e ? { background: 'rgba(99,102,241,0.18)', color: 'var(--rendy-primary-light)', borderColor: 'rgba(99,102,241,0.4)' } : {}}
+          >
+            {e === 'TODOS' ? 'Todos' : e === 'APROBADO' ? 'Procesado' : e === 'RECHAZADO' ? 'Pagado' : 'Pendiente'}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="card">
+        {reembolsos.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><RotateCcw size={22} /></div>
+            <div className="empty-state-title">Sin gastos para reembolsar</div>
+            <div className="empty-state-desc">Los gastos propios enviados por WhatsApp sin viático asignado aparecerán aquí.</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rendy-table" aria-label="Listado de reembolsos">
+              <thead>
+                <tr>
+                  <th>Empleado</th>
+                  <th>Categoría</th>
+                  <th>Comercio</th>
+                  <th>Monto</th>
+                  <th>Fecha</th>
+                  <th>Método de Pago</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>Sin resultados.</td>
+                  </tr>
+                ) : filtered.map((r) => {
+                  const cfg = ESTADO_CONFIG[r.estado];
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                            {r.empleado.charAt(0)}
+                          </div>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.empleado}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
+                          {r.categoria}
+                        </span>
+                      </td>
+                      <td title={r.concepto ?? undefined}>{r.comercio}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {r.monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {r.moneda}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{r.fecha_gasto}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{r.metodo_pago}</td>
+                      <td><StatusBadge estado={r.estado} /></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          {cfg?.next && (
+                            <button
+                              id={`reembolso-avanzar-${r.id}`}
+                              className="btn btn-ghost btn-sm"
+                              disabled={isPending}
+                              onClick={() => handleCambioEstado(r.id, cfg.next)}
+                              title={cfg.nextLabel}
+                              aria-label={cfg.nextLabel}
+                            >
+                              {cfg.nextLabel}
+                            </button>
+                          )}
+                          {r.url_comprobante && (
+                            <a
+                              href={r.url_comprobante}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              id={`comprobante-${r.id}`}
+                              className="btn btn-ghost btn-sm"
+                              aria-label="Ver comprobante"
+                            >
+                              <Receipt size={13} />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="app/dashboard/solicitudes/actions.ts">
+'use server';
+
+import { supabaseServer } from '@/lib/supabase-server';
+import { revalidatePath } from 'next/cache';
+
+export async function aprobarSolicitud(id: string) {
+  // Fetch monto para igualarlo como monto_aprobado
+  const { data: sol, error: fetchErr } = await supabaseServer
+    .from('solicitudes_viaticos')
+    .select('monto_solicitado')
+    .eq('id', id)
+    .single();
+
+  if (fetchErr || !sol) return { error: 'No se pudo encontrar la solicitud' };
+
+  const { error } = await supabaseServer
+    .from('solicitudes_viaticos')
+    .update({ estado: 'APROBADO', monto_aprobado: sol.monto_solicitado })
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/dashboard/solicitudes');
+  revalidatePath('/dashboard');
+  return { error: null };
+}
+
+export async function rechazarSolicitud(id: string, motivo: string) {
+  const { error } = await supabaseServer
+    .from('solicitudes_viaticos')
+    .update({ estado: 'RECHAZADO', motivo_rechazo: motivo || null })
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/dashboard/solicitudes');
+  revalidatePath('/dashboard');
+  return { error: null };
+}
+</file>
+
+<file path="app/dashboard/solicitudes/page.tsx">
+import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import SolicitudesClient from './solicitudes-client';
+
+async function getSolicitudesData() {
+  const [{ data: solicitudes }, { data: usuarios }, { data: proyectos }] = await Promise.all([
+    supabaseServer
+      .from('solicitudes_viaticos')
+      .select('*')
+      .eq('empresa_id', EMPRESA_ID)
+      .order('creado_en', { ascending: false }),
+    supabaseServer
+      .from('usuarios')
+      .select('id, nombre, email')
+      .eq('empresa_id', EMPRESA_ID),
+    supabaseServer
+      .from('proyectos')
+      .select('id, nombre')
+      .eq('empresa_id', EMPRESA_ID),
+  ]);
+
+  const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
+  const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
+
+  return {
+    solicitudes: (solicitudes ?? []).map((s) => ({
+      ...s,
+      empleado: usuMap[s.usuario_id] ?? 'Usuario desconocido',
+      proyecto: s.proyecto_id ? (proyMap[s.proyecto_id] ?? 'Sin proyecto') : 'Sin proyecto',
+    })),
+  };
+}
+
+export default async function SolicitudesPage() {
+  const { solicitudes } = await getSolicitudesData();
+  return <SolicitudesClient solicitudes={solicitudes} />;
+}
+</file>
+
+<file path="app/dashboard/solicitudes/solicitudes-client.tsx">
+'use client';
+
+import { useState, useTransition } from 'react';
+import { Check, X, Search, Wallet, ArrowUpRight } from 'lucide-react';
+import { aprobarSolicitud, rechazarSolicitud } from './actions';
+
+type Solicitud = {
+  id: string;
+  empleado: string;
+  proyecto: string;
+  monto_solicitado: number;
+  monto_aprobado: number | null;
+  estado: string;
+  creado_en: string;
+  motivo_rechazo: string | null;
+};
+
+function StatusBadge({ estado }: { estado: string }) {
+  const cls = estado === 'APROBADO' ? 'aprobado' : estado === 'RECHAZADO' ? 'rechazado' : 'pendiente';
+  const label = { APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', PENDIENTE: 'Pendiente' }[estado] ?? estado;
+  return (
+    <span className={`badge ${cls}`}>
+      <span className="badge-dot" />
+      {label}
+    </span>
+  );
+}
+
+export default function SolicitudesClient({ solicitudes }: { solicitudes: Solicitud[] }) {
+  const [search, setSearch] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('TODOS');
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const filtered = solicitudes.filter((s) => {
+    const matchSearch =
+      s.empleado.toLowerCase().includes(search.toLowerCase()) ||
+      s.proyecto.toLowerCase().includes(search.toLowerCase()) ||
+      s.id.toLowerCase().includes(search.toLowerCase());
+    const matchEstado = filtroEstado === 'TODOS' || s.estado === filtroEstado;
+    return matchSearch && matchEstado;
+  });
+
+  const pendingCount = solicitudes.filter((s) => s.estado === 'PENDIENTE').length;
+
+  function handleAprobar(id: string) {
+    startTransition(async () => {
+      const res = await aprobarSolicitud(id);
+      setFeedback({ msg: res.error ?? '✅ Solicitud aprobada correctamente', ok: !res.error });
+      setTimeout(() => setFeedback(null), 3500);
+    });
+  }
+
+  function handleRechazar() {
+    if (!rejectTarget) return;
+    startTransition(async () => {
+      const res = await rechazarSolicitud(rejectTarget, rejectReason);
+      setRejectTarget(null);
+      setRejectReason('');
+      setFeedback({ msg: res.error ?? '✅ Solicitud rechazada', ok: !res.error });
+      setTimeout(() => setFeedback(null), 3500);
+    });
+  }
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title">
+          <Wallet size={24} strokeWidth={2} />
+          Solicitudes de Viáticos
+          {pendingCount > 0 && (
+            <span style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--rendy-warning)', fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px' }}>
+              {pendingCount} pendiente{pendingCount > 1 ? 's' : ''}
+            </span>
+          )}
+        </h1>
+        <p className="page-subtitle">Revisa, aprueba o rechaza las solicitudes de fondos de tu equipo.</p>
+      </div>
+
+      {/* Feedback toast */}
+      {feedback && (
+        <div style={{
+          position: 'fixed', top: '20px', right: '24px', zIndex: 200,
+          background: feedback.ok ? 'var(--rendy-accent)' : 'var(--rendy-danger)',
+          color: 'white', padding: '12px 20px', borderRadius: '10px',
+          fontSize: '13px', fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        }}>
+          {feedback.msg}
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input
+            id="solicitudes-search"
+            type="search"
+            placeholder="Buscar por empleado, proyecto o ID…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: '8px', padding: '9px 12px 9px 36px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}
+          />
+        </div>
+        {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((e) => (
+          <button
+            key={e}
+            id={`filter-solicitudes-${e.toLowerCase()}`}
+            onClick={() => setFiltroEstado(e)}
+            className="btn btn-ghost btn-sm"
+            style={filtroEstado === e ? { background: 'rgba(99,102,241,0.18)', color: 'var(--rendy-primary-light)', borderColor: 'rgba(99,102,241,0.4)' } : {}}
+          >
+            {e === 'TODOS' ? 'Todos' : e.charAt(0) + e.slice(1).toLowerCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="card">
+        {solicitudes.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><Wallet size={22} /></div>
+            <div className="empty-state-title">Sin solicitudes registradas</div>
+            <div className="empty-state-desc">Cuando un empleado solicite viáticos, aparecerá aquí.</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rendy-table" aria-label="Solicitudes de viáticos">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Empleado</th>
+                  <th>Proyecto</th>
+                  <th>Monto Solicitado</th>
+                  <th>Monto Aprobado</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                      Sin resultados para tu búsqueda.
+                    </td>
+                  </tr>
+                ) : filtered.map((sol) => (
+                  <tr key={sol.id}>
+                    <td><span style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-accent)' }}>{sol.id.slice(0, 8)}…</span></td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                          {sol.empleado.charAt(0)}
+                        </div>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{sol.empleado}</span>
+                      </div>
+                    </td>
+                    <td>{sol.proyecto}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>${sol.monto_solicitado.toLocaleString('es-VE')}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--rendy-accent)' }}>
+                      {sol.monto_aprobado != null ? `$${sol.monto_aprobado.toLocaleString('es-VE')}` : '—'}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{new Date(sol.creado_en).toLocaleDateString('es-VE')}</td>
+                    <td><StatusBadge estado={sol.estado} /></td>
+                    <td>
+                      {sol.estado === 'PENDIENTE' ? (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            id={`aprobar-${sol.id}`}
+                            className="btn btn-success btn-sm"
+                            disabled={isPending}
+                            onClick={() => handleAprobar(sol.id)}
+                            aria-label={`Aprobar solicitud ${sol.id}`}
+                          >
+                            <Check size={13} /> Aprobar
+                          </button>
+                          <button
+                            id={`rechazar-${sol.id}`}
+                            className="btn btn-danger btn-sm"
+                            disabled={isPending}
+                            onClick={() => setRejectTarget(sol.id)}
+                            aria-label={`Rechazar solicitud ${sol.id}`}
+                          >
+                            <X size={13} /> Rechazar
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Reject Modal */}
+      {rejectTarget && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}
+          onClick={() => setRejectTarget(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rechazar solicitud"
+        >
+          <div
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: '16px', padding: '28px', width: '420px', maxWidth: '90vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Rechazar Solicitud</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Indica el motivo para que el empleado pueda entender la decisión.
+            </p>
+            <textarea
+              id="reject-reason-input"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Ej: Presupuesto del proyecto agotado…"
+              rows={4}
+              style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: '8px', padding: '10px 12px', color: 'var(--text-primary)', fontSize: '13px', resize: 'vertical', outline: 'none', marginBottom: '16px' }}
+            />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setRejectTarget(null)}>Cancelar</button>
+              <button
+                id="confirm-reject-btn"
+                className="btn btn-danger"
+                disabled={isPending}
+                onClick={handleRechazar}
+              >
+                <X size={14} /> Confirmar Rechazo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+</file>
+
+<file path="app/dashboard/layout.tsx">
+'use client';
+
+import { useState, createContext, useContext } from 'react';
+import {
+  LayoutDashboard,
+  Wallet,
+  ClipboardCheck,
+  RotateCcw,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
+  Search,
+  LogOut,
+  Building2,
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+/* ============================================================
+   Context — Sidebar State
+   ============================================================ */
+const SidebarContext = createContext({ collapsed: false });
+export const useSidebar = () => useContext(SidebarContext);
+
+/* ============================================================
+   Navigation Definition
+   ============================================================ */
+const NAV_ITEMS = [
+  {
+    label: 'Principal',
+    items: [
+      {
+        href: '/dashboard',
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+        badge: null,
+      },
+    ],
+  },
+  {
+    label: 'Operaciones',
+    items: [
+      {
+        href: '/dashboard/solicitudes',
+        icon: Wallet,
+        label: 'Solicitudes de Viáticos',
+        badge: '3',
+      },
+      {
+        href: '/dashboard/justificacion',
+        icon: ClipboardCheck,
+        label: 'Progreso de Justificación',
+        badge: null,
+      },
+      {
+        href: '/dashboard/reembolsos',
+        icon: RotateCcw,
+        label: 'Reembolsos',
+        badge: '5',
+      },
+    ],
+  },
+  {
+    label: 'Administración',
+    items: [
+      {
+        href: '/dashboard/configuracion',
+        icon: Settings,
+        label: 'Organización',
+        badge: null,
+      },
+    ],
+  },
+];
+
+/* ============================================================
+   Sidebar Component
+   ============================================================ */
+function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const pathname = usePathname();
+
+  return (
+    <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Navegación principal">
+      {/* Brand */}
+      <div 
+        className="sidebar-brand"
+        onClick={collapsed ? onToggle : undefined}
+        style={{ cursor: collapsed ? 'pointer' : 'default' }}
+        title={collapsed ? 'Expandir sidebar' : undefined}
+      >
+        <div className="sidebar-brand-logo" aria-hidden="true">R</div>
+        <div className="sidebar-brand-text">
+          <span className="sidebar-brand-name">Rendy</span>
+          <span className="sidebar-brand-tagline">by Swork · B2B SaaS</span>
+        </div>
+        {!collapsed && (
+          <button
+            className="sidebar-toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            aria-label="Colapsar sidebar"
+            title="Colapsar"
+          >
+            <ChevronLeft size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="sidebar-nav" role="navigation">
+        {NAV_ITEMS.map((section) => (
+          <div key={section.label}>
+            <div className="nav-section-label">{section.label}</div>
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-item ${isActive ? 'active' : ''}`}
+                  title={collapsed ? item.label : undefined}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <span className="nav-item-icon">
+                    <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} />
+                  </span>
+                  <span className="nav-item-label">{item.label}</span>
+                  {item.badge && (
+                    <span className="nav-badge" aria-label={`${item.badge} pendientes`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Footer — Org Info */}
+      <div className="sidebar-footer">
+        <div className="sidebar-org-pill">
+          <div className="sidebar-org-avatar" aria-hidden="true">UA</div>
+          <div className="sidebar-org-info">
+            <div className="sidebar-org-name">UAT Empresa</div>
+            <div className="sidebar-org-role">Admin · Multi-tenant</div>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ============================================================
+   Topbar Component
+   ============================================================ */
+const PAGE_LABELS: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/dashboard/solicitudes': 'Solicitudes de Viáticos',
+  '/dashboard/justificacion': 'Progreso de Justificación',
+  '/dashboard/reembolsos': 'Reembolsos',
+  '/dashboard/configuracion': 'Organización',
+};
+
+function Topbar() {
+  const pathname = usePathname();
+  const pageLabel = PAGE_LABELS[pathname] ?? 'Dashboard';
+
+  return (
+    <header className="topbar" role="banner">
+      {/* Breadcrumb */}
+      <div className="topbar-breadcrumb" aria-label="Ruta de navegación">
+        <span className="topbar-breadcrumb-root">Rendy</span>
+        <ChevronRight size={12} className="topbar-breadcrumb-sep" aria-hidden="true" />
+        <span className="topbar-breadcrumb-page">{pageLabel}</span>
+      </div>
+
+      {/* Actions */}
+      <div className="topbar-actions">
+        <button className="topbar-btn" aria-label="Buscar" id="topbar-search-btn">
+          <Search size={16} />
+        </button>
+        <button className="topbar-btn" aria-label="Notificaciones" id="topbar-notifications-btn">
+          <Bell size={16} />
+          <span className="topbar-btn-dot" aria-label="Hay notificaciones nuevas" />
+        </button>
+        <button className="topbar-btn" aria-label="Cerrar sesión" id="topbar-logout-btn">
+          <LogOut size={16} />
+        </button>
+        <div
+          className="topbar-avatar"
+          role="img"
+          aria-label="Avatar de usuario: Admin"
+          title="Admin"
+        >
+          A
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ============================================================
+   Dashboard Layout Shell
+   ============================================================ */
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <SidebarContext.Provider value={{ collapsed }}>
+      <div className="dashboard-shell">
+        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+        <div className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>
+          <Topbar />
+          <main className="page-area" id="main-content" tabIndex={-1}>
+            {children}
+          </main>
+        </div>
+      </div>
+    </SidebarContext.Provider>
+  );
+}
+</file>
+
+<file path="app/dashboard/page.tsx">
+import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { TrendingUp, TrendingDown, Wallet, ClipboardCheck, RotateCcw, DollarSign, ArrowUpRight, Coins } from 'lucide-react';
+import Link from 'next/link';
+
+/* ─── helpers ─── */
+const ISO_CURRENCIES = new Set(['USD', 'EUR', 'VES', 'MXN', 'COP', 'ARS', 'BRL', 'CLP', 'PEN', 'GBP']);
+
+function fmt(n: number, moneda = 'USD') {
+  let safeMoneda = moneda?.toUpperCase() === 'BS' ? 'VES' : moneda?.toUpperCase() ?? 'USD';
+  safeMoneda = ISO_CURRENCIES.has(safeMoneda) ? safeMoneda : 'USD';
+  return new Intl.NumberFormat('es-VE', { style: 'currency', currency: safeMoneda, maximumFractionDigits: 2 }).format(n);
+}
+
+function StatusBadge({ estado }: { estado: string }) {
+  const cls = estado === 'APROBADO' ? 'aprobado' : estado === 'RECHAZADO' ? 'rechazado' : 'pendiente';
+  const label = { APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', PENDIENTE: 'Pendiente' }[estado] ?? estado;
+  return (
+    <span className={`badge ${cls}`}>
+      <span className="badge-dot" />
+      {label}
+    </span>
+  );
+}
+
+/* ─── data fetching ─── */
+async function getDashboardData() {
+  const [
+    { data: gastos },
+    { data: solicitudes },
+    { data: proyectos },
+    { data: empresa },
+  ] = await Promise.all([
+    supabaseServer
+      .from('gastos')
+      .select('id, comercio, categoria, monto, moneda, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto')
+      .eq('empresa_id', EMPRESA_ID)
+      .order('creado_en', { ascending: false }),
+    supabaseServer
+      .from('solicitudes_viaticos')
+      .select('id, monto_solicitado, monto_aprobado, estado, usuario_id, proyecto_id')
+      .eq('empresa_id', EMPRESA_ID),
+    supabaseServer
+      .from('proyectos')
+      .select('id, nombre')
+      .eq('empresa_id', EMPRESA_ID)
+      .eq('activo', true),
+    supabaseServer
+      .from('empresas')
+      .select('nombre, moneda')
+      .eq('id', EMPRESA_ID)
+      .single(),
+  ]);
+
+  const moneda = empresa?.moneda ?? 'USD';
+  const allGastos = gastos ?? [];
+
+  // Fetch exchange rates
+  let rates: Record<string, number> = { USD: 1, VES: 36.5, EUR: 0.92 };
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/USD", { next: { revalidate: 3600 } });
+    const data = await res.json();
+    if (data && data.rates) {
+      rates = data.rates;
+    }
+  } catch (e) {
+    console.error("Error fetching exchange rates", e);
+  }
+
+  const convert = (amount: number, fromCurrency: string, toCurrency: string) => {
+    const rateFrom = rates[fromCurrency] || 1;
+    const rateTo = rates[toCurrency] || 1;
+    return (amount / rateFrom) * rateTo;
+  };
+
+  let totalGastado = 0;
+  let mJustificados = 0;
+  let reembolsosPendientes = 0;
+
+  const byCurrency: Record<string, number> = {};
+  const byProject: Record<string, { nombre: string; total: number }> = {};
+  const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
+
+  for (const g of allGastos) {
+    let m = (g.datos_ocr as any)?.moneda ?? g.moneda ?? 'USD';
+    m = m.toUpperCase();
+    if (m === 'BS') m = 'VES';
+    
+    // Group by currency (native amount)
+    if (!byCurrency[m]) byCurrency[m] = 0;
+    byCurrency[m] += g.monto ?? 0;
+
+    // Convert to base currency for KPIs
+    const valInBase = convert(g.monto ?? 0, m, moneda);
+    
+    totalGastado += valInBase;
+    if (g.solicitud_id) mJustificados += valInBase;
+    if (!g.solicitud_id && g.estado === 'PENDIENTE') reembolsosPendientes += valInBase;
+
+    // Group by project (converted to base currency)
+    const pid = g.proyecto_id ?? '__sin_proyecto__';
+    if (!byProject[pid]) byProject[pid] = { nombre: proyMap[pid] ?? 'Sin proyecto', total: 0 };
+    byProject[pid].total += valInBase;
+  }
+
+  let viaticosAprobados = 0;
+  for (const s of (solicitudes ?? [])) {
+    if (s.estado === 'APROBADO') {
+       viaticosAprobados += (s.monto_aprobado ?? s.monto_solicitado ?? 0);
+    }
+  }
+
+  const projectBreakdown = Object.values(byProject)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  const maxProj = projectBreakdown[0]?.total ?? 1;
+
+  const currencyBreakdown = Object.entries(byCurrency).map(([cur, total]) => ({ cur, total }));
+
+  return {
+    moneda,
+    empresa: empresa?.nombre ?? 'Mi Empresa',
+    kpis: { totalGastado, viaticosAprobados, mJustificados, reembolsosPendientes },
+    recentGastos: allGastos.slice(0, 6),
+    projectBreakdown: projectBreakdown.map((p) => ({
+      ...p,
+      pct: Math.round((p.total / maxProj) * 100),
+    })),
+    currencyBreakdown,
+    proyMap,
+  };
+}
+
+/* ─── page ─── */
+export default async function DashboardPage() {
+  const { moneda, empresa, kpis, recentGastos, projectBreakdown, currencyBreakdown, proyMap } = await getDashboardData();
+
+  const kpiCards = [
+    { id: 'total-gastado', label: 'Total Registrado', value: fmt(kpis.totalGastado, moneda), icon: DollarSign, color: 'indigo', trend: 'up' as const },
+    { id: 'viaticos-aprobados', label: 'Viáticos Aprobados', value: fmt(kpis.viaticosAprobados, moneda), icon: Wallet, color: 'emerald', trend: 'up' as const },
+    { id: 'justificados', label: 'Gastos Justificados (vía WA)', value: fmt(kpis.mJustificados, moneda), icon: ClipboardCheck, color: 'amber', trend: 'up' as const },
+    { id: 'reembolsos-pendientes', label: 'Reembolsos Pendientes', value: fmt(kpis.reembolsosPendientes, moneda), icon: RotateCcw, color: 'rose', trend: kpis.reembolsosPendientes > 0 ? 'down' as const : 'up' as const },
+  ];
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title">
+          Dashboard
+          <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-muted)', letterSpacing: 0 }}>
+            {empresa}
+          </span>
+        </h1>
+        <p className="page-subtitle">Resumen ejecutivo de gastos, viáticos y reembolsos de tu organización (convirtiendo monedas locales a {moneda}).</p>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-grid" role="list" aria-label="Indicadores clave">
+        {kpiCards.map((kpi) => {
+          const Icon = kpi.icon;
+          return (
+            <article key={kpi.id} className="kpi-card" role="listitem" id={`kpi-${kpi.id}`}>
+              <div className={`kpi-card-icon ${kpi.color}`}><Icon size={20} strokeWidth={2} /></div>
+              <div className="kpi-card-label">{kpi.label}</div>
+              <div className="kpi-card-value">{kpi.value}</div>
+              <div className={`kpi-card-delta ${kpi.trend}`}>
+                {kpi.trend === 'up' ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                Datos en tiempo real
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {/* Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+
+        {/* Gastos recientes */}
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">Últimos Gastos (vía WhatsApp)</h2>
+            <Link href="/dashboard/reembolsos" className="btn btn-ghost btn-sm" id="dashboard-ver-todos-btn">
+              Ver todos <ArrowUpRight size={13} />
+            </Link>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            {recentGastos.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon"><DollarSign size={22} /></div>
+                <div className="empty-state-title">Sin gastos registrados</div>
+                <div className="empty-state-desc">Los gastos enviados por WhatsApp aparecerán aquí.</div>
+              </div>
+            ) : (
+              <table className="rendy-table" aria-label="Últimos gastos registrados">
+                <thead>
+                  <tr>
+                    <th>Comercio</th>
+                    <th>Categoría</th>
+                    <th>Monto Original</th>
+                    <th>Proyecto</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentGastos.map((g) => {
+                    const gMoneda = (g.datos_ocr as any)?.moneda ?? g.moneda ?? moneda;
+                    return (
+                      <tr key={g.id}>
+                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—'}
+                        </td>
+                        <td>
+                          <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
+                            {g.categoria}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {fmt(g.monto ?? 0, gMoneda)}
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                          {g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—'}
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{g.fecha_gasto}</td>
+                        <td><StatusBadge estado={g.estado} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div>
+          {/* Gastos por moneda */}
+          <div className="card" style={{ marginBottom: '20px' }}>
+            <div className="card-header">
+              <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Coins size={16} /> Gastos por Moneda
+              </h2>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {currencyBreakdown.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '20px' }}>Sin datos.</p>
+              ) : (
+                <table className="rendy-table">
+                  <thead>
+                    <tr>
+                      <th style={{ paddingLeft: '24px' }}>Divisa</th>
+                      <th style={{ textAlign: 'right', paddingRight: '24px' }}>Total Bruto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currencyBreakdown.map((c) => (
+                      <tr key={c.cur}>
+                        <td style={{ fontWeight: 600, paddingLeft: '24px' }}>{c.cur}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--rendy-accent)', textAlign: 'right', paddingRight: '24px' }}>
+                          {fmt(c.total, c.cur)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Gasto por proyecto */}
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">Gasto por Proyecto (en {moneda})</h2>
+            </div>
+            <div className="card-body">
+              {projectBreakdown.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Sin datos de proyectos.</p>
+              ) : projectBreakdown.map((p) => {
+                const barClass = p.pct >= 80 ? 'warning' : p.pct >= 50 ? '' : 'accent';
+                return (
+                  <div key={p.nombre} style={{ marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{p.nombre}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{p.pct}%</span>
+                    </div>
+                    <div className="progress-track" role="progressbar" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.nombre}: ${p.pct}%`}>
+                      <div className={`progress-fill ${barClass}`} style={{ width: `${p.pct}%` }} />
+                    </div>
+                    <div style={{ marginTop: '5px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {fmt(p.total, moneda)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="app/lib/ocr.ts">
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { supabase } from '@/app/lib/supabase';
+import { createHash } from 'crypto';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Descarga la imagen desde Meta y la convierte a Base64
+async function obtenerImagenMetaBuffer(imageId: string) {
+  const token = process.env.WHATSAPP_API_TOKEN;
+
+  const res = await fetch(`https://graph.facebook.com/v20.0/${imageId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+
+  if (!data || !data.url) {
+    console.error('❌ Error obteniendo URL de la imagen desde Meta:', data);
+    throw new Error('No se pudo obtener la URL de la imagen.');
+  }
+
+  const imageRes = await fetch(data.url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const arrayBuffer = await imageRes.arrayBuffer();
+  const base64Data = Buffer.from(arrayBuffer).toString('base64');
+
+  return {
+    inlineData: {
+      data: base64Data,
+      mimeType: data.mime_type || 'image/jpeg',
+    },
+  };
+}
+
+// Procesa una imagen de factura con Gemini AI
+export async function procesarFacturaConIA(imageId: string) {
+  try {
+    const imagenPart = await obtenerImagenMetaBuffer(imageId);
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+
+    const prompt = `Analiza esta factura o recibo de gasto. 
+Extrae la información y responde ÚNICAMENTE con un objeto JSON válido (sin formato markdown ni texto adicional) con esta estructura exacta:
+{
+  "comercio": "Nombre del negocio o tienda",
+  "monto_total": 0.00,
+  "moneda": "USD, EUR, VES, etc.",
+  "fecha": "YYYY-MM-DD",
+  "concepto": "Descripción breve del gasto"
+}
+Si no logras identificar algún campo, asígnale el valor null.`;
+
+    const result = await model.generateContent([prompt, imagenPart]);
+    const responseText = result.response.text();
+
+    const jsonLimpio = responseText.replace(/```json|```/g, '').trim();
+    return JSON.parse(jsonLimpio);
+  } catch (error: any) {
+    console.error('❌ Error al procesar factura con Gemini AI:', error);
+
+    if (
+      error?.status === 503 ||
+      error?.message?.includes('503') ||
+      error?.message?.includes('high demand')
+    ) {
+      return 'ERROR_SATURACION';
+    }
+
+    return null;
+  }
+}
+
+// Aplica correcciones sobre los datos mediante un mensaje de texto
+export async function aplicarCorreccionConIA(datosPrevios: any, textoUsuario: string) {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+
+    const prompt = `Tienes el siguiente JSON de un gasto detectado previamente:
+${JSON.stringify(datosPrevios, null, 2)}
+
+El usuario ha enviado el siguiente mensaje pidiendo una corrección o confirmación:
+"${textoUsuario}"
+
+Analiza el mensaje y devuelve ÚNICAMENTE un objeto JSON válido actualizado con los cambios aplicados. 
+Si el usuario modificó el monto, el comercio, la moneda, la fecha o el concepto, actualízalo. Conserva los campos que no hayan sido modificados.`;
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    const jsonLimpio = responseText.replace(/```json|```/g, '').trim();
+
+    return JSON.parse(jsonLimpio);
+  } catch (error) {
+    console.error('❌ Error al aplicar corrección con IA:', error);
+    return datosPrevios;
+  }
+}
+
+// Descarga el archivo de audio desde Meta y lo convierte a Base64
+async function obtenerAudioMetaBuffer(audioId: string) {
+  const token = process.env.WHATSAPP_API_TOKEN;
+
+  const res = await fetch(`https://graph.facebook.com/v20.0/${audioId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+
+  if (!data || !data.url) {
+    throw new Error('No se pudo obtener la URL del audio desde Meta.');
+  }
+
+  const audioRes = await fetch(data.url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const arrayBuffer = await audioRes.arrayBuffer();
+  const base64Data = Buffer.from(arrayBuffer).toString('base64');
+
+  return {
+    inlineData: {
+      data: base64Data,
+      mimeType: data.mime_type || 'audio/ogg',
+    },
+  };
+}
+
+// Procesa una nota de voz para extraer instrucciones y aplicar correcciones
+export async function aplicarCorreccionAudioConIA(datosPrevios: any, audioId: string) {
+  try {
+    const audioPart = await obtenerAudioMetaBuffer(audioId);
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+
+    const prompt = `Escucha esta nota de voz. El usuario está pidiendo una corrección o actualización sobre los siguientes datos de un gasto:
+${JSON.stringify(datosPrevios, null, 2)}
+
+Analiza lo que dice la nota de voz y devuelve ÚNICAMENTE un objeto JSON válido actualizado con los cambios solicitados.
+Conserva los campos que no hayan sido mencionados o modificados.`;
+
+    const result = await model.generateContent([prompt, audioPart]);
+    const responseText = result.response.text();
+    const jsonLimpio = responseText.replace(/```json|```/g, '').trim();
+
+    return JSON.parse(jsonLimpio);
+  } catch (error) {
+    console.error('❌ Error al procesar audio con Gemini AI:', error);
+    return datosPrevios;
+  }
+}
+
+// Descarga la imagen de WhatsApp y la sube a Supabase Storage
+export async function guardarImagenEnSupabase(idImagen: string): Promise<string | null> {
+  try {
+    const token = process.env.WHATSAPP_API_TOKEN;
+
+    const res = await fetch(`https://graph.facebook.com/v20.0/${idImagen}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+
+    if (!data || !data.url) {
+      console.error('❌ No se pudo obtener la URL de la imagen de Meta');
+      return null;
+    }
+
+    const imageRes = await fetch(data.url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const arrayBuffer = await imageRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const mimeType = data.mime_type || 'image/jpeg';
+    const extension = mimeType.split('/')[1] || 'jpg';
+    const fileName = `recibo_${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(fileName, buffer, {
+        contentType: mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('❌ Error subiendo imagen a Supabase Storage:', uploadError);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('comprobantes')
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error('❌ Error en guardarImagenEnSupabase:', error);
+    return null;
+  }
+}
+
+// --- FUNCIONES PARA SOPORTE DE ARCHIVOS PDF ---
+
+// Descarga y procesa un archivo PDF con Gemini AI
+export async function procesarFacturaPDFConIA(idDocumento: string) {
+  try {
+    const token = process.env.WHATSAPP_API_TOKEN;
+
+    const resUrl = await fetch(`https://graph.facebook.com/v20.0/${idDocumento}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const dataUrl = await resUrl.json();
+
+    if (!dataUrl || !dataUrl.url) {
+      console.error('❌ No se obtuvo la URL del PDF desde Meta');
+      return null;
+    }
+
+    const pdfRes = await fetch(dataUrl.url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const arrayBuffer = await pdfRes.arrayBuffer();
+    const base64PDF = Buffer.from(arrayBuffer).toString('base64');
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+
+    const prompt = `Analiza este documento PDF de factura o recibo de gasto. 
+Extrae la información y responde ÚNICAMENTE con un objeto JSON válido (sin formato markdown ni texto adicional) con esta estructura exacta:
+{
+  "comercio": "Nombre del negocio o tienda",
+  "monto_total": 0.00,
+  "moneda": "USD, EUR, VES, etc.",
+  "fecha": "YYYY-MM-DD",
+  "concepto": "Descripción breve del gasto"
+}
+Si no logras identificar algún campo, asígnale el valor null.`;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64PDF,
+          mimeType: 'application/pdf',
+        },
+      },
+    ]);
+
+    const responseText = result.response.text().trim();
+    const jsonLimpio = responseText.replace(/```json|```/g, '').trim();
+    return JSON.parse(jsonLimpio);
+  } catch (error: any) {
+    console.error('❌ Error procesando PDF con Gemini AI:', error);
+    if (
+      error?.status === 503 ||
+      error?.message?.includes('503') ||
+      error?.message?.includes('high demand')
+    ) {
+      return 'ERROR_SATURACION';
+    }
+    return null;
+  }
+}
+
+// Descarga un archivo PDF de WhatsApp y lo sube a Supabase Storage
+export async function guardarPDFEnSupabase(idDocumento: string): Promise<string | null> {
+  try {
+    const token = process.env.WHATSAPP_API_TOKEN;
+
+    const res = await fetch(`https://graph.facebook.com/v20.0/${idDocumento}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+
+    if (!data || !data.url) return null;
+
+    const pdfRes = await fetch(data.url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const arrayBuffer = await pdfRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const fileName = `recibo_${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(fileName, buffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('❌ Error subiendo PDF a Supabase Storage:', uploadError);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('comprobantes')
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error('❌ Error guardando PDF en Supabase:', error);
+    return null;
+  }
+}
+
+// Función auxiliar para generar Hash SHA-256 de un Buffer
+export function calcularHashBuffer(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+// Verifica el nivel de duplicidad (1. Hash idéntico o 2. Datos coincidentes)
+export async function verificarGastoDuplicado(
+  empresaId: string,
+  comercio: string | null,
+  monto: number | null,
+  fecha: string | null,
+  hashArchivo?: string | null
+): Promise<{ 
+  esHashDuplicado: boolean; 
+  esDatosCoincidentes: boolean; 
+  mensajeBloqueo?: string;
+  mensajeAlerta?: string;
+}> {
+  if (!empresaId) return { esHashDuplicado: false, esDatosCoincidentes: false };
+
+  try {
+    // 1. NIVEL 1: Verificación por Hash exacto del archivo
+    if (hashArchivo) {
+      const { data: coincidenciaHash } = await supabase
+        .from('gastos')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .eq('hash_comprobante', hashArchivo);
+
+      if (coincidenciaHash && coincidenciaHash.length > 0) {
+        return {
+          esHashDuplicado: true,
+          esDatosCoincidentes: false,
+          mensajeBloqueo: `⛔ *REGISTRO BLOQUEADO POR ARCHIVO DUPLICADO*\n\nEsta foto o documento es exactamente idéntico a un comprobante que ya existe en el sistema.\n\nNo es posible subir la misma foto dos veces.`,
+        };
+      }
+    }
+
+    // 2. NIVEL 2: Verificación por coincidencia de datos (Monto + Fecha + Comercio)
+    if (monto && fecha) {
+      let query = supabase
+        .from('gastos')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .eq('monto', monto)
+        .eq('fecha_gasto', fecha);
+
+      if (comercio) {
+        query = query.ilike('comercio', `%${comercio.trim()}%`);
+      }
+
+      const { data: coincidenciaDatos } = await query;
+
+      if (coincidenciaDatos && coincidenciaDatos.length > 0) {
+        return {
+          esHashDuplicado: false,
+          esDatosCoincidentes: true,
+          mensajeAlerta: `⚠️ *POSIBLE COINCIDENCIA DE FACTURA*\n\nYa existe un gasto registrado con el mismo comercio (*${comercio || 'No detectado'}*), monto (*${monto}*) y fecha (*${fecha}*).\n\n_Puedes continuar con la asignación, pero el gasto se guardará bajo estado 'EN REVISIÓN' para verificación del administrador._`,
+        };
+      }
+    }
+
+    return { esHashDuplicado: false, esDatosCoincidentes: false };
+  } catch (err) {
+    console.error('❌ Error en verificarGastoDuplicado:', err);
+    return { esHashDuplicado: false, esDatosCoincidentes: false };
+  }
+}
+</file>
+
+<file path="app/lib/supabase.ts">
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+// Usa service_role key en el servidor para saltar RLS, o cae en la anon key
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  '';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+</file>
+
+<file path="app/lib/whatsapp.ts">
+export async function enviarMensajeWhatsApp(to: string, text: string) {
+    const token = process.env.WHATSAPP_API_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || 'tu_phone_number_id';
+  
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: to,
+            type: 'text',
+            text: { body: text },
+          }),
+        }
+      );
+  
+      const data = await res.json();
+      return data;
+    } catch (error) {
+      console.error('❌ Error enviando mensaje por WhatsApp:', error);
+      return null;
+    }
+  }
+
+  export async function enviarListaWhatsApp(
+    to: string,
+    bodyText: string,
+    buttonText: string,
+    title: string,
+    rows: { id: string; title: string; description?: string }[]
+  ) {
+    const token = process.env.WHATSAPP_API_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  
+    const payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: to,
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        header: {
+          type: 'text',
+          text: title,
+        },
+        body: {
+          text: bodyText,
+        },
+        action: {
+          button: buttonText,
+          sections: [
+            {
+              title: 'Opciones disponibles',
+              rows: rows,
+            },
+          ],
+        },
+      },
+    };
+  
+    const response = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+  
+    const data = await response.json();
+    return data;
+  }
+</file>
+
+<file path="lib/supabase-server.ts">
+/**
+ * lib/supabase-server.ts
+ * Cliente Supabase con Service Role Key — solo para Server Components y API Routes.
+ * NUNCA exponer al cliente.
+ */
+import { createClient } from '@supabase/supabase-js';
+
+export type Database = {
+  empresas: {
+    id: string;
+    nombre: string;
+    moneda: string;
+    creado_en: string;
+  };
+  usuarios: {
+    id: string;
+    empresa_id: string;
+    nombre: string;
+    email: string | null;
+    telefono_whatsapp: string;
+    rol: 'ADMIN' | 'EMPLEADO';
+    creado_en: string;
+  };
+  proyectos: {
+    id: string;
+    empresa_id: string;
+    nombre: string;
+    activo: boolean;
+    creado_en: string;
+  };
+  metodos_pago: {
+    id: string;
+    empresa_id: string;
+    nombre: string;
+    creado_en: string;
+  };
+  solicitudes_viaticos: {
+    id: string;
+    empresa_id: string;
+    usuario_id: string;
+    proyecto_id: string | null;
+    monto_solicitado: number;
+    monto_aprobado: number | null;
+    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+    motivo_rechazo: string | null;
+    creado_en: string;
+  };
+  gastos: {
+    id: string;
+    empresa_id: string | null;
+    usuario_id: string | null;
+    proyecto_id: string | null;
+    metodo_pago_id: string | null;
+    solicitud_id: string | null;
+    categoria: string;
+    comercio: string | null;
+    monto: number;
+    moneda: string | null;
+    fecha_gasto: string;
+    url_comprobante: string | null;
+    concepto: string | null;
+    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+    comentario_rechazo: string | null;
+    datos_ocr: Record<string, unknown> | null;
+    creado_en: string;
+  };
+};
+
+function createServerClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Faltan variables de entorno de Supabase');
+  return createClient(url, key);
+}
+
+export const supabaseServer = createServerClient();
+
+/* ─── empresa activa (hardcoded para el MVP mono-tenant) ─── */
+export const EMPRESA_ID = '11111111-1111-1111-1111-111111111111';
+</file>
+
+<file path="lib/supabase.ts">
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+</file>
+
+<file path="PROJECT_CONTEXT.md">
+# 🚀 Rendy SaaS - Project Architecture & Context
+
+## 1. Visión del Producto
+Rendy es un asistente inteligente de gestión y reporte de gastos/viáticos vía WhatsApp con IA, desarrollado por la empresa **Swork**. Se comercializa como un SaaS B2B Multi-tenant para empresas.
+
+## 2. Stack Tecnológico
+- **Core / Backend Webhook:** Next.js (App Router), TypeScript.
+- **AI & Processing:** Gemini API (Lectura de recibos/OCR, corrección por texto y notas de voz/audio).
+- **Messaging:** Meta WhatsApp Business API (Graph API v20.0, Mensajes interactivos de listas).
+- **Database & Storage:** Supabase (PostgreSQL con Row Level Security + Storage Bucket `comprobantes`).
+
+## 3. Modelo de Datos Multi-tenant (Supabase)
+- `empresas`: (id, nombre, creado_en) -> Representa a cada cliente B2B (ej. UAT, Swork Demo).
+- `usuarios`: (id, empresa_id, nombre, email, telefono_whatsapp, rol ['ADMIN', 'EMPLEADO']).
+- `proyectos`: (id, empresa_id, nombre, activo).
+- `metodos_pago`: (id, empresa_id, nombre).
+- `solicitudes_viaticos`: (id, empresa_id, usuario_id, proyecto_id, monto_solicitado, monto_aprobado, estado ['PENDIENTE', 'APROBADO', 'RECHAZADO'], motivo_rechazo).
+- `gastos`: (id, empresa_id, usuario_id, proyecto_id, metodo_pago_id, solicitud_id, categoria, comercio, monto, moneda, fecha_gasto, url_comprobante, concepto, estado ['PENDIENTE', 'APROBADO', 'RECHAZADO'], datos_ocr [JSONB]).
+
+## 4. Ecosistema de WhatsApp (Ya implementado al 100%)
+1. **Recepción:** El usuario envía foto del recibo por WhatsApp.
+2. **Procesamiento:** Gemini extrae los datos y guarda la foto en Supabase Storage (`comprobantes`).
+3. **Flujo Interactivo:**
+   - Lista 1: Selección de Proyecto (filtrado dinámicamente por `empresa_id`).
+   - Lista 2: Selección de Categoría (Airfare, Food, Gas, Hotel, Materiales, etc.).
+   - Lista 3: Selección de Método de Pago (filtrado por `empresa_id`).
+4. **Edición:** Corrección por lenguaje natural (texto o notas de voz).
+5. **Confirmación:** Al responder "SI", se inserta en la tabla `gastos` mapeando todas las FKs.
+
+## 5. Módulos a Construir en la Plataforma Web (SaaS Dashboard)
+1. **Dashboard General (KPIs & Analítica):**
+   - Resumen ejecutivo: Total gastado en el mes, viáticos aprobados vs. justificados, reembolsos pendientes.
+   - Gráficos interactivos de desglose por Proyecto y Categoría.
+2. **Solicitudes de Viáticos:**
+   - Flujo de revisión para Administradores (Aprobar / Rechazar con motivo).
+   - Registro de transferencia de fondos otorgados.
+3. **Progreso de Justificación de Viáticos:**
+   - Monitoreo en tiempo real del porcentaje de avance de justificación de cada viático asignado:
+     Monto Restante = Monto Otorgado - Suma(Gastos confirmados por WhatsApp).
+4. **Gestión de Reembolsos:**
+   - Listado de gastos efectuados con fondos propios del empleado.
+   - Estados: Pendiente, Procesado, Pagado.
+5. **Gestión de Organización & Configuración (Multi-tenant):**
+   - Altas/Bajas de Usuarios y asignación de roles (`ADMIN` / `EMPLEADO`).
+   - Creación de Proyectos y Métodos de Pago (disponibles en tiempo real en los desplegables de WhatsApp).
+</file>
+
+<file path="app/globals.css">
+@import "tailwindcss";
+
+/* ============================================
+   RENDY DASHBOARD — Design System Tokens
+   ============================================ */
+:root {
+  /* Brand Colors */
+  --rendy-primary: #6366f1;        /* Indigo 500 */
+  --rendy-primary-dark: #4f46e5;   /* Indigo 600 */
+  --rendy-primary-light: #818cf8;  /* Indigo 400 */
+  --rendy-accent: #10b981;         /* Emerald 500 */
+  --rendy-accent-dark: #059669;    /* Emerald 600 */
+  --rendy-warning: #f59e0b;        /* Amber 500 */
+  --rendy-danger: #ef4444;         /* Red 500 */
+
+  /* Dark Background Scale */
+  --bg-base: #0d0f1a;
+  --bg-surface: #131628;
+  --bg-elevated: #1a1d2e;
+  --bg-overlay: #1e2235;
+  --bg-border: rgba(99, 102, 241, 0.15);
+
+  /* Text Scale */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --text-accent: #818cf8;
+
+  /* Sidebar */
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 72px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+
+  /* Shadows */
+  --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.15);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================
+   BASE
+   ============================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  height: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.5); }
+
+/* ============================================
+   LAYOUT SHELL
+   ============================================ */
+.dashboard-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-left: var(--sidebar-width);
+  transition: margin-left var(--transition-base);
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: var(--sidebar-collapsed);
+}
+
+.page-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+  background: var(--bg-base);
+}
+
+/* ============================================
+   SIDEBAR
+   ============================================ */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--bg-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width var(--transition-base);
+  z-index: 50;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed);
+}
+
+/* Sidebar Brand */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px;
+  border-bottom: 1px solid var(--bg-border);
+  min-height: 72px;
+  overflow: hidden;
+}
+
+.sidebar-brand-logo {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: opacity var(--transition-base), width var(--transition-base);
+}
+
+.sidebar-brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.sidebar-brand-tagline {
+  font-size: 11px;
+  color: var(--text-accent);
+  white-space: nowrap;
+  margin-top: -2px;
+}
+
+/* Sidebar Nav */
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 16px 10px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar.collapsed .nav-section-label {
+  opacity: 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 2px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.nav-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--rendy-primary-light);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--rendy-primary);
+  border-radius: 0 4px 4px 0;
+}
+
+.nav-item-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-item-label {
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity var(--transition-base);
+  overflow: hidden;
+}
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--rendy-primary);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar.collapsed .nav-item-label,
+.sidebar.collapsed .nav-badge,
+.sidebar.collapsed .sidebar-brand-text {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  margin-left: 0;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  padding: 12px 10px;
+  border-top: 1px solid var(--bg-border);
+}
+
+.sidebar-org-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--bg-border);
+}
+
+.sidebar-org-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.sidebar-org-info {
+  overflow: hidden;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar-org-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.sidebar-org-role {
+  font-size: 11px;
+  color: var(--text-accent);
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .sidebar-org-info {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Toggle Button */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   TOPBAR
+   ============================================ */
+.topbar {
+  height: 64px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-border);
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.topbar-breadcrumb-root {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.topbar-breadcrumb-sep {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.topbar-breadcrumb-page {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-border);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.topbar-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--text-primary);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.topbar-btn-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  background: var(--rendy-danger);
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-surface);
+}
+
+.topbar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  border: 2px solid rgba(99, 102, 241, 0.4);
+  transition: border-color var(--transition-fast);
+}
+
+.topbar-avatar:hover {
+  border-color: var(--rendy-primary-light);
+}
+
+/* ============================================
+   PAGE HEADER
+   ============================================ */
+.page-header {
+  margin-bottom: 28px;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   KPI CARDS
+   ============================================ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: 14px;
+  padding: 22px;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(99,102,241,0.04), transparent);
+  pointer-events: none;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow);
+}
+
+.kpi-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.kpi-card-icon.indigo  { background: rgba(99,102,241,0.15); color: var(--rendy-primary-light); }
+.kpi-card-icon.emerald { background: rgba(16,185,129,0.15); color: var(--rendy-accent); }
+.kpi-card-icon.amber   { background: rgba(245,158,11,0.15);  color: var(--rendy-warning); }
+.kpi-card-icon.rose    { background: rgba(239,68,68,0.15);   color: var(--rendy-danger); }
+
+.kpi-card-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.kpi-card-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.kpi-card-delta {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.kpi-card-delta.up   { color: var(--rendy-accent); }
+.kpi-card-delta.down { color: var(--rendy-danger); }
+
+/* ============================================
+   GENERIC CARD
+   ============================================ */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-body {
+  padding: 0 24px 24px;
+}
+
+/* ============================================
+   STATUS BADGES
+   ============================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.badge.pendiente  { background: rgba(245,158,11,0.15); color: var(--rendy-warning); }
+.badge.pendiente .badge-dot { background: var(--rendy-warning); }
+.badge.aprobado   { background: rgba(16,185,129,0.15); color: var(--rendy-accent); }
+.badge.aprobado .badge-dot  { background: var(--rendy-accent); }
+.badge.rechazado  { background: rgba(239,68,68,0.15);  color: var(--rendy-danger); }
+.badge.rechazado .badge-dot { background: var(--rendy-danger); }
+.badge.pagado     { background: rgba(99,102,241,0.15); color: var(--rendy-primary-light); }
+.badge.pagado .badge-dot    { background: var(--rendy-primary-light); }
+
+/* ============================================
+   TABLE
+   ============================================ */
+.rendy-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rendy-table th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0 16px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--bg-border);
+}
+
+.rendy-table td {
+  padding: 14px 16px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(99,102,241,0.06);
+}
+
+.rendy-table tr:last-child td {
+  border-bottom: none;
+}
+
+.rendy-table tr:hover td {
+  background: rgba(99,102,241,0.04);
+}
+
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
+.progress-track {
+  height: 6px;
+  background: var(--bg-overlay);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--rendy-primary), var(--rendy-primary-light));
+  transition: width var(--transition-slow);
+}
+
+.progress-fill.accent {
+  background: linear-gradient(90deg, var(--rendy-accent-dark), var(--rendy-accent));
+}
+
+.progress-fill.warning {
+  background: linear-gradient(90deg, #d97706, var(--rendy-warning));
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--rendy-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--rendy-primary-dark);
+  box-shadow: 0 0 20px rgba(99,102,241,0.35);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--bg-border);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.btn-success {
+  background: var(--rendy-accent);
+  color: white;
+}
+
+.btn-success:hover {
+  background: var(--rendy-accent-dark);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--rendy-danger);
+  border: 1px solid rgba(239,68,68,0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(239,68,68,0.1);
+}
+
+.btn-sm {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+.empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-muted);
+}
+
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  background: var(--bg-elevated);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  color: var(--text-muted);
+}
+
+.empty-state-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.empty-state-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 280px;
+  margin: 0 auto;
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+export const metadata: Metadata = {
+  title: 'Rendy — Gestión de Viáticos y Gastos',
+  description:
+    'Plataforma SaaS B2B para gestión de viáticos, justificación de gastos y reembolsos con integración de WhatsApp e IA.',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es" className={inter.variable}>
+      <body>{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+import Image from "next/image";
+
+export default function Home() {
+  return (
+    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+        <Image
+          className="dark:invert h-5 w-[100px]"
+          src="/next.svg"
+          alt="Next.js logo"
+          width={100}
+          height={20}
+          priority
+        />
+        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
+          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
+            To get started, edit the{" "}
+            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
+              page.tsx
+            </code>{" "}
+            file.
+          </h1>
+          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+            Looking for a starting point or more instructions? Head over to{" "}
+            <a
+              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              className="font-medium text-zinc-950 dark:text-zinc-50"
+            >
+              Templates
+            </a>{" "}
+            or the{" "}
+            <a
+              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              className="font-medium text-zinc-950 dark:text-zinc-50"
+            >
+              Learning
+            </a>{" "}
+            center.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+          <a
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
+            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Image
+              className="dark:invert h-[14px] w-4"
+              src="/vercel.svg"
+              alt="Vercel logomark"
+              width={16}
+              height={14}
+            />
+            Deploy Now
+          </a>
+          <a
+            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
+            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Documentation
+          </a>
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="CLAUDE.md">
+@AGENTS.md
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="package.json">
+{
+  "name": "rendy-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.117.1",
+    "lucide-react": "^1.52.0",
+    "next": "16.3.6",
+    "openai": "^7.23.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+</files>
