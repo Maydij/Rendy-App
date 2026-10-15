@@ -1,15 +1,9 @@
 import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
 import { TrendingUp, TrendingDown, Wallet, ClipboardCheck, RotateCcw, DollarSign, ArrowUpRight, Coins } from 'lucide-react';
 import Link from 'next/link';
+import { getExchangeRates, convertAmount, formatCurrency, normalizeMoneda } from '@/lib/currency';
 
-/* ─── helpers ─── */
-const ISO_CURRENCIES = new Set(['USD', 'EUR', 'VES', 'MXN', 'COP', 'ARS', 'BRL', 'CLP', 'PEN', 'GBP']);
-
-function fmt(n: number, moneda = 'USD') {
-  let safeMoneda = moneda?.toUpperCase() === 'BS' ? 'VES' : moneda?.toUpperCase() ?? 'USD';
-  safeMoneda = ISO_CURRENCIES.has(safeMoneda) ? safeMoneda : 'USD';
-  return new Intl.NumberFormat('es-VE', { style: 'currency', currency: safeMoneda, maximumFractionDigits: 2 }).format(n);
-}
+const fmt = formatCurrency;
 
 function StatusBadge({ estado }: { estado: string }) {
   const cls = estado === 'APROBADO' ? 'aprobado' : estado === 'RECHAZADO' ? 'rechazado' : 'pendiente';
@@ -29,15 +23,16 @@ async function getDashboardData() {
     { data: solicitudes },
     { data: proyectos },
     { data: empresa },
+    rates,
   ] = await Promise.all([
     supabaseServer
       .from('gastos')
-      .select('id, comercio, categoria, monto, moneda, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto')
+      .select('id, comercio, categoria, monto, moneda, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto, solicitud_id')
       .eq('empresa_id', EMPRESA_ID)
       .order('creado_en', { ascending: false }),
     supabaseServer
       .from('solicitudes_viaticos')
-      .select('id, monto_solicitado, monto_aprobado, estado, usuario_id, proyecto_id')
+      .select('id, monto_solicitado, monto_aprobado, moneda, estado, usuario_id, proyecto_id')
       .eq('empresa_id', EMPRESA_ID),
     supabaseServer
       .from('proyectos')
@@ -49,27 +44,14 @@ async function getDashboardData() {
       .select('nombre, moneda')
       .eq('id', EMPRESA_ID)
       .single(),
+    getExchangeRates(),
   ]);
 
-  const moneda = empresa?.moneda ?? 'USD';
+  const moneda = normalizeMoneda(empresa?.moneda ?? 'USD');
   const allGastos = gastos ?? [];
 
-  // Fetch exchange rates
-  let rates: Record<string, number> = { USD: 1, VES: 36.5, EUR: 0.92 };
-  try {
-    const res = await fetch("https://open.er-api.com/v6/latest/USD", { next: { revalidate: 3600 } });
-    const data = await res.json();
-    if (data && data.rates) {
-      rates = data.rates;
-    }
-  } catch (e) {
-    console.error("Error fetching exchange rates", e);
-  }
-
   const convert = (amount: number, fromCurrency: string, toCurrency: string) => {
-    const rateFrom = rates[fromCurrency] || 1;
-    const rateTo = rates[toCurrency] || 1;
-    return (amount / rateFrom) * rateTo;
+    return convertAmount(amount, fromCurrency, toCurrency, rates);
   };
 
   let totalGastado = 0;
@@ -105,7 +87,9 @@ async function getDashboardData() {
   let viaticosAprobados = 0;
   for (const s of (solicitudes ?? [])) {
     if (s.estado === 'APROBADO') {
-       viaticosAprobados += (s.monto_aprobado ?? s.monto_solicitado ?? 0);
+       const mSol = (s as any).moneda || 'USD';
+       const val = convert(s.monto_aprobado ?? s.monto_solicitado ?? 0, mSol, moneda);
+       viaticosAprobados += val;
     }
   }
 
@@ -157,11 +141,24 @@ export default async function DashboardPage() {
       <div className="kpi-grid" role="list" aria-label="Indicadores clave">
         {kpiCards.map((kpi) => {
           const Icon = kpi.icon;
+          const isLongValue = kpi.value.length > 15;
+          const isMediumValue = kpi.value.length > 12;
+
           return (
             <article key={kpi.id} className="kpi-card" role="listitem" id={`kpi-${kpi.id}`}>
-              <div className={`kpi-card-icon ${kpi.color}`}><Icon size={20} strokeWidth={2} /></div>
-              <div className="kpi-card-label">{kpi.label}</div>
-              <div className="kpi-card-value">{kpi.value}</div>
+              <div>
+                <div className={`kpi-card-icon ${kpi.color}`}><Icon size={20} strokeWidth={2} /></div>
+                <div className="kpi-card-label">{kpi.label}</div>
+              </div>
+              <div
+                className="kpi-card-value"
+                style={{
+                  fontSize: isLongValue ? '19px' : isMediumValue ? '22px' : undefined,
+                  lineHeight: isLongValue ? 1.2 : undefined,
+                }}
+              >
+                {kpi.value}
+              </div>
               <div className={`kpi-card-delta ${kpi.trend}`}>
                 {kpi.trend === 'up' ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
                 Datos en tiempo real
@@ -172,7 +169,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+      <div className="dashboard-grid">
 
         {/* Gastos recientes */}
         <div className="card">
@@ -190,18 +187,19 @@ export default async function DashboardPage() {
                 <div className="empty-state-desc">Los gastos enviados por WhatsApp aparecerán aquí.</div>
               </div>
             ) : (
-              <table className="rendy-table" aria-label="Últimos gastos registrados">
-                <thead>
-                  <tr>
-                    <th>Comercio</th>
-                    <th>Categoría</th>
-                    <th>Monto Original</th>
-                    <th>Proyecto</th>
-                    <th>Fecha</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table className="rendy-table" aria-label="Últimos gastos registrados">
+                  <thead>
+                    <tr>
+                      <th>Comercio</th>
+                      <th>Categoría</th>
+                      <th>Monto Original</th>
+                      <th>Proyecto</th>
+                      <th>Fecha</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                   {recentGastos.map((g) => {
                     const gMoneda = (g.datos_ocr as any)?.moneda ?? g.moneda ?? moneda;
                     return (
@@ -227,6 +225,7 @@ export default async function DashboardPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
@@ -243,24 +242,26 @@ export default async function DashboardPage() {
               {currencyBreakdown.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '20px' }}>Sin datos.</p>
               ) : (
-                <table className="rendy-table">
-                  <thead>
-                    <tr>
-                      <th style={{ paddingLeft: '24px' }}>Divisa</th>
-                      <th style={{ textAlign: 'right', paddingRight: '24px' }}>Total Bruto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currencyBreakdown.map((c) => (
-                      <tr key={c.cur}>
-                        <td style={{ fontWeight: 600, paddingLeft: '24px' }}>{c.cur}</td>
-                        <td style={{ fontWeight: 700, color: 'var(--rendy-accent)', textAlign: 'right', paddingRight: '24px' }}>
-                          {fmt(c.total, c.cur)}
-                        </td>
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table className="rendy-table">
+                    <thead>
+                      <tr>
+                        <th style={{ paddingLeft: '24px' }}>Divisa</th>
+                        <th style={{ textAlign: 'right', paddingRight: '24px' }}>Total Bruto</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {currencyBreakdown.map((c) => (
+                        <tr key={c.cur}>
+                          <td style={{ fontWeight: 600, paddingLeft: '24px' }}>{c.cur}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--rendy-accent)', textAlign: 'right', paddingRight: '24px' }}>
+                            {fmt(c.total, c.cur)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

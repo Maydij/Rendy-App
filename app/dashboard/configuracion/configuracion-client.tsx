@@ -14,7 +14,7 @@ type Metodo   = { id: string; nombre: string; creado_en: string };
 
 function SectionHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
       <div>
         <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>{title}</div>
         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{subtitle}</div>
@@ -89,7 +89,7 @@ export default function ConfiguracionClient({ empresa, usuarios, proyectos: init
             </div>
 
             {/* Selector de Moneda Local de la Organización */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg-elevated)', padding: '8px 14px', borderRadius: '10px', border: '1px solid var(--bg-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg-elevated)', padding: '8px 14px', borderRadius: '10px', border: '1px solid var(--bg-border)', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Moneda Principal:</span>
               <select
                 id="select-moneda-empresa"
@@ -127,7 +127,7 @@ export default function ConfiguracionClient({ empresa, usuarios, proyectos: init
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--bg-surface)', padding: '6px', borderRadius: '10px', border: '1px solid var(--bg-border)', width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--bg-surface)', padding: '6px', borderRadius: '10px', border: '1px solid var(--bg-border)', width: 'fit-content', maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -135,7 +135,7 @@ export default function ConfiguracionClient({ empresa, usuarios, proyectos: init
               key={tab.id}
               id={`config-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, transition: 'all 150ms ease', background: activeTab === tab.id ? 'rgba(99,102,241,0.2)' : 'transparent', color: activeTab === tab.id ? 'var(--rendy-primary-light)' : 'var(--text-muted)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, transition: 'all 150ms ease', background: activeTab === tab.id ? 'rgba(99,102,241,0.2)' : 'transparent', color: activeTab === tab.id ? 'var(--rendy-primary-light)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}
             >
               <Icon size={15} />
               {tab.label}
@@ -163,32 +163,34 @@ export default function ConfiguracionClient({ empresa, usuarios, proyectos: init
                 <div className="empty-state-title">Sin usuarios registrados</div>
               </div>
             ) : (
-              <table className="rendy-table" aria-label="Usuarios de la organización">
-                <thead>
-                  <tr><th>Nombre</th><th>Email</th><th>WhatsApp</th><th>Rol</th><th>Alta</th><th>Acciones</th></tr>
-                </thead>
-                <tbody>
-                  {usuarios.map((u) => (
-                    <tr key={u.id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: u.rol === 'ADMIN' ? 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))' : 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'white' }}>
-                            {u.nombre.charAt(0)}
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table className="rendy-table" aria-label="Usuarios de la organización">
+                  <thead>
+                    <tr><th>Nombre</th><th>Email</th><th>WhatsApp</th><th>Rol</th><th>Alta</th><th>Acciones</th></tr>
+                  </thead>
+                  <tbody>
+                    {usuarios.map((u) => (
+                      <tr key={u.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: u.rol === 'ADMIN' ? 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))' : 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'white' }}>
+                              {u.nombre.charAt(0)}
+                            </div>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.nombre}</span>
                           </div>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.nombre}</span>
-                        </div>
-                      </td>
-                      <td>{u.email ?? '—'}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{u.telefono_whatsapp}</td>
-                      <td><RolBadge rol={u.rol} /></td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{new Date(u.creado_en).toLocaleDateString('es-VE')}</td>
-                      <td>
-                        <button id={`usuario-edit-${u.id}`} className="btn btn-ghost btn-sm" aria-label={`Editar ${u.nombre}`}><Edit3 size={12} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td>{u.email ?? '—'}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{u.telefono_whatsapp}</td>
+                        <td><RolBadge rol={u.rol} /></td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{new Date(u.creado_en).toLocaleDateString('es-VE')}</td>
+                        <td>
+                          <button id={`usuario-edit-${u.id}`} className="btn btn-ghost btn-sm" aria-label={`Editar ${u.nombre}`}><Edit3 size={12} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

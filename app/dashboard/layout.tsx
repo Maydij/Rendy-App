@@ -13,6 +13,7 @@ import {
   Bell,
   Search,
   LogOut,
+  Menu,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -23,9 +24,14 @@ export const useSidebar = () => useContext(SidebarContext);
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pendingViaticos, setPendingViaticos] = useState<number>(0);
   const [pendingReembolsos, setPendingReembolsos] = useState<number>(0);
   const pathname = usePathname();
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     async function fetchCounts() {
@@ -87,7 +93,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <SidebarContext.Provider value={{ collapsed }}>
       <div className="dashboard-shell">
-        <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+        {mobileMenuOpen && (
+          <div
+            className="sidebar-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Cerrar menú móvil"
+          />
+        )}
+
+        <nav className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
           <div
             className="sidebar-brand"
             onClick={() => collapsed && setCollapsed(false)}
@@ -118,7 +132,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   const Icon = item.icon;
                   const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                   return (
-                    <Link key={item.href} href={item.href} className={`nav-item ${isActive ? 'active' : ''}`}>
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`nav-item ${isActive ? 'active' : ''}`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
                       <span className="nav-item-icon">
                         <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} />
                       </span>
@@ -144,6 +163,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>
           <header className="topbar">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Abrir menú de navegación"
+            >
+              <Menu size={18} />
+            </button>
             <div className="topbar-breadcrumb">
               <span className="topbar-breadcrumb-root">Rendy</span>
               <ChevronRight size={12} className="topbar-breadcrumb-sep" />

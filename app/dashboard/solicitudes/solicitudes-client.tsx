@@ -94,7 +94,7 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
       )}
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
           <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input
             id="solicitudes-search"
@@ -105,17 +105,19 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
             style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: '8px', padding: '9px 12px 9px 36px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}
           />
         </div>
-        {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((e) => (
-          <button
-            key={e}
-            id={`filter-solicitudes-${e.toLowerCase()}`}
-            onClick={() => setFiltroEstado(e)}
-            className="btn btn-ghost btn-sm"
-            style={filtroEstado === e ? { background: 'rgba(99,102,241,0.18)', color: 'var(--rendy-primary-light)', borderColor: 'rgba(99,102,241,0.4)' } : {}}
-          >
-            {e === 'TODOS' ? 'Todos' : e.charAt(0) + e.slice(1).toLowerCase()}
-          </button>
-        ))}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((e) => (
+            <button
+              key={e}
+              id={`filter-solicitudes-${e.toLowerCase()}`}
+              onClick={() => setFiltroEstado(e)}
+              className="btn btn-ghost btn-sm"
+              style={filtroEstado === e ? { background: 'rgba(99,102,241,0.18)', color: 'var(--rendy-primary-light)', borderColor: 'rgba(99,102,241,0.4)' } : {}}
+            >
+              {e === 'TODOS' ? 'Todos' : e.charAt(0) + e.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="card">
@@ -126,19 +128,19 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
             <div className="empty-state-desc">Cuando un empleado solicite viáticos, aparecerá aquí.</div>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table className="rendy-table" aria-label="Solicitudes de viáticos">
               <thead>
                 <tr>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>ID</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Empleado</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Proyecto</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Monto Solicitado</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Monto Aprobado</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Fecha Solicitud</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Fecha Requerida</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Estado</th>
-                  <th style={{ verticalAlign: 'middle', padding: '14px 16px' }}>Acciones</th>
+                  <th>ID</th>
+                  <th>Empleado</th>
+                  <th>Proyecto</th>
+                  <th>Monto Solicitado</th>
+                  <th>Monto Aprobado</th>
+                  <th>Fecha Solicitud</th>
+                  <th>Fecha Requerida</th>
+                  <th>Estado</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,7 +177,7 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
                       <td style={{ verticalAlign: 'middle' }}><StatusBadge estado={sol.estado} /></td>
                       <td style={{ verticalAlign: 'middle' }}>
                         {sol.estado?.toUpperCase() === 'PENDIENTE' ? (
-                          <div style={{ display: 'flex', gap: '6px' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                             <button
                               id={`aprobar-${sol.id}`}
                               className="btn btn-success btn-sm"
@@ -194,7 +196,7 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
                             </button>
                           </div>
                         ) : (
-                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
+                          <div style={{ textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>—</div>
                         )}
                       </td>
                     </tr>
