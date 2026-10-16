@@ -18,6 +18,7 @@ import {
   TrendingUp,
   FileQuestion,
 } from 'lucide-react';
+import DigitalInvoice from '../gastos/digital-invoice';
 
 export type GastoJustificacion = {
   id: string;
@@ -834,113 +835,117 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
           LIGHTBOX MODAL: VISOR DE COMPROBANTE / FACTURA
           ========================================================= */}
       {selectedReceipt && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.88)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 200,
-            padding: '20px',
-            animation: 'fadeIn 0.15s ease',
-          }}
-          onClick={() => setSelectedReceipt(null)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '16px',
-              maxWidth: '650px',
-              width: '100%',
-              maxHeight: '92vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              boxShadow: '0 30px 80px rgba(0, 0, 0, 0.9)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header del Lightbox */}
-            <div
-              style={{
-                padding: '14px 20px',
-                borderBottom: '1px solid var(--bg-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'var(--bg-elevated)',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Factura / Comprobante: {selectedReceipt.comercio}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {selectedReceipt.montoStr} • {selectedReceipt.fecha}
-                </div>
-              </div>
+        <DigitalInvoice
+          selectedReceipt={selectedReceipt}
+          setSelectedReceipt={setSelectedReceipt}
+        />
+        // <div
+        //   style={{
+        //     position: 'fixed',
+        //     inset: 0,
+        //     background: 'rgba(0, 0, 0, 0.88)',
+        //     backdropFilter: 'blur(10px)',
+        //     display: 'flex',
+        //     alignItems: 'center',
+        //     justifyContent: 'center',
+        //     zIndex: 200,
+        //     padding: '20px',
+        //     animation: 'fadeIn 0.15s ease',
+        //   }}
+        //   onClick={() => setSelectedReceipt(null)}
+        // >
+        //   <div
+        //     style={{
+        //       background: 'var(--bg-surface)',
+        //       border: '1px solid rgba(255, 255, 255, 0.15)',
+        //       borderRadius: '16px',
+        //       maxWidth: '650px',
+        //       width: '100%',
+        //       maxHeight: '92vh',
+        //       display: 'flex',
+        //       flexDirection: 'column',
+        //       overflow: 'hidden',
+        //       boxShadow: '0 30px 80px rgba(0, 0, 0, 0.9)',
+        //     }}
+        //     onClick={(e) => e.stopPropagation()}
+        //   >
+        //     {/* Header del Lightbox */}
+        //     <div
+        //       style={{
+        //         padding: '14px 20px',
+        //         borderBottom: '1px solid var(--bg-border)',
+        //         display: 'flex',
+        //         alignItems: 'center',
+        //         justifyContent: 'space-between',
+        //         background: 'var(--bg-elevated)',
+        //       }}
+        //     >
+        //       <div>
+        //         <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+        //           Factura / Comprobante: {selectedReceipt.comercio}
+        //         </div>
+        //         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+        //           {selectedReceipt.montoStr} • {selectedReceipt.fecha}
+        //         </div>
+        //       </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <a
-                  href={selectedReceipt.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-ghost btn-sm"
-                  style={{ gap: '6px', fontSize: '12px', padding: '6px 10px' }}
-                >
-                  <ExternalLink size={13} /> Abrir original
-                </a>
-                <button
-                  onClick={() => setSelectedReceipt(null)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '6px',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  aria-label="Cerrar comprobante"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
+        //       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        //         <a
+        //           href={selectedReceipt.url}
+        //           target="_blank"
+        //           rel="noopener noreferrer"
+        //           className="btn btn-ghost btn-sm"
+        //           style={{ gap: '6px', fontSize: '12px', padding: '6px 10px' }}
+        //         >
+        //           <ExternalLink size={13} /> Abrir original
+        //         </a>
+        //         <button
+        //           onClick={() => setSelectedReceipt(null)}
+        //           style={{
+        //             background: 'transparent',
+        //             border: 'none',
+        //             color: 'var(--text-muted)',
+        //             cursor: 'pointer',
+        //             padding: '6px',
+        //             borderRadius: '8px',
+        //             display: 'flex',
+        //             alignItems: 'center',
+        //             justifyContent: 'center',
+        //           }}
+        //           aria-label="Cerrar comprobante"
+        //         >
+        //           <X size={20} />
+        //         </button>
+        //       </div>
+        //     </div>
 
-            {/* Receipt Image Display */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '16px',
-                background: '#090b13',
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedReceipt.url}
-                alt={`Comprobante ${selectedReceipt.comercio}`}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '72vh',
-                  objectFit: 'contain',
-                  borderRadius: '8px',
-                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        //     {/* Receipt Image Display */}
+        //     <div
+        //       style={{
+        //         flex: 1,
+        //         overflowY: 'auto',
+        //         display: 'flex',
+        //         alignItems: 'center',
+        //         justifyContent: 'center',
+        //         padding: '16px',
+        //         background: '#090b13',
+        //       }}
+        //     >
+        //       {/* eslint-disable-next-line @next/next/no-img-element */}
+        //       <img
+        //         src={selectedReceipt.url}
+        //         alt={`Comprobante ${selectedReceipt.comercio}`}
+        //         style={{
+        //           maxWidth: '100%',
+        //           maxHeight: '72vh',
+        //           objectFit: 'contain',
+        //           borderRadius: '8px',
+        //           boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+        //         }}
+        //       />
+        //     </div>
+        //   </div>
+        // </div>
       )}
     </>
   );

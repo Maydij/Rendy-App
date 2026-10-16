@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { RotateCcw, Search, Receipt, ExternalLink } from 'lucide-react';
+import { useState, useTransition, useEffect } from 'react';
+import { RotateCcw, Search, Eye } from 'lucide-react';
 import { actualizarEstadoReembolso } from './actions';
 import { formatCurrency } from '@/lib/currency';
+import DigitalInvoice from '../gastos/digital-invoice';
+import { Gasto } from '../gastos/gasto-type';
 
 export type ReembolsoItem = {
   id: string;
@@ -51,6 +53,21 @@ export default function ReembolsosClient({
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Estados para el Modal de Factura Digital
+  const [selectedGasto, setSelectedGasto] = useState<Gasto | null>(null);
+  const [modalTab, setModalTab] = useState<'digital' | 'imagen'>('digital');
+
+  // Cerrar modal al presionar la tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedGasto(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const filtered = reembolsos.filter((r) => {
     const matchSearch =
       r.empleado.toLowerCase().includes(search.toLowerCase()) ||
@@ -60,9 +77,7 @@ export default function ReembolsosClient({
     return matchSearch && matchEstado;
   });
 
-  // Totales convertidos a la moneda principal de la organización (monedaOrg)
-  const totalGeneral = reembolsos
-    .reduce((s, r) => s + r.monto_convertido_org, 0);
+  const totalGeneral = reembolsos.reduce((s, r) => s + r.monto_convertido_org, 0);
 
   const totalPendiente = reembolsos
     .filter((r) => r.estado === 'PENDIENTE')
@@ -99,7 +114,7 @@ export default function ReembolsosClient({
         </div>
       )}
 
-      {/* KPI Summary — Totalizado y convertido en la divisa de la empresa */}
+      {/* KPI Summary */}
       <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-card-label">Total a Reembolsar</div>
@@ -236,18 +251,36 @@ export default function ReembolsosClient({
                               {cfg.nextLabel}
                             </button>
                           )}
-                          {r.url_comprobante && (
-                            <a
-                              href={r.url_comprobante}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              id={`comprobante-${r.id}`}
-                              className="btn btn-ghost btn-sm"
-                              aria-label="Ver comprobante"
-                            >
-                              <Receipt size={13} />
-                            </a>
-                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedGasto({
+                                id: r.id,
+                                empleado: r.empleado,
+                                categoria: r.categoria,
+                                comercio: r.comercio,
+                                monto: r.monto,
+                                moneda: r.moneda,
+                                fecha_gasto: r.fecha_gasto,
+                                proyecto: r.proyecto,
+                                metodo_pago: r.metodo_pago,
+                                estado: r.estado,
+                                url_comprobante: r.url_comprobante,
+                                concepto: r.concepto,
+                              });
+                              setModalTab('digital');
+                            }}
+                            className="btn btn-ghost btn-sm"
+                            style={{
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              border: '1px solid rgba(99, 102, 241, 0.25)',
+                              color: 'var(--rendy-primary-light)',
+                              gap: '5px',
+                              cursor: 'pointer',
+                            }}
+                            title="Ver Factura Digital"
+                          >
+                            <Eye size={12} /> Ver
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -258,6 +291,16 @@ export default function ReembolsosClient({
           </div>
         )}
       </div>
+
+      {/* MODAL FACTURA DIGITAL / COMPROBANTE ORIGINAL */}
+      {selectedGasto && (
+        <DigitalInvoice
+          setSelectedGasto={setSelectedGasto}
+          modalTab={modalTab}
+          setModalTab={setModalTab}
+          selectedGasto={selectedGasto}
+        />
+      )}
     </>
   );
 }
