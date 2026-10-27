@@ -63,6 +63,40 @@ export type Database = {
     comentario_rechazo: string | null;
     datos_ocr: Record<string, unknown> | null;
     creado_en: string;
+    // Anti-Fraud fiscal dedup fields (Sprint 2)
+    rif_comercio: string | null;
+    numero_factura: string | null;
+    monto_total: number | null;
+    hash_duplicado: string | null;
+    es_duplicado: boolean;
+    // Fiscal Tax Breakdown & Dual-Currency (Sprint 2 - Block 1)
+    moneda_original: string | null;
+    tasa_cambio: number | null;
+    origen_tasa: string | null;
+    base_imponible_ves: number | null;
+    iva_ves: number | null;
+    exento_ves: number | null;
+    igtf_ves: number | null;
+    monto_ves: number | null;
+    monto_usd: number | null;
+    requiere_revision_fiscal: boolean;
+  };
+  intentos_duplicados: {
+    id: string;
+    empleado_id: string | null;
+    telefono_remitente: string;
+    rif_comercio: string | null;
+    numero_factura: string | null;
+    monto_total: number | null;
+    hash_duplicado: string;
+    gasto_original_id: string | null;
+    creado_en: string;
+  };
+  sesiones_whatsapp: {
+    telefono: string;
+    estado: string;
+    datos_temporales: Record<string, unknown> | null;
+    ultima_interaccion: string;
   };
 };
 

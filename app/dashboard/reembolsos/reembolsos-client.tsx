@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useCallback } from 'react';
 import { RotateCcw, Search, Eye } from 'lucide-react';
 import { actualizarEstadoReembolso } from './actions';
 import { formatCurrency } from '@/lib/currency';
+import { useEscapeClose } from '@/lib/hooks/use-escape-close';
+import type { Gasto } from '@/lib/types/gasto';
 import DigitalInvoice from '../gastos/digital-invoice';
-import { Gasto } from '../gastos/gasto-type';
 
 export type ReembolsoItem = {
   id: string;
@@ -53,20 +54,11 @@ export default function ReembolsosClient({
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Estados para el Modal de Factura Digital
+  // Estado para el Modal de Factura Digital
   const [selectedGasto, setSelectedGasto] = useState<Gasto | null>(null);
-  const [modalTab, setModalTab] = useState<'digital' | 'imagen'>('digital');
 
-  // Cerrar modal al presionar la tecla Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedGasto(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  const handleCloseInvoice = useCallback(() => setSelectedGasto(null), []);
+  useEscapeClose(handleCloseInvoice, selectedGasto !== null);
 
   const filtered = reembolsos.filter((r) => {
     const matchSearch =
@@ -252,23 +244,20 @@ export default function ReembolsosClient({
                             </button>
                           )}
                           <button
-                            onClick={() => {
-                              setSelectedGasto({
-                                id: r.id,
-                                empleado: r.empleado,
-                                categoria: r.categoria,
-                                comercio: r.comercio,
-                                monto: r.monto,
-                                moneda: r.moneda,
-                                fecha_gasto: r.fecha_gasto,
-                                proyecto: r.proyecto,
-                                metodo_pago: r.metodo_pago,
-                                estado: r.estado,
-                                url_comprobante: r.url_comprobante,
-                                concepto: r.concepto,
-                              });
-                              setModalTab('digital');
-                            }}
+                            onClick={() => setSelectedGasto({
+                              id: r.id,
+                              empleado: r.empleado,
+                              categoria: r.categoria,
+                              comercio: r.comercio,
+                              monto: r.monto,
+                              moneda: r.moneda,
+                              fecha_gasto: r.fecha_gasto,
+                              proyecto: r.proyecto,
+                              metodo_pago: r.metodo_pago,
+                              estado: r.estado,
+                              url_comprobante: r.url_comprobante,
+                              concepto: r.concepto,
+                            })}
                             className="btn btn-ghost btn-sm"
                             style={{
                               background: 'rgba(99, 102, 241, 0.1)',
@@ -292,13 +281,11 @@ export default function ReembolsosClient({
         )}
       </div>
 
-      {/* MODAL FACTURA DIGITAL / COMPROBANTE ORIGINAL */}
+      {/* ── Digital Invoice Modal ── */}
       {selectedGasto && (
         <DigitalInvoice
-          setSelectedGasto={setSelectedGasto}
-          modalTab={modalTab}
-          setModalTab={setModalTab}
-          selectedGasto={selectedGasto}
+          gasto={selectedGasto}
+          onClose={handleCloseInvoice}
         />
       )}
     </>

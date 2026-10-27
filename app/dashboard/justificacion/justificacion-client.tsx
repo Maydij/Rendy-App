@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ClipboardCheck,
   AlertTriangle,
@@ -13,11 +13,12 @@ import {
   CheckCircle2,
   Calendar,
   Tag,
-  DollarSign,
   ArrowRight,
   TrendingUp,
   FileQuestion,
 } from 'lucide-react';
+import { useEscapeClose } from '@/lib/hooks/use-escape-close';
+import type { Gasto } from '@/lib/types/gasto';
 import DigitalInvoice from '../gastos/digital-invoice';
 
 export type GastoJustificacion = {
@@ -54,29 +55,16 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
   
   // Modal de Detalle de Gastos
   const [selectedSolicitud, setSelectedSolicitud] = useState<JustificacionItem | null>(null);
-  
-  // Modal Lightbox para Comprobante/Factura
-  const [selectedReceipt, setSelectedReceipt] = useState<{
-    url: string;
-    comercio: string;
-    montoStr: string;
-    fecha: string;
-  } | null>(null);
 
-  // Manejo de tecla Escape para cerrar modales
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (selectedReceipt) {
-          setSelectedReceipt(null);
-        } else if (selectedSolicitud) {
-          setSelectedSolicitud(null);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedReceipt, selectedSolicitud]);
+  // Modal de Factura Digital (eReceipt) — uses the unified Gasto type
+  const [selectedGastoInvoice, setSelectedGastoInvoice] = useState<Gasto | null>(null);
+
+  // Escape key: invoice modal takes priority, then solicitud modal
+  const handleCloseInvoice = useCallback(() => setSelectedGastoInvoice(null), []);
+  const handleCloseSolicitud = useCallback(() => setSelectedSolicitud(null), []);
+
+  useEscapeClose(handleCloseInvoice, selectedGastoInvoice !== null);
+  useEscapeClose(handleCloseSolicitud, selectedGastoInvoice === null && selectedSolicitud !== null);
 
   // Mantener actualizado el viático seleccionado si la lista cambia
   useEffect(() => {
@@ -759,11 +747,23 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                                 <button
                                   className="btn btn-sm"
                                   onClick={() =>
-                                    setSelectedReceipt({
-                                      url: gasto.url_comprobante!,
+                                    setSelectedGastoInvoice({
+                                      id: gasto.id,
+                                      empleado: selectedSolicitud.empleado,
+                                      categoria: gasto.categoria,
                                       comercio: gasto.comercio,
-                                      montoStr: `${gasto.monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })} ${gasto.moneda}`,
-                                      fecha: gasto.fecha_gasto,
+                                      monto: gasto.monto,
+                                      moneda: gasto.moneda,
+                                      tasa_cambio: gasto.tasa_cambio,
+                                      monto_convertido: gasto.monto_convertido,
+                                      moneda_viatico: selectedSolicitud.moneda,
+                                      fecha_gasto: gasto.fecha_gasto,
+                                      creado_en: gasto.creado_en,
+                                      proyecto: selectedSolicitud.proyecto,
+                                      metodo_pago: 'Rendición de Viáticos',
+                                      estado: gasto.estado,
+                                      url_comprobante: gasto.url_comprobante,
+                                      concepto: gasto.concepto,
                                     })
                                   }
                                   style={{
@@ -831,13 +831,11 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
         </div>
       )}
 
-      {/* =========================================================
-          LIGHTBOX MODAL: VISOR DE COMPROBANTE / FACTURA
-          ========================================================= */}
-      {selectedReceipt && (
+      {/* ── Digital Invoice Modal (eReceipt) ── */}
+      {selectedGastoInvoice && (
         <DigitalInvoice
-          selectedReceipt={selectedReceipt}
-          setSelectedReceipt={setSelectedReceipt}
+          gasto={selectedGastoInvoice}
+          onClose={handleCloseInvoice}
         />
       )}
     </>

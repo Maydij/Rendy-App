@@ -5,7 +5,7 @@ async function getGastosEmpresaData() {
   const [{ data: gastos }, { data: usuarios }, { data: proyectos }, { data: metodos }, { data: solicitudes }] = await Promise.all([
     supabaseServer
       .from('gastos')
-      .select('id, usuario_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, proyecto_id, metodo_pago_id, estado, url_comprobante, concepto, datos_ocr, solicitud_id, creado_en')
+      .select('id, usuario_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, proyecto_id, metodo_pago_id, estado, url_comprobante, concepto, datos_ocr, solicitud_id, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal')
       .eq('empresa_id', EMPRESA_ID)
       .or('metodo_pago_id.not.is.null,solicitud_id.not.is.null')
       .order('creado_en', { ascending: false }),
@@ -44,6 +44,17 @@ async function getGastosEmpresaData() {
       url_comprobante: g.url_comprobante ?? null,
       concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
       datos_ocr: g.datos_ocr ?? null,
+      moneda_original: g.moneda_original ?? null,
+      origen_tasa: g.origen_tasa ?? null,
+      base_imponible_ves: g.base_imponible_ves ?? null,
+      iva_ves: g.iva_ves ?? null,
+      exento_ves: g.exento_ves ?? null,
+      igtf_ves: g.igtf_ves ?? null,
+      monto_ves: g.monto_ves ?? null,
+      monto_usd: g.monto_usd ?? null,
+      rif_comercio: g.rif_comercio ?? null,
+      numero_factura: g.numero_factura ?? null,
+      requiere_revision_fiscal: g.requiere_revision_fiscal ?? false,
     }));
 }
 

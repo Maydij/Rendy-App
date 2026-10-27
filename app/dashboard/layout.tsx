@@ -18,6 +18,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { RendyLogo } from '@/components/rendy-logo';
 
 const SidebarContext = createContext({ collapsed: false });
 export const useSidebar = () => useContext(SidebarContext);
@@ -108,7 +109,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             style={{ cursor: collapsed ? 'pointer' : 'default' }}
             title={collapsed ? 'Expandir menú lateral' : undefined}
           >
-            <div className="sidebar-brand-logo">R</div>
+            <div className="sidebar-brand-logo">
+              <RendyLogo variant="mark" className="h-9 w-9" />
+            </div>
             <div className="sidebar-brand-text">
               <span className="sidebar-brand-name">Rendy</span>
               <span className="sidebar-brand-tagline">by Swork · B2B SaaS</span>

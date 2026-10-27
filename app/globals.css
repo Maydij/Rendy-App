@@ -138,16 +138,10 @@ body {
 .sidebar-brand-logo {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light));
-  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 16px;
-  color: white;
   flex-shrink: 0;
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
 }
 
 .sidebar-brand-text {

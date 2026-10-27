@@ -1,25 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Receipt, Search, ExternalLink, Eye, X, FileText, Image as ImageIcon, ShieldCheck, AlertTriangle } from 'lucide-react';
-import { Gasto } from './gasto-type'
-import DigitalInvoice from './digital-invoice'
+import { useState, useCallback } from 'react';
+import { Receipt, Search, Eye } from 'lucide-react';
+import { useEscapeClose } from '@/lib/hooks/use-escape-close';
+import type { Gasto } from '@/lib/types/gasto';
+import DigitalInvoice from './digital-invoice';
 
+/**
+ * @name GastosEmpresaClient
+ * @description [Business View]: Renders the corporate expense table showing
+ * all receipts justified via WhatsApp that were paid with company funds
+ * (corporate cards, travel advances). Each row can open a DigitalInvoice modal.
+ */
 export default function GastosEmpresaClient({ gastos }: { gastos: Gasto[] }) {
   const [search, setSearch] = useState('');
   const [selectedGasto, setSelectedGasto] = useState<Gasto | null>(null);
-  const [modalTab, setModalTab] = useState<'digital' | 'imagen'>('digital');
 
-  // Cerrar modal al presionar Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedGasto(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  const handleCloseModal = useCallback(() => setSelectedGasto(null), []);
+
+  useEscapeClose(handleCloseModal, selectedGasto !== null);
 
   const filtered = gastos.filter((g) =>
     g.empleado.toLowerCase().includes(search.toLowerCase()) ||
@@ -107,10 +106,7 @@ export default function GastosEmpresaClient({ gastos }: { gastos: Gasto[] }) {
                       <td style={{ verticalAlign: 'middle', color: 'var(--text-muted)', fontSize: '12px' }}>{g.metodo_pago}</td>
                       <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
                         <button
-                          onClick={() => {
-                            setSelectedGasto(g);
-                            setModalTab('digital');
-                          }}
+                          onClick={() => setSelectedGasto(g)}
                           className="btn btn-ghost btn-sm"
                           style={{
                             background: 'rgba(99, 102, 241, 0.1)',
@@ -132,15 +128,11 @@ export default function GastosEmpresaClient({ gastos }: { gastos: Gasto[] }) {
         )}
       </div>
 
-      {/* =========================================================
-          MODAL: FACTURA DIGITAL (ERECEIPT) + FOTO ORIGINAL
-          ========================================================= */}
+      {/* ── Digital Invoice Modal ── */}
       {selectedGasto && (
         <DigitalInvoice
-        setSelectedGasto={setSelectedGasto}
-        modalTab={modalTab}
-        setModalTab={setModalTab}
-        selectedGasto={selectedGasto}
+          gasto={selectedGasto}
+          onClose={handleCloseModal}
         />
       )}
     </>
