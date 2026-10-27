@@ -1,9 +1,28 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { RotateCcw, Search, Receipt, ExternalLink } from 'lucide-react';
-import type { Reembolso } from './page';
+import { useState, useTransition, useCallback } from 'react';
+import { RotateCcw, Search, Eye } from 'lucide-react';
 import { actualizarEstadoReembolso } from './actions';
+import { formatCurrency } from '@/lib/currency';
+import { useEscapeClose } from '@/lib/hooks/use-escape-close';
+import type { Gasto } from '@/lib/types/gasto';
+import DigitalInvoice from '../gastos/digital-invoice';
+
+export type ReembolsoItem = {
+  id: string;
+  empleado: string;
+  categoria: string;
+  comercio: string;
+  monto: number;
+  moneda: string;
+  monto_convertido_org: number;
+  fecha_gasto: string;
+  proyecto: string;
+  metodo_pago: string;
+  estado: string;
+  url_comprobante: string | null;
+  concepto: string | null;
+};
 
 const ESTADO_CONFIG: Record<string, { label: string; badgeClass: string; next: string; nextLabel: string }> = {
   PENDIENTE: { label: 'Pendiente',  badgeClass: 'pendiente', next: 'APROBADO',  nextLabel: 'Marcar Procesado' },
@@ -21,11 +40,25 @@ function StatusBadge({ estado }: { estado: string }) {
   );
 }
 
-export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso[] }) {
+export default function ReembolsosClient({
+  reembolsos,
+  monedaOrg = 'USD',
+  rates = {},
+}: {
+  reembolsos: ReembolsoItem[];
+  monedaOrg?: string;
+  rates?: Record<string, number>;
+}) {
   const [search, setSearch] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // Estado para el Modal de Factura Digital
+  const [selectedGasto, setSelectedGasto] = useState<Gasto | null>(null);
+
+  const handleCloseInvoice = useCallback(() => setSelectedGasto(null), []);
+  useEscapeClose(handleCloseInvoice, selectedGasto !== null);
 
   const filtered = reembolsos.filter((r) => {
     const matchSearch =
@@ -36,9 +69,19 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
     return matchSearch && matchEstado;
   });
 
-  const totalPendiente = reembolsos.filter((r) => r.estado === 'PENDIENTE').reduce((s, r) => s + r.monto, 0);
-  const totalProcesado = reembolsos.filter((r) => r.estado === 'APROBADO').reduce((s, r) => s + r.monto, 0);
-  const totalPagado = reembolsos.filter((r) => r.estado === 'RECHAZADO').reduce((s, r) => s + r.monto, 0);
+  const totalGeneral = reembolsos.reduce((s, r) => s + r.monto_convertido_org, 0);
+
+  const totalPendiente = reembolsos
+    .filter((r) => r.estado === 'PENDIENTE')
+    .reduce((s, r) => s + r.monto_convertido_org, 0);
+
+  const totalProcesado = reembolsos
+    .filter((r) => r.estado === 'APROBADO')
+    .reduce((s, r) => s + r.monto_convertido_org, 0);
+
+  const totalPagado = reembolsos
+    .filter((r) => r.estado === 'RECHAZADO')
+    .reduce((s, r) => s + r.monto_convertido_org, 0);
 
   function handleCambioEstado(id: string, nextEstado: string) {
     startTransition(async () => {
@@ -52,7 +95,9 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
     <>
       <div className="page-header">
         <h1 className="page-title"><RotateCcw size={24} strokeWidth={2} />Gestión de Reembolsos</h1>
-        <p className="page-subtitle">Gastos con fondos propios registrados vía WhatsApp que requieren reembolso al empleado.</p>
+        <p className="page-subtitle">
+          Gastos con fondos personales registrados vía WhatsApp que requieren reembolso al empleado (Valores consolidados en {monedaOrg}).
+        </p>
       </div>
 
       {feedback && (
@@ -62,27 +107,44 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
       )}
 
       {/* KPI Summary */}
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-card-label">Total a Reembolsar</div>
+          <div className="kpi-card-value">
+            {formatCurrency(totalGeneral, monedaOrg)}
+          </div>
+          <div className="kpi-card-delta up">
+            {reembolsos.length} gastos en total · En {monedaOrg}
+          </div>
+        </div>
         <div className="kpi-card">
           <div className="kpi-card-label">Pendiente de Pago</div>
-          <div className="kpi-card-value" style={{ color: 'var(--rendy-warning)' }}>${totalPendiente.toLocaleString('es-VE')}</div>
-          <div className="kpi-card-delta down">{reembolsos.filter((r) => r.estado === 'PENDIENTE').length} gastos</div>
+          <div className="kpi-card-value" style={{ color: 'var(--rendy-warning)' }}>
+            {formatCurrency(totalPendiente, monedaOrg)}
+          </div>
+          <div className="kpi-card-delta down">
+            {reembolsos.filter((r) => r.estado === 'PENDIENTE').length} gastos · En {monedaOrg}
+          </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-card-label">En Proceso</div>
-          <div className="kpi-card-value">${totalProcesado.toLocaleString('es-VE')}</div>
-          <div className="kpi-card-delta up">Transferencia iniciada</div>
+          <div className="kpi-card-value">
+            {formatCurrency(totalProcesado, monedaOrg)}
+          </div>
+          <div className="kpi-card-delta up">Transferencia iniciada · En {monedaOrg}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-card-label">Pagados</div>
-          <div className="kpi-card-value" style={{ color: 'var(--rendy-accent)' }}>${totalPagado.toLocaleString('es-VE')}</div>
-          <div className="kpi-card-delta up">Completados</div>
+          <div className="kpi-card-value" style={{ color: 'var(--rendy-accent)' }}>
+            {formatCurrency(totalPagado, monedaOrg)}
+          </div>
+          <div className="kpi-card-delta up">Completados · En {monedaOrg}</div>
         </div>
       </div>
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
           <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input
             id="reembolsos-search"
@@ -93,17 +155,19 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
             style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: '8px', padding: '9px 12px 9px 36px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}
           />
         </div>
-        {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((e) => (
-          <button
-            key={e}
-            id={`filter-reembolsos-${e.toLowerCase()}`}
-            onClick={() => setFiltroEstado(e)}
-            className="btn btn-ghost btn-sm"
-            style={filtroEstado === e ? { background: 'rgba(99,102,241,0.18)', color: 'var(--rendy-primary-light)', borderColor: 'rgba(99,102,241,0.4)' } : {}}
-          >
-            {e === 'TODOS' ? 'Todos' : e === 'APROBADO' ? 'Procesado' : e === 'RECHAZADO' ? 'Pagado' : 'Pendiente'}
-          </button>
-        ))}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((e) => (
+            <button
+              key={e}
+              id={`filter-reembolsos-${e.toLowerCase()}`}
+              onClick={() => setFiltroEstado(e)}
+              className="btn btn-ghost btn-sm"
+              style={filtroEstado === e ? { background: 'rgba(99,102,241,0.18)', color: 'var(--rendy-primary-light)', borderColor: 'rgba(99,102,241,0.4)' } : {}}
+            >
+              {e === 'TODOS' ? 'Todos' : e === 'APROBADO' ? 'Procesado' : e === 'RECHAZADO' ? 'Pagado' : 'Pendiente'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -115,7 +179,7 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
             <div className="empty-state-desc">Los gastos propios enviados por WhatsApp sin viático asignado aparecerán aquí.</div>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table className="rendy-table" aria-label="Listado de reembolsos">
               <thead>
                 <tr>
@@ -126,7 +190,7 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
                   <th>Fecha</th>
                   <th>Método de Pago</th>
                   <th>Estado</th>
-                  <th>Acciones</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,14 +216,21 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
                         </span>
                       </td>
                       <td title={r.concepto ?? undefined}>{r.comercio}</td>
-                      <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {r.monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {r.moneda}
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {r.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {r.moneda}
+                        </div>
+                        {r.moneda !== monedaOrg && (
+                          <div style={{ fontSize: '11px', color: 'var(--rendy-accent)', fontWeight: 600, marginTop: '2px' }}>
+                            ≈ {formatCurrency(r.monto_convertido_org, monedaOrg)}
+                          </div>
+                        )}
                       </td>
                       <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{r.fecha_gasto}</td>
                       <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{r.metodo_pago}</td>
                       <td><StatusBadge estado={r.estado} /></td>
                       <td>
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end' }}>
                           {cfg?.next && (
                             <button
                               id={`reembolso-avanzar-${r.id}`}
@@ -172,18 +243,33 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
                               {cfg.nextLabel}
                             </button>
                           )}
-                          {r.url_comprobante && (
-                            <a
-                              href={r.url_comprobante}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              id={`comprobante-${r.id}`}
-                              className="btn btn-ghost btn-sm"
-                              aria-label="Ver comprobante"
-                            >
-                              <Receipt size={13} />
-                            </a>
-                          )}
+                          <button
+                            onClick={() => setSelectedGasto({
+                              id: r.id,
+                              empleado: r.empleado,
+                              categoria: r.categoria,
+                              comercio: r.comercio,
+                              monto: r.monto,
+                              moneda: r.moneda,
+                              fecha_gasto: r.fecha_gasto,
+                              proyecto: r.proyecto,
+                              metodo_pago: r.metodo_pago,
+                              estado: r.estado,
+                              url_comprobante: r.url_comprobante,
+                              concepto: r.concepto,
+                            })}
+                            className="btn btn-ghost btn-sm"
+                            style={{
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              border: '1px solid rgba(99, 102, 241, 0.25)',
+                              color: 'var(--rendy-primary-light)',
+                              gap: '5px',
+                              cursor: 'pointer',
+                            }}
+                            title="Ver Factura Digital"
+                          >
+                            <Eye size={12} /> Ver
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -194,6 +280,14 @@ export default function ReembolsosClient({ reembolsos }: { reembolsos: Reembolso
           </div>
         )}
       </div>
+
+      {/* ── Digital Invoice Modal ── */}
+      {selectedGasto && (
+        <DigitalInvoice
+          gasto={selectedGasto}
+          onClose={handleCloseInvoice}
+        />
+      )}
     </>
   );
 }

@@ -1,8 +1,66 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from '@google/generative-ai';
 import { supabase } from '@/app/lib/supabase';
 import { createHash } from 'crypto';
+import type { GeminiFiscalExtraction } from '@/lib/services/procesadorFiscal';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+/* ─────────────────────────────────────────────────────────
+ * GEMINI FISCAL EXTRACTION CONFIGURATION
+ * ───────────────────────────────────────────────────────── */
+
+/**
+ * @name FISCAL_SYSTEM_PROMPT
+ * @description [AI Configuration]: System instruction for Gemini to act as a Venezuelan
+ * fiscal auditor specialized in reading SENIAT fiscal tickets, invoices, and delivery notes.
+ * This prompt ensures precise extraction of all four tax components required by Venezuelan law.
+ */
+const FISCAL_SYSTEM_PROMPT = `Eres un auditor fiscal venezolano de élite especializado en lectura y extracción contable de facturas, tickets de máquinas fiscales (SENIAT) y notas de entrega.
+
+Tu tarea es analizar el comprobante adjunto y extraer la información financiera con precisión matemática absoluta.
+
+REGLAS DE EXTRACCIÓN FISCAL:
+1. RIF: Extrae el RIF del emisor iniciando con la letra correspondiente (J, V, E, G) sin guiones ni puntos (ej. J123456789).
+2. Base Imponible: Subtotal de los productos o servicios gravados antes de impuestos. Si no hay items con IVA, es 0.00.
+3. IVA (16%): Impuesto al Valor Agregado ordinario aplicado a la base imponible.
+4. Exento: Bienes o servicios marcados explícitamente con (E), no sujetos o exentos de IVA.
+5. IGTF (3%): Impuesto a las Grandes Transacciones Financieras aplicado si el comprobante indica pago en divisas o efectivo USD. Si no figura, es 0.00.
+6. Total: Monto total final pagado reflejado en el ticket.
+7. Moneda: Determina si los importes impresos están en "VES" (Bolívares) o "USD" (Dólares).
+8. Tasa Impresa: Si el ticket imprime explícitamente una tasa de cambio (ej. "Tasa BCV: 68.50"), extrae ese número decimal. Si no la menciona, devuelve null.
+
+Devuelve estrictamente un objeto JSON con la estructura solicitada, sin rodeos ni Markdown adicional.`;
+
+/**
+ * @name FISCAL_RESPONSE_SCHEMA
+ * @description [AI Configuration]: JSON schema enforced via Gemini's structured output
+ * (response_mime_type: application/json) to guarantee type-safe extraction.
+ */
+const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    nombre_comercio: { type: SchemaType.STRING, description: 'Business/store name' },
+    rif_comercio: { type: SchemaType.STRING, description: 'RIF without dashes (e.g. J123456789)' },
+    numero_factura: { type: SchemaType.STRING, description: 'Invoice/fiscal control number' },
+    fecha_emision: { type: SchemaType.STRING, description: 'Date in YYYY-MM-DD format' },
+    moneda: {
+      type: SchemaType.STRING,
+      format: 'enum',
+      description: 'VES or USD',
+      enum: ['VES', 'USD'],
+    },
+    tasa_impresa: { type: SchemaType.NUMBER, description: 'Exchange rate printed on invoice, or 0 if not present', nullable: true },
+    base_imponible: { type: SchemaType.NUMBER, description: 'Taxable base amount before IVA' },
+    iva: { type: SchemaType.NUMBER, description: 'IVA 16% amount' },
+    exento: { type: SchemaType.NUMBER, description: 'Tax-exempt amount' },
+    igtf: { type: SchemaType.NUMBER, description: 'IGTF 3% amount (0 if not applicable)' },
+    total: { type: SchemaType.NUMBER, description: 'Total amount paid' },
+  },
+  required: [
+    'nombre_comercio', 'rif_comercio', 'numero_factura', 'fecha_emision',
+    'moneda', 'base_imponible', 'iva', 'exento', 'igtf', 'total',
+  ],
+};
 
 // Descarga la imagen desde Meta y la convierte a Base64
 async function obtenerImagenMetaBuffer(imageId: string) {
@@ -33,35 +91,50 @@ async function obtenerImagenMetaBuffer(imageId: string) {
   };
 }
 
-// Procesa una imagen de factura con Gemini AI
-export async function procesarFacturaConIA(imageId: string) {
+/**
+ * @name procesarFacturaConIA
+ * @description [Business Logic]: Processes an invoice image through Gemini AI with
+ * structured fiscal extraction. Returns a GeminiFiscalExtraction object with all four
+ * Venezuelan tax components (base_imponible, iva, exento, igtf) plus currency/rate data.
+ *
+ * Uses `response_mime_type: "application/json"` with a strict schema to guarantee
+ * type-safe, parseable output without post-processing regex cleanups.
+ */
+export async function procesarFacturaConIA(
+  imageId: string
+): Promise<GeminiFiscalExtraction | 'ERROR_SATURACION' | null> {
   try {
     const imagenPart = await obtenerImagenMetaBuffer(imageId);
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
 
-    const prompt = `Analiza esta factura o recibo de gasto. 
-Extrae la información y responde ÚNICAMENTE con un objeto JSON válido (sin formato markdown ni texto adicional) con esta estructura exacta:
-{
-  "comercio": "Nombre del negocio o tienda",
-  "monto_total": 0.00,
-  "moneda": "USD, EUR, VES, etc.",
-  "fecha": "YYYY-MM-DD",
-  "concepto": "Descripción breve del gasto"
-}
-Si no logras identificar algún campo, asígnale el valor null.`;
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.6-flash',
+      systemInstruction: FISCAL_SYSTEM_PROMPT,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: FISCAL_RESPONSE_SCHEMA,
+      },
+    });
+
+    const prompt = `Analiza este comprobante fiscal y extrae toda la información financiera según las reglas de extracción fiscal indicadas.`;
 
     const result = await model.generateContent([prompt, imagenPart]);
     const responseText = result.response.text();
+    const parsed: GeminiFiscalExtraction = JSON.parse(responseText);
 
-    const jsonLimpio = responseText.replace(/```json|```/g, '').trim();
-    return JSON.parse(jsonLimpio);
-  } catch (error: any) {
+    // Normalize tasa_impresa: Gemini may return 0 instead of null
+    if (parsed.tasa_impresa === 0) {
+      parsed.tasa_impresa = null;
+    }
+
+    return parsed;
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
     console.error('❌ Error al procesar factura con Gemini AI:', error);
 
     if (
-      error?.status === 503 ||
-      error?.message?.includes('503') ||
-      error?.message?.includes('high demand')
+      err?.status === 503 ||
+      err?.message?.includes('503') ||
+      err?.message?.includes('high demand')
     ) {
       return 'ERROR_SATURACION';
     }
@@ -73,7 +146,7 @@ Si no logras identificar algún campo, asígnale el valor null.`;
 // Aplica correcciones sobre los datos mediante un mensaje de texto
 export async function aplicarCorreccionConIA(datosPrevios: any, textoUsuario: string) {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
     const prompt = `Tienes el siguiente JSON de un gasto detectado previamente:
 ${JSON.stringify(datosPrevios, null, 2)}
@@ -127,7 +200,7 @@ async function obtenerAudioMetaBuffer(audioId: string) {
 export async function aplicarCorreccionAudioConIA(datosPrevios: any, audioId: string) {
   try {
     const audioPart = await obtenerAudioMetaBuffer(audioId);
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
     const prompt = `Escucha esta nota de voz. El usuario está pidiendo una corrección o actualización sobre los siguientes datos de un gasto:
 ${JSON.stringify(datosPrevios, null, 2)}
@@ -196,8 +269,15 @@ export async function guardarImagenEnSupabase(idImagen: string): Promise<string 
 
 // --- FUNCIONES PARA SOPORTE DE ARCHIVOS PDF ---
 
-// Descarga y procesa un archivo PDF con Gemini AI
-export async function procesarFacturaPDFConIA(idDocumento: string) {
+/**
+ * @name procesarFacturaPDFConIA
+ * @description [Business Logic]: Processes a PDF invoice document through Gemini AI
+ * with the same structured fiscal extraction as image processing. Downloads the PDF
+ * from Meta's Graph API, converts to base64, and sends to Gemini with fiscal schema.
+ */
+export async function procesarFacturaPDFConIA(
+  idDocumento: string
+): Promise<GeminiFiscalExtraction | 'ERROR_SATURACION' | null> {
   try {
     const token = process.env.WHATSAPP_API_TOKEN;
 
@@ -217,18 +297,16 @@ export async function procesarFacturaPDFConIA(idDocumento: string) {
     const arrayBuffer = await pdfRes.arrayBuffer();
     const base64PDF = Buffer.from(arrayBuffer).toString('base64');
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.6-flash',
+      systemInstruction: FISCAL_SYSTEM_PROMPT,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: FISCAL_RESPONSE_SCHEMA,
+      },
+    });
 
-    const prompt = `Analiza este documento PDF de factura o recibo de gasto. 
-Extrae la información y responde ÚNICAMENTE con un objeto JSON válido (sin formato markdown ni texto adicional) con esta estructura exacta:
-{
-  "comercio": "Nombre del negocio o tienda",
-  "monto_total": 0.00,
-  "moneda": "USD, EUR, VES, etc.",
-  "fecha": "YYYY-MM-DD",
-  "concepto": "Descripción breve del gasto"
-}
-Si no logras identificar algún campo, asígnale el valor null.`;
+    const prompt = `Analiza este documento PDF de factura y extrae toda la información financiera según las reglas de extracción fiscal indicadas.`;
 
     const result = await model.generateContent([
       prompt,
@@ -241,17 +319,26 @@ Si no logras identificar algún campo, asígnale el valor null.`;
     ]);
 
     const responseText = result.response.text().trim();
-    const jsonLimpio = responseText.replace(/```json|```/g, '').trim();
-    return JSON.parse(jsonLimpio);
-  } catch (error: any) {
+    const parsed: GeminiFiscalExtraction = JSON.parse(responseText);
+
+    // Normalize tasa_impresa: Gemini may return 0 instead of null
+    if (parsed.tasa_impresa === 0) {
+      parsed.tasa_impresa = null;
+    }
+
+    return parsed;
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
     console.error('❌ Error procesando PDF con Gemini AI:', error);
+
     if (
-      error?.status === 503 ||
-      error?.message?.includes('503') ||
-      error?.message?.includes('high demand')
+      err?.status === 503 ||
+      err?.message?.includes('503') ||
+      err?.message?.includes('high demand')
     ) {
       return 'ERROR_SATURACION';
     }
+
     return null;
   }
 }
@@ -311,9 +398,9 @@ export async function verificarGastoDuplicado(
   monto: number | null,
   fecha: string | null,
   hashArchivo?: string | null
-): Promise<{ 
-  esHashDuplicado: boolean; 
-  esDatosCoincidentes: boolean; 
+): Promise<{
+  esHashDuplicado: boolean;
+  esDatosCoincidentes: boolean;
   mensajeBloqueo?: string;
   mensajeAlerta?: string;
 }> {
