@@ -8,7 +8,7 @@ export async function aprobarSolicitud(id: string) {
   // Fetch solicitud con datos del usuario y proyecto
   const { data: sol, error: fetchErr } = await supabaseServer
     .from('solicitudes_viaticos')
-    .select('monto_solicitado, moneda, usuario_id, proyecto_id, proyectos(nombre), usuarios(telefono_whatsapp, nombre)')
+    .select('monto_solicitado, moneda, usuario_id, empresa_id, proyecto_id, proyectos(nombre), usuarios(telefono_whatsapp, nombre)')
     .eq('id', id)
     .single();
 
@@ -23,6 +23,19 @@ export async function aprobarSolicitud(id: string) {
     .eq('id', id);
 
   if (error) return { error: error.message };
+
+  // Sincronizar en tabla viaticos para viaticosEngine
+  const proyectoNombre = (sol.proyectos as any)?.nombre || 'General';
+  await supabaseServer.from('viaticos').upsert({
+    id: id,
+    empleado_id: sol.usuario_id,
+    empresa_id: sol.empresa_id,
+    proyecto_id: sol.proyecto_id,
+    nombre_proyecto: proyectoNombre,
+    monto_asignado_usd: Number(sol.monto_solicitado || 0),
+    estado: 'ACTIVO',
+    actualizado_en: new Date().toISOString(),
+  });
 
   // Notificar por WhatsApp al empleado
   const telefono = (sol.usuarios as any)?.telefono_whatsapp;
@@ -65,6 +78,15 @@ export async function rechazarSolicitud(id: string, motivo: string) {
     .eq('id', id);
 
   if (error) return { error: error.message };
+
+  // Sincronizar en tabla viaticos
+  await supabaseServer
+    .from('viaticos')
+    .update({
+      estado: 'RECHAZADO',
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq('id', id);
 
   // Notificar por WhatsApp al empleado
   const telefono = (sol.usuarios as any)?.telefono_whatsapp;

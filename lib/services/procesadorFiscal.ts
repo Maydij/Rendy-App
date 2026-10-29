@@ -35,6 +35,8 @@ export interface GeminiFiscalExtraction {
   exento: number;
   igtf: number;
   total: number;
+  /** AI-classified expense category for policy validation */
+  categoria_gasto?: string;
 }
 
 /**

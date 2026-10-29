@@ -28,7 +28,7 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
 
     supabaseServer
       .from('gastos')
-      .select('id, solicitud_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, url_comprobante, concepto, datos_ocr, estado, creado_en')
+      .select('id, solicitud_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, url_comprobante, concepto, datos_ocr, estado, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal')
       .eq('empresa_id', EMPRESA_ID)
       .not('solicitud_id', 'is', null)
       .order('creado_en', { ascending: false }),
@@ -66,10 +66,21 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
       monto_convertido: g.monto_convertido ?? null,
       monto_efectivo: Number(montoEfectivo.toFixed(2)),
       fecha_gasto: formatFecha(g.fecha_gasto, g.creado_en),
-      url_comprobante: g.url_comprobante ?? null,
+      url_comprobante: g.url_comprobante ?? (g.datos_ocr as any)?.url_comprobante ?? null,
       concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
       estado: g.estado || 'APROBADO',
       creado_en: g.creado_en,
+      moneda_original: g.moneda_original ?? null,
+      origen_tasa: g.origen_tasa ?? null,
+      base_imponible_ves: g.base_imponible_ves ?? null,
+      iva_ves: g.iva_ves ?? null,
+      exento_ves: g.exento_ves ?? null,
+      igtf_ves: g.igtf_ves ?? null,
+      monto_ves: g.monto_ves ?? null,
+      monto_usd: g.monto_usd ?? null,
+      rif_comercio: g.rif_comercio ?? null,
+      numero_factura: g.numero_factura ?? null,
+      requiere_revision_fiscal: g.requiere_revision_fiscal ?? false,
     };
 
     if (!gastosPorSol[g.solicitud_id]) {

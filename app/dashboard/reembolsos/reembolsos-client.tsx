@@ -22,6 +22,19 @@ export type ReembolsoItem = {
   estado: string;
   url_comprobante: string | null;
   concepto: string | null;
+
+  // ── Sprint 2: Fiscal Tax Breakdown & Dual-Currency ──
+  moneda_original?: string | null;
+  origen_tasa?: string | null;
+  base_imponible_ves?: number | null;
+  iva_ves?: number | null;
+  exento_ves?: number | null;
+  igtf_ves?: number | null;
+  monto_ves?: number | null;
+  monto_usd?: number | null;
+  rif_comercio?: string | null;
+  numero_factura?: string | null;
+  requiere_revision_fiscal?: boolean | null;
 };
 
 const ESTADO_CONFIG: Record<string, { label: string; badgeClass: string; next: string; nextLabel: string }> = {
@@ -257,6 +270,17 @@ export default function ReembolsosClient({
                               estado: r.estado,
                               url_comprobante: r.url_comprobante,
                               concepto: r.concepto,
+                              moneda_original: r.moneda_original,
+                              origen_tasa: r.origen_tasa,
+                              base_imponible_ves: r.base_imponible_ves,
+                              iva_ves: r.iva_ves,
+                              exento_ves: r.exento_ves,
+                              igtf_ves: r.igtf_ves,
+                              monto_ves: r.monto_ves,
+                              monto_usd: r.monto_usd,
+                              rif_comercio: r.rif_comercio,
+                              numero_factura: r.numero_factura,
+                              requiere_revision_fiscal: r.requiere_revision_fiscal,
                             })}
                             className="btn btn-ghost btn-sm"
                             style={{

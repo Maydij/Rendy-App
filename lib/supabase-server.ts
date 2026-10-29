@@ -41,9 +41,25 @@ export type Database = {
     proyecto_id: string | null;
     monto_solicitado: number;
     monto_aprobado: number | null;
+    monto_gastado?: number;
+    monto_asignado?: number;
+    moneda?: string;
     estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
     motivo_rechazo: string | null;
     creado_en: string;
+  };
+  viaticos: {
+    id: string;
+    empleado_id: string;
+    empresa_id: string;
+    nombre_proyecto: string;
+    proyecto_id: string | null;
+    monto_asignado_usd: number;
+    estado: 'PENDIENTE_APROBACION' | 'ACTIVO' | 'CERRADO' | 'RECHAZADO';
+    fecha_inicio: string;
+    fecha_cierre: string | null;
+    creado_en: string;
+    actualizado_en: string;
   };
   gastos: {
     id: string;
@@ -52,14 +68,17 @@ export type Database = {
     proyecto_id: string | null;
     metodo_pago_id: string | null;
     solicitud_id: string | null;
+    viatico_id: string | null;
+    es_reembolso: boolean;
     categoria: string;
     comercio: string | null;
     monto: number;
     moneda: string | null;
+    monto_convertido: number | null;
     fecha_gasto: string;
     url_comprobante: string | null;
     concepto: string | null;
-    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | 'REVISION_DUPLICADO' | 'REQUIERE_APROBACION_ESPECIAL';
     comentario_rechazo: string | null;
     datos_ocr: Record<string, unknown> | null;
     creado_en: string;
@@ -80,6 +99,9 @@ export type Database = {
     monto_ves: number | null;
     monto_usd: number | null;
     requiere_revision_fiscal: boolean;
+    // Policy Limits & Spending Controls (Sprint 2 - Block 1)
+    excede_limite: boolean;
+    detalle_exceso: Record<string, unknown> | null;
   };
   intentos_duplicados: {
     id: string;
@@ -94,6 +116,7 @@ export type Database = {
   };
   sesiones_whatsapp: {
     telefono: string;
+    empleado_id: string | null;
     estado: string;
     datos_temporales: Record<string, unknown> | null;
     ultima_interaccion: string;
