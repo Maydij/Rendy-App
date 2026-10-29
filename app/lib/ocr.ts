@@ -28,6 +28,7 @@ REGLAS DE EXTRACCIÓN FISCAL:
 6. Total: Monto total final pagado reflejado en el ticket.
 7. Moneda: Determina si los importes impresos están en "VES" (Bolívares) o "USD" (Dólares).
 8. Tasa Impresa: Si el ticket imprime explícitamente una tasa de cambio (ej. "Tasa BCV: 68.50"), extrae ese número decimal. Si no la menciona, devuelve null.
+9. Categoría de Gasto: Clasifica el gasto según su naturaleza en una de las siguientes categorías estándar: ALIMENTACION (restaurantes, comida, bebidas, supermercados), TRANSPORTE (gasolina, taxi, estacionamiento, peajes, boletos aéreos/terrestres, alquiler de vehículos), HOSPEDAJE (hoteles, posadas, alojamiento), REPRESENTACION (eventos, regalos corporativos, entretenimiento de clientes), OTROS (cualquier otra cosa no clasificable en las anteriores).
 
 Devuelve estrictamente un objeto JSON con la estructura solicitada, sin rodeos ni Markdown adicional.`;
 
@@ -55,10 +56,16 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
     exento: { type: SchemaType.NUMBER, description: 'Tax-exempt amount' },
     igtf: { type: SchemaType.NUMBER, description: 'IGTF 3% amount (0 if not applicable)' },
     total: { type: SchemaType.NUMBER, description: 'Total amount paid' },
+    categoria_gasto: {
+      type: SchemaType.STRING,
+      format: 'enum',
+      description: 'Expense category: ALIMENTACION, TRANSPORTE, HOSPEDAJE, REPRESENTACION, or OTROS',
+      enum: ['ALIMENTACION', 'TRANSPORTE', 'HOSPEDAJE', 'REPRESENTACION', 'OTROS'],
+    },
   },
   required: [
     'nombre_comercio', 'rif_comercio', 'numero_factura', 'fecha_emision',
-    'moneda', 'base_imponible', 'iva', 'exento', 'igtf', 'total',
+    'moneda', 'base_imponible', 'iva', 'exento', 'igtf', 'total', 'categoria_gasto',
   ],
 };
 
@@ -219,7 +226,63 @@ Conserva los campos que no hayan sido mencionados o modificados.`;
   }
 }
 
-// Descarga la imagen de WhatsApp y la sube a Supabase Storage
+/**
+ * @name uploadBufferToStorageWithRetry
+ * @description [Business Logic]: Uploads a binary buffer to Supabase Storage with exponential
+ * backoff retry. Protects against transient 504 Gateway Timeout, Kong proxy hiccups, and network latency.
+ */
+async function uploadBufferToStorageWithRetry(
+  bucketName: string,
+  fileName: string,
+  buffer: Buffer,
+  contentType: string,
+  maxAttempts = 3
+): Promise<string | null> {
+  let attempt = 0;
+  let delayMs = 1000;
+
+  while (attempt < maxAttempts) {
+    attempt++;
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(fileName, buffer, {
+          contentType,
+          upsert: true,
+          duplex: 'half',
+        });
+
+      if (uploadError) {
+        console.warn(`⚠️ Supabase Storage upload attempt ${attempt}/${maxAttempts} failed:`, uploadError.message || uploadError);
+        if (attempt >= maxAttempts) {
+          console.error(`❌ Final attempt failed uploading ${fileName} to bucket ${bucketName}:`, uploadError);
+          return null;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs *= 2;
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
+    } catch (err: unknown) {
+      console.warn(`⚠️ Exception on Supabase Storage upload attempt ${attempt}/${maxAttempts}:`, err);
+      if (attempt >= maxAttempts) {
+        console.error(`❌ All retry attempts failed for ${fileName}:`, err);
+        return null;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      delayMs *= 2;
+    }
+  }
+
+  return null;
+}
+
+// Descarga la imagen de WhatsApp y la sube a Supabase Storage con reintentos
 export async function guardarImagenEnSupabase(idImagen: string): Promise<string | null> {
   try {
     const token = process.env.WHATSAPP_API_TOKEN;
@@ -230,7 +293,7 @@ export async function guardarImagenEnSupabase(idImagen: string): Promise<string 
     const data = await res.json();
 
     if (!data || !data.url) {
-      console.error('❌ No se pudo obtener la URL de la imagen de Meta');
+      console.error('❌ No se pudo obtener la URL de la imagen de Meta:', data);
       return null;
     }
 
@@ -244,23 +307,7 @@ export async function guardarImagenEnSupabase(idImagen: string): Promise<string 
     const extension = mimeType.split('/')[1] || 'jpg';
     const fileName = `recibo_${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('comprobantes')
-      .upload(fileName, buffer, {
-        contentType: mimeType,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error('❌ Error subiendo imagen a Supabase Storage:', uploadError);
-      return null;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('comprobantes')
-      .getPublicUrl(fileName);
-
-    return urlData.publicUrl;
+    return await uploadBufferToStorageWithRetry('comprobantes', fileName, buffer, mimeType);
   } catch (error) {
     console.error('❌ Error en guardarImagenEnSupabase:', error);
     return null;
@@ -343,7 +390,7 @@ export async function procesarFacturaPDFConIA(
   }
 }
 
-// Descarga un archivo PDF de WhatsApp y lo sube a Supabase Storage
+// Descarga un archivo PDF de WhatsApp y lo sube a Supabase Storage con reintentos
 export async function guardarPDFEnSupabase(idDocumento: string): Promise<string | null> {
   try {
     const token = process.env.WHATSAPP_API_TOKEN;
@@ -363,23 +410,7 @@ export async function guardarPDFEnSupabase(idDocumento: string): Promise<string 
 
     const fileName = `recibo_${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('comprobantes')
-      .upload(fileName, buffer, {
-        contentType: 'application/pdf',
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error('❌ Error subiendo PDF a Supabase Storage:', uploadError);
-      return null;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('comprobantes')
-      .getPublicUrl(fileName);
-
-    return urlData.publicUrl;
+    return await uploadBufferToStorageWithRetry('comprobantes', fileName, buffer, 'application/pdf');
   } catch (error) {
     console.error('❌ Error guardando PDF en Supabase:', error);
     return null;

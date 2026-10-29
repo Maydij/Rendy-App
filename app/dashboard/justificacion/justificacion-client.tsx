@@ -35,6 +35,19 @@ export type GastoJustificacion = {
   concepto: string | null;
   estado: string;
   creado_en: string;
+
+  // ── Sprint 2: Fiscal Tax Breakdown & Dual-Currency ──
+  moneda_original?: string | null;
+  origen_tasa?: string | null;
+  base_imponible_ves?: number | null;
+  iva_ves?: number | null;
+  exento_ves?: number | null;
+  igtf_ves?: number | null;
+  monto_ves?: number | null;
+  monto_usd?: number | null;
+  rif_comercio?: string | null;
+  numero_factura?: string | null;
+  requiere_revision_fiscal?: boolean | null;
 };
 
 export type JustificacionItem = {
@@ -764,6 +777,17 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                                       estado: gasto.estado,
                                       url_comprobante: gasto.url_comprobante,
                                       concepto: gasto.concepto,
+                                      moneda_original: gasto.moneda_original,
+                                      origen_tasa: gasto.origen_tasa,
+                                      base_imponible_ves: gasto.base_imponible_ves,
+                                      iva_ves: gasto.iva_ves,
+                                      exento_ves: gasto.exento_ves,
+                                      igtf_ves: gasto.igtf_ves,
+                                      monto_ves: gasto.monto_ves,
+                                      monto_usd: gasto.monto_usd,
+                                      rif_comercio: gasto.rif_comercio,
+                                      numero_factura: gasto.numero_factura,
+                                      requiere_revision_fiscal: gasto.requiere_revision_fiscal,
                                     })
                                   }
                                   style={{

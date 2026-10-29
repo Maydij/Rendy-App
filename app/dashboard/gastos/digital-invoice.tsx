@@ -46,7 +46,7 @@ const DigitalInvoice = ({ gasto, onClose }: DigitalInvoiceProps) => {
 
   useEscapeClose(handleClose);
 
-  const imageUrl = gasto.url_comprobante ?? null;
+  const imageUrl = gasto.url_comprobante ?? (gasto.datos_ocr as { url_comprobante?: string })?.url_comprobante ?? null;
   const hasExchangeRate = gasto.tasa_cambio != null && gasto.tasa_cambio !== 1;
 
   return (
@@ -256,6 +256,20 @@ function ReceiptBody({
 }) {
   const formatMonto = (n: number) =>
     n.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+
+  /**
+   * @description Determines whether this expense has real fiscal breakdown data
+   * (not just the default 0.00 values from the DB migration). A valid fiscal
+   * breakdown requires at least one non-zero component OR a non-null moneda_original.
+   */
+  const hasFiscalBreakdown =
+    gasto.moneda_original != null &&
+    (
+      Number(gasto.base_imponible_ves || 0) > 0 ||
+      Number(gasto.iva_ves || 0) > 0 ||
+      Number(gasto.exento_ves || 0) > 0 ||
+      Number(gasto.igtf_ves || 0) > 0
+    );
 
   return (
     <div
@@ -509,7 +523,7 @@ function ReceiptBody({
             fontSize: '12.5px',
           }}
         >
-          {gasto.base_imponible_ves != null ? (
+          {hasFiscalBreakdown ? (
             <>
               <div
                 style={{
@@ -519,7 +533,7 @@ function ReceiptBody({
                 }}
               >
                 <span>Base Imponible (VES)</span>
-                <span>{formatMonto(gasto.base_imponible_ves)} Bs</span>
+                <span>{formatMonto(gasto.base_imponible_ves ?? 0)} Bs</span>
               </div>
               <div
                 style={{
