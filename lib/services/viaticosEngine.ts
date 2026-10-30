@@ -149,7 +149,6 @@ export async function calcularSaldoViatico(
     if (sol) {
       nombreProyecto = (sol.proyectos as unknown as { nombre?: string })?.nombre || 'General';
       montoAsignado = Number(sol.monto_aprobado ?? sol.monto_solicitado ?? 0);
-      montoGastadoCache = Number(sol.monto_gastado || 0);
     } else {
       throw new Error(`Viático not found: ${viaticoId}`);
     }
@@ -166,11 +165,10 @@ export async function calcularSaldoViatico(
     throw new Error(`Error fetching existing expenses: ${errGastos.message}`);
   }
 
-  const gastosCalculados = (gastosPrevios || []).reduce(
+  const acumuladoPrevio = (gastosPrevios || []).reduce(
     (acc, item) => acc + extractExpenseUsd(item),
     0
   );
-  const acumuladoPrevio = Math.max(gastosCalculados, montoGastadoCache);
 
   const totalProyectado = acumuladoPrevio + montoNuevaFacturaUsd;
   const saldoFinal = montoAsignado - totalProyectado;
@@ -311,9 +309,23 @@ export async function obtenerViaticosActivosEmpleado(
   for (const base of mapViaticos.values()) {
     const asignado = base.monto_asignado_usd;
     const gastadoCalculado = Number((gastosPorViatico.get(base.id) || 0).toFixed(2));
-    const gastado = Math.max(gastadoCalculado, base.monto_gastado_cache || 0);
+    const gastado = gastadoCalculado;
     const disponible = Number(Math.max(0, asignado - gastado).toFixed(2));
     const pct = Number((asignado > 0 ? (gastado / asignado) * 100 : (gastado > 0 ? 100 : 0)).toFixed(2));
+
+    // Self-healing synchronization: if solicitudes_viaticos cache differs from actual gastos in DB, update it
+    if (base.monto_gastado_cache !== undefined && Number(base.monto_gastado_cache.toFixed(2)) !== gastado) {
+      void supabase
+        .from('solicitudes_viaticos')
+        .update({ monto_gastado: gastado })
+        .eq('id', base.id)
+        .then(
+          () => {},
+          (err: unknown) => {
+            console.error(`Error syncing monto_gastado for ${base.id}:`, err);
+          }
+        );
+    }
 
     listaViaticos.push({
       id: base.id,

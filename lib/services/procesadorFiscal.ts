@@ -13,6 +13,7 @@
  */
 
 import { obtenerTasaOficialDelDia } from '@/lib/services/tasaCambio';
+import { getExchangeRates, normalizeMoneda } from '@/lib/currency';
 
 /* ─────────────────────────────────────────────────────────
  * TYPES
@@ -28,7 +29,7 @@ export interface GeminiFiscalExtraction {
   rif_comercio: string;
   numero_factura: string;
   fecha_emision: string;
-  moneda: 'VES' | 'USD';
+  moneda: string;
   tasa_impresa: number | null;
   base_imponible: number;
   iva: number;
@@ -45,7 +46,7 @@ export interface GeminiFiscalExtraction {
  * persistence. Each field maps directly to a column in the `gastos` table.
  */
 export interface ResultadoContable {
-  moneda_original: 'VES' | 'USD';
+  moneda_original: string;
   tasa_cambio: number;
   origen_tasa: 'factura' | 'sistema';
   base_imponible_ves: number;
@@ -98,52 +99,67 @@ export async function normalizarGastoFiscal(
     fecha_emision,
   } = datosGemini;
 
-  // ── Step 1: Resolve Exchange Rate ──
-  // Priority 1: Invoice-printed rate | Priority 2: BCV official system rate
-  let tasaFinal = tasa_impresa;
-  let origenTasa: 'factura' | 'sistema' = 'factura';
+  const monedaNorm = normalizeMoneda(moneda);
 
-  if (!tasaFinal || tasaFinal <= 0) {
-    tasaFinal = await obtenerTasaOficialDelDia(
-      fecha_emision || new Date().toISOString()
-    );
-    origenTasa = 'sistema';
-  }
+  // ── Step 1: Exchange Rates & Conversion ──
+  let tasaFinal = tasa_impresa && tasa_impresa > 0 ? tasa_impresa : 0;
+  let origenTasa: 'factura' | 'sistema' = tasaFinal > 0 ? 'factura' : 'sistema';
 
-  // ── Step 2: Mathematical Consistency Validation ──
-  // Total should equal the sum of all fiscal components
-  const sumaDesglose = base_imponible + iva + exento + igtf;
-  const discrepancia = Math.abs(total - sumaDesglose);
-  const requiereRevision = discrepancia > TOLERANCE_FISCAL_ROUNDING;
-
-  // ── Step 3 & 4: Dual-Currency Conversion ──
   let montoVes = 0;
   let montoUsd = 0;
   let baseVes = 0;
   let ivaVes = 0;
   let exentoVes = 0;
   let igtfVes = 0;
+  let toleranciaCalculada = TOLERANCE_FISCAL_ROUNDING;
 
-  if (moneda === 'VES') {
-    // Invoice is already in Bolívares — direct assignment
+  if (monedaNorm === 'VES') {
+    if (tasaFinal <= 0) {
+      tasaFinal = await obtenerTasaOficialDelDia(
+        fecha_emision || new Date().toISOString()
+      );
+    }
     montoVes = total;
     baseVes = base_imponible;
     ivaVes = iva;
     exentoVes = exento;
     igtfVes = igtf;
     montoUsd = Number((total / tasaFinal).toFixed(2));
-  } else {
-    // Invoice is in USD — convert all components to VES
+  } else if (monedaNorm === 'USD') {
+    // Universal baseline currency: parity with VES is completely omitted
+    tasaFinal = 1;
+    origenTasa = 'factura';
     montoUsd = total;
-    montoVes = Number((total * tasaFinal).toFixed(2));
-    baseVes = Number((base_imponible * tasaFinal).toFixed(2));
-    ivaVes = Number((iva * tasaFinal).toFixed(2));
-    exentoVes = Number((exento * tasaFinal).toFixed(2));
-    igtfVes = Number((igtf * tasaFinal).toFixed(2));
+    montoVes = 0;
+    baseVes = 0;
+    ivaVes = 0;
+    exentoVes = 0;
+    igtfVes = 0;
+  } else {
+    // International currencies (MXN, COP, EUR, ARS, CLP, PEN, BRL, GBP, etc.):
+    // Pair ONLY with USD based on live exchange rates. Parity with VES is completely omitted.
+    const rates = await getExchangeRates();
+    const rateAgainstUsd = rates[monedaNorm] || 1;
+
+    tasaFinal = tasa_impresa && tasa_impresa > 0 ? tasa_impresa : rateAgainstUsd;
+    origenTasa = tasa_impresa && tasa_impresa > 0 ? 'factura' : 'sistema';
+    toleranciaCalculada = TOLERANCE_FISCAL_ROUNDING * tasaFinal;
+
+    montoUsd = Number((total / tasaFinal).toFixed(2));
+    montoVes = 0;
+    baseVes = 0;
+    ivaVes = 0;
+    exentoVes = 0;
+    igtfVes = 0;
   }
 
+  // ── Step 2: Mathematical Consistency Validation ──
+  const sumaDesglose = base_imponible + iva + exento + igtf;
+  const discrepancia = sumaDesglose > 0 ? Math.abs(total - sumaDesglose) : 0;
+  const requiereRevision = discrepancia > toleranciaCalculada;
+
   return {
-    moneda_original: moneda,
+    moneda_original: monedaNorm,
     tasa_cambio: tasaFinal,
     origen_tasa: origenTasa,
     base_imponible_ves: baseVes,
@@ -179,10 +195,20 @@ export function formatearConfirmacionFiscalWhatsApp(
       : 'Tasa oficial del día';
 
   // Primary amount display depends on original currency
-  const montoPrincipal =
-    resultado.moneda_original === 'USD'
-      ? `$${formatNum(resultado.monto_usd)} USD _(equiv. ${formatNum(resultado.monto_ves)} Bs)_`
-      : `${formatNum(resultado.monto_ves)} Bs _(equiv. $${formatNum(resultado.monto_usd)} USD)_`;
+  let montoPrincipal = '';
+  let tasaLabel = '';
+
+  if (resultado.moneda_original === 'VES') {
+    montoPrincipal = `${formatNum(resultado.monto_ves)} Bs _(equiv. $${formatNum(resultado.monto_usd)} USD)_`;
+    tasaLabel = `💱 *Tasa aplicada:* ${formatNum(resultado.tasa_cambio)} Bs/USD (${origenTasaLabel})`;
+  } else if (resultado.moneda_original === 'USD') {
+    montoPrincipal = `$${formatNum(resultado.monto_usd)} USD`;
+    tasaLabel = '';
+  } else {
+    // International currencies (MXN, COP, EUR, etc.): compare ONLY with USD
+    montoPrincipal = `${formatNum(datosGemini.total)} ${resultado.moneda_original} _(equiv. $${formatNum(resultado.monto_usd)} USD)_`;
+    tasaLabel = `💱 *Tasa aplicada:* 1 USD = ${formatNum(resultado.tasa_cambio)} ${resultado.moneda_original} (${origenTasaLabel})`;
+  }
 
   const revisionFlag = resultado.requiere_revision_fiscal
     ? '\n⚠️ _Nota: El desglose fiscal tiene una discrepancia matemática respecto al total. Se registrará para revisión contable._'
@@ -192,18 +218,38 @@ export function formatearConfirmacionFiscalWhatsApp(
     `📄 *Comprobante Procesado*`,
     ``,
     `🏢 *Comercio:* ${datosGemini.nombre_comercio || 'No detectado'}`,
-    `🔢 *RIF:* ${datosGemini.rif_comercio || 'N/A'} | *Factura:* #${datosGemini.numero_factura || 'N/A'}`,
+    `🔢 *RIF / Tax ID:* ${datosGemini.rif_comercio || 'N/A'} | *Factura:* #${datosGemini.numero_factura || 'N/A'}`,
     `📅 *Fecha:* ${datosGemini.fecha_emision || 'No detectada'}`,
     ``,
     `💵 *Total:* ${montoPrincipal}`,
-    `💱 *Tasa aplicada:* ${formatNum(resultado.tasa_cambio)} Bs/USD (${origenTasaLabel})`,
-    ``,
-    `📊 *Desglose Contable (VES):*`,
-    `• Base Imponible: ${formatNum(resultado.base_imponible_ves)} Bs`,
-    `• IVA (16%): ${formatNum(resultado.iva_ves)} Bs`,
-    `• Exento: ${formatNum(resultado.exento_ves)} Bs`,
-    `• IGTF (3%): ${formatNum(resultado.igtf_ves)} Bs`,
   ];
+
+  if (tasaLabel) {
+    lineas.push(tasaLabel);
+  }
+
+  // Tax breakdown: show VES breakdown ONLY if currency is VES
+  if (resultado.moneda_original === 'VES') {
+    lineas.push(
+      ``,
+      `📊 *Desglose Contable (VES):*`,
+      `• Base Imponible: ${formatNum(resultado.base_imponible_ves)} Bs`,
+      `• IVA: ${formatNum(resultado.iva_ves)} Bs`,
+      `• Exento: ${formatNum(resultado.exento_ves)} Bs`,
+      `• IGTF: ${formatNum(resultado.igtf_ves)} Bs`
+    );
+  } else if (datosGemini.base_imponible > 0 || datosGemini.iva > 0) {
+    // For non-VES (MXN, USD, COP, EUR, etc.): show tax breakdown in the original currency, NEVER in VES
+    lineas.push(
+      ``,
+      `📊 *Desglose de Impuestos (${resultado.moneda_original}):*`,
+      `• Base Imponible: ${formatNum(datosGemini.base_imponible)} ${resultado.moneda_original}`,
+      `• Impuestos (IVA/Tax): ${formatNum(datosGemini.iva)} ${resultado.moneda_original}`
+    );
+    if (datosGemini.exento > 0) {
+      lineas.push(`• Exento: ${formatNum(datosGemini.exento)} ${resultado.moneda_original}`);
+    }
+  }
 
   if (revisionFlag) {
     lineas.push(revisionFlag);

@@ -15,19 +15,24 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
  * fiscal auditor specialized in reading SENIAT fiscal tickets, invoices, and delivery notes.
  * This prompt ensures precise extraction of all four tax components required by Venezuelan law.
  */
-const FISCAL_SYSTEM_PROMPT = `Eres un auditor fiscal venezolano de élite especializado en lectura y extracción contable de facturas, tickets de máquinas fiscales (SENIAT) y notas de entrega.
+const FISCAL_SYSTEM_PROMPT = `Eres un auditor contable y fiscal internacional de élite especializado en lectura y extracción contable de facturas, recibos, comprobantes y tickets de máquinas fiscales (SENIAT Venezuela, SAT México, DIAN Colombia, tickets internacionales en USD/EUR, etc.).
 
 Tu tarea es analizar el comprobante adjunto y extraer la información financiera con precisión matemática absoluta.
 
 REGLAS DE EXTRACCIÓN FISCAL:
-1. RIF: Extrae el RIF del emisor iniciando con la letra correspondiente (J, V, E, G) sin guiones ni puntos (ej. J123456789).
-2. Base Imponible: Subtotal de los productos o servicios gravados antes de impuestos. Si no hay items con IVA, es 0.00.
-3. IVA (16%): Impuesto al Valor Agregado ordinario aplicado a la base imponible.
-4. Exento: Bienes o servicios marcados explícitamente con (E), no sujetos o exentos de IVA.
-5. IGTF (3%): Impuesto a las Grandes Transacciones Financieras aplicado si el comprobante indica pago en divisas o efectivo USD. Si no figura, es 0.00.
-6. Total: Monto total final pagado reflejado en el ticket.
-7. Moneda: Determina si los importes impresos están en "VES" (Bolívares) o "USD" (Dólares).
-8. Tasa Impresa: Si el ticket imprime explícitamente una tasa de cambio (ej. "Tasa BCV: 68.50"), extrae ese número decimal. Si no la menciona, devuelve null.
+1. RIF / Tax ID: Extrae el identificador fiscal del emisor (RIF venezolano iniciando con J/V/E/G, RFC mexicano, NIT colombiano, NIF/CIF o número de identificación fiscal correspondiente).
+2. Base Imponible: Subtotal de los productos o servicios gravados antes de impuestos. Si no hay items gravados o el desglose no especifica base, usa el subtotal antes de impuestos. Si no aplica, es 0.00.
+3. IVA: Impuesto al valor agregado o impuesto local (IVA 16% en Venezuela/México, 19% Colombia, etc.).
+4. Exento: Bienes o servicios marcados explícitamente con (E), tasa 0%, no sujetos o exentos de impuestos.
+5. IGTF (3%): Impuesto a las Grandes Transacciones Financieras aplicable en comprobantes venezolanos que indiquen pago en divisas o efectivo USD. Si no aplica o la factura no es de Venezuela, es 0.00.
+6. Total: Monto total final pagado reflejado en el comprobante.
+7. Moneda: Determina con máxima precisión la moneda del comprobante en código ISO de 3 letras (ej. "USD", "MXN", "VES", "COP", "EUR", "ARS", "CLP", "PEN", etc.).
+   - Si el comprobante o emisor es de México (RFC, pesos mexicanos, M.N., MXN, dirección en México), la moneda es "MXN".
+   - Si el comprobante es de Venezuela (RIF, SENIAT, Bolívares, Bs, VED), la moneda es "VES" (o "USD" si los importes explícitamente están tasados en dólares).
+   - Si el símbolo es "$" sin mención de México ni Colombia, y los montos concuerdan con dólares, o es internacional en dólares, es "USD".
+   - Si el comprobante es de Colombia (NIT, pesos colombianos), es "COP".
+   - Si es en euros (€), es "EUR".
+8. Tasa Impresa: Si el ticket imprime explícitamente una tasa de cambio (ej. "Tasa BCV: 68.50" o "Tipo de cambio: 18.50"), extrae ese número decimal. Si no la menciona, devuelve null.
 9. Categoría de Gasto: Clasifica el gasto según su naturaleza en una de las siguientes categorías estándar: ALIMENTACION (restaurantes, comida, bebidas, supermercados), TRANSPORTE (gasolina, taxi, estacionamiento, peajes, boletos aéreos/terrestres, alquiler de vehículos), HOSPEDAJE (hoteles, posadas, alojamiento), REPRESENTACION (eventos, regalos corporativos, entretenimiento de clientes), OTROS (cualquier otra cosa no clasificable en las anteriores).
 
 Devuelve estrictamente un objeto JSON con la estructura solicitada, sin rodeos ni Markdown adicional.`;
@@ -41,14 +46,12 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
   properties: {
     nombre_comercio: { type: SchemaType.STRING, description: 'Business/store name' },
-    rif_comercio: { type: SchemaType.STRING, description: 'RIF without dashes (e.g. J123456789)' },
+    rif_comercio: { type: SchemaType.STRING, description: 'Tax ID (RIF, RFC, NIT, etc.) without dashes or special characters' },
     numero_factura: { type: SchemaType.STRING, description: 'Invoice/fiscal control number' },
     fecha_emision: { type: SchemaType.STRING, description: 'Date in YYYY-MM-DD format' },
     moneda: {
       type: SchemaType.STRING,
-      format: 'enum',
-      description: 'VES or USD',
-      enum: ['VES', 'USD'],
+      description: '3-letter ISO currency code: USD, MXN, VES, COP, EUR, ARS, etc.',
     },
     tasa_impresa: { type: SchemaType.NUMBER, description: 'Exchange rate printed on invoice, or 0 if not present', nullable: true },
     base_imponible: { type: SchemaType.NUMBER, description: 'Taxable base amount before IVA' },
