@@ -8,11 +8,43 @@ export const ISO_CURRENCIES = new Set(['USD', 'EUR', 'VES', 'MXN', 'COP', 'ARS',
 export function normalizeMoneda(moneda?: string | null): string {
   if (!moneda) return 'USD';
   const upper = moneda.toUpperCase().trim();
-  if (upper === 'BS' || upper === 'BS.' || upper === 'BOLIVARES' || upper === 'BOLIVAR' || upper === 'VED') {
+  if (
+    upper === 'BS' ||
+    upper === 'BS.' ||
+    upper === 'BOLIVARES' ||
+    upper === 'BOLIVAR' ||
+    upper === 'VED' ||
+    upper === 'BS.F' ||
+    upper === 'BS.S'
+  ) {
     return 'VES';
   }
-  if (upper === '$' || upper === 'US$' || upper === 'DOLARES' || upper === 'DOLAR') {
+  if (upper === '$' || upper === 'US$' || upper === 'DOLARES' || upper === 'DOLAR' || upper === 'USD') {
     return 'USD';
+  }
+  if (
+    upper === 'MXN' ||
+    upper === 'PESO MEXICANO' ||
+    upper === 'PESOS MEXICANOS' ||
+    upper === 'MX$' ||
+    upper === 'PESOS MXN' ||
+    upper === 'M.N.'
+  ) {
+    return 'MXN';
+  }
+  if (upper === 'EUR' || upper === 'EUROS' || upper === 'EURO' || upper === '€') {
+    return 'EUR';
+  }
+  if (
+    upper === 'COP' ||
+    upper === 'PESO COLOMBIANO' ||
+    upper === 'PESOS COLOMBIANOS' ||
+    upper === 'COL$'
+  ) {
+    return 'COP';
+  }
+  if (upper.length === 3 && /^[A-Z]{3}$/.test(upper)) {
+    return upper;
   }
   return ISO_CURRENCIES.has(upper) ? upper : 'USD';
 }
@@ -37,7 +69,10 @@ export async function getExchangeRates(): Promise<Record<string, number>> {
 
   // 1. Tasas globales desde open.er-api.com
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/USD', { next: { revalidate: 1800 } });
+    const res = await fetch('https://open.er-api.com/v6/latest/USD', {
+      next: { revalidate: 1800 },
+      signal: AbortSignal.timeout(3000),
+    });
     const data = await res.json();
     if (data?.result === 'success' && data.rates) {
       rates = { ...rates, ...data.rates };
@@ -48,7 +83,10 @@ export async function getExchangeRates(): Promise<Record<string, number>> {
 
   // 2. Tasa oficial BCV desde dolarapi.com para asegurar precisión en VES
   try {
-    const resBcv = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', { next: { revalidate: 1800 } });
+    const resBcv = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', {
+      next: { revalidate: 1800 },
+      signal: AbortSignal.timeout(3000),
+    });
     const dataBcv = await resBcv.json();
     if (dataBcv?.promedio && Number(dataBcv.promedio) > 0) {
       rates['VES'] = Number(dataBcv.promedio);

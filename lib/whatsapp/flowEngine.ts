@@ -57,6 +57,7 @@ import {
   formatPolicyWarningWhatsApp,
   type PolicyEvaluation,
 } from '@/lib/services/politicasGastos';
+import { normalizeMoneda } from '@/lib/currency';
 import type {
   EstadoConversacion,
   DatosTemporalesSesion,
@@ -605,6 +606,55 @@ export async function routerMensajeWhatsApp({
       }
     }
 
+    // D.1. Subflujo: Selección de Destino de Comprobante por Texto ("reembolso" o "viatico")
+    if (sesion.estado === 'RESOLVIENDO_DESTINO_FOTO' && sesion.datos_temporales?.extraccion_ocr) {
+      const viaticosActivos = await obtenerViaticosActivosEmpleado(supabase, empleadoId, {
+        soloPendientesJustificar: true,
+      });
+
+      const esIntencionReembolso = [
+        'reembolso',
+        'reembolsar',
+        'pedir reembolso',
+        'fondos propios',
+        'bolsillo',
+        'mi dinero',
+        '2',
+      ].some((term) => textoLimpio === term || textoLimpio.includes(term));
+
+      if (esIntencionReembolso) {
+        return await routerMensajeWhatsApp({
+          supabase,
+          telefono,
+          tipoMensaje: 'interactive',
+          interactiveReplyId: 'DESTINO_REEMBOLSO',
+          interactiveReplyTitle: '💸 Pedir Reembolso',
+        });
+      }
+
+      const esIntencionViatico = [
+        'viatico',
+        'viático',
+        'viaticos',
+        'viáticos',
+        'rendir',
+        'rendir viatico',
+        'rendir viático',
+        'proyecto',
+        '1',
+      ].some((term) => textoLimpio === term || textoLimpio.includes(term));
+
+      if (esIntencionViatico && viaticosActivos.length === 1) {
+        return await routerMensajeWhatsApp({
+          supabase,
+          telefono,
+          tipoMensaje: 'interactive',
+          interactiveReplyId: `DESTINO_VIATICO_${viaticosActivos[0].id}`,
+          interactiveReplyTitle: viaticosActivos[0].nombre_proyecto,
+        });
+      }
+    }
+
     // E. Subflujo: Confirmación de Gasto por Texto ("SI", "CONFIRMAR", "OK")
     if (sesion.estado === 'ESPERANDO_CONFIRMACION') {
       const afirmaciones = ['si', 'sí', 'confirmar', 'confirmo', 'guardar', 'ok', 'dale', 'listo'];
@@ -1004,14 +1054,23 @@ export async function routerMensajeWhatsApp({
       return { status: 'viatico_seleccionado_esperando_foto' };
     }
 
-    // ─── 11. RESOLUCIÓN DE DESTINO DE FOTO (Viene de Ruta Rápida Multi-Viático) ───
+    // ─── 11. RESOLUCIÓN DE DESTINO DE FOTO (Viene de Ruta Rápida) ───
     if (sesion.estado === 'RESOLVIENDO_DESTINO_FOTO' && sesion.datos_temporales?.extraccion_ocr) {
       const extraccion = sesion.datos_temporales.extraccion_ocr;
 
       if (interactiveReplyId === 'DESTINO_REEMBOLSO') {
+        const policyResult = await validateExpensePolicy({
+          supabase,
+          employeeId: empleadoId,
+          category: extraccion.categoria || 'Otros',
+          amountUsd: extraccion.monto_usd,
+          expenseDate: extraccion.fecha_emision,
+        });
+
         sesion.datos_temporales.es_reembolso = true;
         sesion.datos_temporales.viatico_id = null;
         sesion.datos_temporales.evaluacion_saldo = undefined;
+        sesion.datos_temporales.excess_detail = policyResult.excessDetail;
 
         await actualizarSesion(
           supabase,
@@ -1023,6 +1082,7 @@ export async function routerMensajeWhatsApp({
 
         await enviarConfirmacionGastoInteractiva(telefono, extraccion, {
           tipo: 'REEMBOLSO_DIRECTO',
+          policyResult,
         });
         return { status: 'resolucion_reembolso' };
       }
@@ -1031,12 +1091,27 @@ export async function routerMensajeWhatsApp({
         const viaticoId = interactiveReplyId.replace('DESTINO_VIATICO_', '');
         const evaluacion = await calcularSaldoViatico(supabase, viaticoId, extraccion.monto_usd);
 
+        const policyResult = await validateExpensePolicy({
+          supabase,
+          employeeId: empleadoId,
+          category: extraccion.categoria || 'Otros',
+          amountUsd: extraccion.monto_usd,
+          expenseDate: extraccion.fecha_emision,
+        });
+
+        const nombreProyFinal =
+          evaluacion.nombre_proyecto ||
+          (interactiveReplyTitle && !interactiveReplyTitle.includes('Rendir Viático')
+            ? interactiveReplyTitle
+            : 'Proyecto');
+
         sesion.datos_temporales.es_reembolso = false;
         sesion.datos_temporales.viatico_id = viaticoId;
         sesion.datos_temporales.evaluacion_saldo = {
           ...evaluacion,
-          nombre_proyecto: evaluacion.nombre_proyecto || interactiveReplyTitle,
+          nombre_proyecto: nombreProyFinal,
         };
+        sesion.datos_temporales.excess_detail = policyResult.excessDetail;
 
         await actualizarSesion(
           supabase,
@@ -1049,7 +1124,8 @@ export async function routerMensajeWhatsApp({
         await enviarConfirmacionGastoInteractiva(telefono, extraccion, {
           tipo: 'VIATICO_ASIGNADO',
           evaluacion,
-          nombreProyecto: evaluacion.nombre_proyecto || interactiveReplyTitle,
+          nombreProyecto: nombreProyFinal,
+          policyResult,
         });
         return { status: 'resolucion_viatico' };
       }
@@ -1292,7 +1368,7 @@ async function manejarIngestaComprobanteEnFrio({
     rif_comercio: raw.rif_comercio || '',
     numero_factura: raw.numero_factura || '',
     fecha_emision: raw.fecha_emision || new Date().toISOString().split('T')[0],
-    moneda: (raw.moneda?.toUpperCase() === 'USD' ? 'USD' : 'VES') as 'VES' | 'USD',
+    moneda: normalizeMoneda(raw.moneda),
     tasa_impresa: raw.tasa_impresa ?? null,
     base_imponible: Number(raw.base_imponible || 0),
     iva: Number(raw.iva || 0),
@@ -1358,6 +1434,7 @@ async function manejarIngestaComprobanteEnFrio({
     numero_factura: raw.numero_factura || '',
     fecha_emision: raw.fecha_emision || new Date().toISOString().split('T')[0],
     moneda: fiscalResult.moneda_original,
+    monto_original: Number(raw.total || 0),
     tasa_impresa: raw.tasa_impresa ?? null,
     tasa_cambio: fiscalResult.tasa_cambio,
     base_imponible_ves: fiscalResult.base_imponible_ves,
@@ -1406,41 +1483,48 @@ async function manejarIngestaComprobanteEnFrio({
     return { status: 'caso_cero_viaticos_reembolso' };
   }
 
-  // CASO 2: Exactamente 1 Viático Activo -> Asignación Automática
+  // CASO 2: Exactamente 1 Viático Activo -> Preguntar: ¿Rendir Viático o Pedir Reembolso?
   if (numActivos === 1) {
     const viaticoUnico = viaticosActivos[0];
-    const evaluacion = await calcularSaldoViatico(supabase, viaticoUnico.id, fiscalResult.monto_usd);
-
-    const policyResult = await validateExpensePolicy({
-      supabase,
-      employeeId: empleadoId,
-      category: categoriaNormalizada,
-      amountUsd: fiscalResult.monto_usd,
-      expenseDate: extraccionNormalizada.fecha_emision,
-    });
 
     const datosSesion: DatosTemporalesSesion = {
-      es_reembolso: false,
-      viatico_id: viaticoUnico.id,
       extraccion_ocr: extraccionNormalizada,
-      evaluacion_saldo: {
-        ...evaluacion,
-        nombre_proyecto: viaticoUnico.nombre_proyecto,
-      },
-      excess_detail: policyResult.excessDetail,
       flujo_origen: 'RUTA_RAPIDA',
       media_id: mediaId,
       es_pdf: esPdf,
     };
 
-    await actualizarSesion(supabase, telefono, 'ESPERANDO_CONFIRMACION', datosSesion, empleadoId);
-    await enviarConfirmacionGastoInteractiva(telefono, extraccionNormalizada, {
-      tipo: 'VIATICO_ASIGNADO',
-      nombreProyecto: viaticoUnico.nombre_proyecto,
-      evaluacion,
-      policyResult,
-    });
-    return { status: 'caso_un_viatico_autoasignado' };
+    await actualizarSesion(supabase, telefono, 'RESOLVIENDO_DESTINO_FOTO', datosSesion, empleadoId);
+
+    let textoMonto = `*$${fiscalResult.monto_usd.toFixed(2)} USD*`;
+    if (fiscalResult.moneda_original === 'VES') {
+      textoMonto = `*${fiscalResult.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs* (equiv. $${fiscalResult.monto_usd.toFixed(2)} USD)`;
+    } else if (fiscalResult.moneda_original && fiscalResult.moneda_original !== 'USD') {
+      const nominal = (raw.total || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+      textoMonto = `*${nominal} ${fiscalResult.moneda_original}* (equiv. $${fiscalResult.monto_usd.toFixed(2)} USD)`;
+    }
+
+    const cuerpoMensaje =
+      `📄 *Comprobante Detectado*\n\n` +
+      `🏢 *Comercio:* ${extraccionNormalizada.nombre_comercio || 'No detectado'}\n` +
+      `💵 *Total:* ${textoMonto}\n\n` +
+      `Tienes 1 viático activo:\n` +
+      `📁 *Proyecto:* ${viaticoUnico.nombre_proyecto}\n` +
+      `💰 *Disponible:* $${viaticoUnico.saldo_disponible_usd.toFixed(2)} USD (de $${viaticoUnico.monto_asignado_usd.toFixed(2)})\n\n` +
+      `¿Deseas imputar este comprobante a tu viático o registrarlo como reembolso personal?`;
+
+    await enviarBotonesWhatsApp(
+      telefono,
+      cuerpoMensaje,
+      [
+        { id: `DESTINO_VIATICO_${viaticoUnico.id}`, title: '📁 Rendir Viático' },
+        { id: 'DESTINO_REEMBOLSO', title: '💸 Pedir Reembolso' },
+        { id: 'VOLVER_MENU', title: '⬅️ Cancelar' },
+      ],
+      '📁 Destino del Comprobante',
+      'Rendy • Control de Gastos'
+    );
+    return { status: 'caso_un_viatico_selector' };
   }
 
   // CASO 3: 2 o Más Viáticos Activos -> Selector Interactivo
@@ -1452,7 +1536,14 @@ async function manejarIngestaComprobanteEnFrio({
   };
 
   await actualizarSesion(supabase, telefono, 'RESOLVIENDO_DESTINO_FOTO', datosSesion, empleadoId);
-  await enviarSelectorDestinoGasto(telefono, viaticosActivos, fiscalResult.monto_usd, fiscalResult.monto_ves);
+  await enviarSelectorDestinoGasto(
+    telefono,
+    viaticosActivos,
+    fiscalResult.monto_usd,
+    fiscalResult.monto_ves,
+    fiscalResult.moneda_original,
+    Number(raw.total || 0)
+  );
   return { status: 'caso_multi_viatico_selector' };
 }
 
@@ -1500,7 +1591,7 @@ async function manejarComprobanteEnRutaGuiada({
     rif_comercio: raw.rif_comercio || '',
     numero_factura: raw.numero_factura || '',
     fecha_emision: raw.fecha_emision || new Date().toISOString().split('T')[0],
-    moneda: (raw.moneda?.toUpperCase() === 'USD' ? 'USD' : 'VES') as 'VES' | 'USD',
+    moneda: normalizeMoneda(raw.moneda),
     tasa_impresa: raw.tasa_impresa ?? null,
     base_imponible: Number(raw.base_imponible || 0),
     iva: Number(raw.iva || 0),
@@ -1537,6 +1628,7 @@ async function manejarComprobanteEnRutaGuiada({
     numero_factura: raw.numero_factura || '',
     fecha_emision: raw.fecha_emision || new Date().toISOString().split('T')[0],
     moneda: fiscalResult.moneda_original,
+    monto_original: Number(raw.total || 0),
     tasa_impresa: raw.tasa_impresa ?? null,
     tasa_cambio: fiscalResult.tasa_cambio,
     base_imponible_ves: fiscalResult.base_imponible_ves,
@@ -1631,13 +1723,13 @@ async function manejarCorreccionTextoComprobante({
     rif_comercio: correccion.tax_id || correccion.rif_comercio || ocrPrevio.rif_comercio,
     numero_factura: correccion.invoice_number || correccion.numero_factura || ocrPrevio.numero_factura,
     fecha_emision: correccion.fecha || correccion.fecha_emision || ocrPrevio.fecha_emision,
-    moneda: (correccion.moneda?.toUpperCase() === 'USD' ? 'USD' : 'VES') as 'VES' | 'USD',
+    moneda: normalizeMoneda(correccion.moneda || ocrPrevio.moneda),
     tasa_impresa: correccion.tasa_impresa ?? ocrPrevio.tasa_impresa ?? null,
     base_imponible: Number(correccion.base_imponible ?? correccion.monto_total ?? ocrPrevio.base_imponible_ves),
     iva: Number(correccion.iva ?? ocrPrevio.iva_ves),
     exento: Number(correccion.exento ?? ocrPrevio.exento_ves),
     igtf: Number(correccion.igtf ?? ocrPrevio.igtf_ves),
-    total: Number(correccion.monto_total ?? correccion.total ?? (ocrPrevio.moneda === 'USD' ? ocrPrevio.monto_usd : ocrPrevio.monto_ves)),
+    total: Number(correccion.monto_total ?? correccion.total ?? ocrPrevio.monto_original ?? (ocrPrevio.moneda === 'VES' ? ocrPrevio.monto_ves : ocrPrevio.monto_usd)),
   });
 
   const extraccionActualizada: ExtraccionOcrSesion = {
@@ -1647,6 +1739,7 @@ async function manejarCorreccionTextoComprobante({
     numero_factura: correccion.invoice_number || correccion.numero_factura || ocrPrevio.numero_factura,
     fecha_emision: correccion.fecha || correccion.fecha_emision || ocrPrevio.fecha_emision,
     moneda: fiscalResult.moneda_original,
+    monto_original: Number(correccion.monto_total ?? correccion.total ?? ocrPrevio.monto_original ?? (ocrPrevio.moneda === 'VES' ? ocrPrevio.monto_ves : ocrPrevio.monto_usd)),
     tasa_cambio: fiscalResult.tasa_cambio,
     base_imponible_ves: fiscalResult.base_imponible_ves,
     iva_ves: fiscalResult.iva_ves,
@@ -1716,8 +1809,8 @@ async function persistirGastoDefinitivo(
       }
     : datos.excess_detail || null;
 
-  // Determine nominal amount in invoice's original currency (VES or USD)
-  const montoOriginal = ocr.moneda === 'USD' ? ocr.monto_usd : ocr.monto_ves;
+  // Determine nominal amount in invoice's original currency (VES, USD, MXN, COP, EUR, etc.)
+  const montoOriginal = ocr.monto_original ?? (ocr.moneda === 'VES' ? ocr.monto_ves : ocr.monto_usd);
 
   // Defensive recovery: if storage upload timed out during initial receipt processing,
   // re-attempt uploading the image now so url_comprobante is never lost
@@ -1832,7 +1925,9 @@ async function enviarSelectorDestinoGasto(
   to: string,
   viaticos: ViaticoActivo[],
   montoUsd: number,
-  montoVes: number
+  montoVes: number,
+  monedaOriginal?: string,
+  montoOriginal?: number
 ) {
   const filas: WhatsAppRow[] = viaticos.slice(0, 8).map((v) => ({
     id: `DESTINO_VIATICO_${v.id}`,
@@ -1852,9 +1947,16 @@ async function enviarSelectorDestinoGasto(
     description: 'Descartar esta factura',
   });
 
+  let textoMonto = `*$${montoUsd.toFixed(2)} USD*`;
+  if (monedaOriginal === 'VES') {
+    textoMonto = `*${montoVes.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs* (equiv. $${montoUsd.toFixed(2)} USD)`;
+  } else if (monedaOriginal && monedaOriginal !== 'USD' && montoOriginal) {
+    textoMonto = `*${montoOriginal.toLocaleString('es-VE', { minimumFractionDigits: 2 })} ${monedaOriginal}* (equiv. $${montoUsd.toFixed(2)} USD)`;
+  }
+
   await enviarListaWhatsApp(
     to,
-    `Detectamos una factura por *$${montoUsd.toFixed(2)} USD* (equiv. ${montoVes.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs).\n\nTienes varios viáticos activos. Por favor selecciona a cuál imputarla:`,
+    `Detectamos un comprobante por ${textoMonto}.\n\nTienes varios viáticos activos disponibles.\n\nPor favor selecciona a cuál de tus viáticos imputarlo o si deseas registrarlo como reembolso personal:`,
     'Asignar Destino',
     '📁 Asignar Comprobante',
     filas,
@@ -1880,8 +1982,11 @@ async function enviarConfirmacionGastoInteractiva(
   let cuerpo = `🏢 *Comercio:* ${ocr.nombre_comercio}\n`;
   if (ocr.moneda === 'VES') {
     cuerpo += `💵 *Total Factura:* ${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa ${ocr.tasa_cambio})\n`;
+  } else if (ocr.moneda === 'USD') {
+    cuerpo += `💵 *Total Factura:* $${ocr.monto_usd.toFixed(2)} USD\n`;
   } else {
-    cuerpo += `💵 *Total Factura:* $${ocr.monto_usd.toFixed(2)} USD (equiv. ${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs)\n`;
+    const nominal = (ocr.monto_original ?? ocr.monto_usd).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+    cuerpo += `💵 *Total Factura:* ${nominal} ${ocr.moneda} (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa 1 USD = ${ocr.tasa_cambio} ${ocr.moneda})\n`;
   }
 
   if (contexto.tipo === 'VIATICO_ASIGNADO') {

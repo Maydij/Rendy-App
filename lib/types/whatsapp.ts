@@ -42,7 +42,8 @@ export interface ExtraccionOcrSesion {
   rif_comercio: string;
   numero_factura: string;
   fecha_emision: string;
-  moneda: 'VES' | 'USD';
+  moneda: string;
+  monto_original?: number;
   tasa_impresa: number | null;
   tasa_cambio: number;
   base_imponible_ves: number;
