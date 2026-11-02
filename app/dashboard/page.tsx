@@ -6,8 +6,14 @@ import { getExchangeRates, convertAmount, formatCurrency, normalizeMoneda } from
 const fmt = formatCurrency;
 
 function StatusBadge({ estado }: { estado: string }) {
-  const cls = estado === 'APROBADO' ? 'aprobado' : estado === 'RECHAZADO' ? 'rechazado' : 'pendiente';
-  const label = { APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', PENDIENTE: 'Pendiente' }[estado] ?? estado;
+  const map: Record<string, { cls: string; label: string }> = {
+    APROBADO: { cls: 'aprobado', label: 'Aprobado' },
+    TRANSFERIDO: { cls: 'aprobado', label: 'Transferido' },
+    PROCESADO: { cls: 'pagado', label: 'Procesado' },
+    RECHAZADO: { cls: 'rechazado', label: 'Rechazado' },
+    PENDIENTE: { cls: 'pendiente', label: 'Pendiente' },
+  };
+  const { cls, label } = map[estado] ?? { cls: 'pendiente', label: estado };
   return (
     <span className={`badge ${cls}`}>
       <span className="badge-dot" />
@@ -22,12 +28,13 @@ async function getDashboardData() {
     { data: gastos },
     { data: solicitudes },
     { data: proyectos },
+    { data: usuarios },
     { data: empresa },
     rates,
   ] = await Promise.all([
     supabaseServer
       .from('gastos')
-      .select('id, comercio, categoria, monto, moneda, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto, solicitud_id')
+      .select('id, comercio, categoria, monto, moneda, monto_usd, monto_ves, tasa_cambio, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto, solicitud_id, es_reembolso, rif_comercio, numero_factura')
       .eq('empresa_id', EMPRESA_ID)
       .order('creado_en', { ascending: false }),
     supabaseServer
@@ -39,6 +46,10 @@ async function getDashboardData() {
       .select('id, nombre')
       .eq('empresa_id', EMPRESA_ID)
       .eq('activo', true),
+    supabaseServer
+      .from('usuarios')
+      .select('id, nombre, email, telefono_whatsapp')
+      .eq('empresa_id', EMPRESA_ID),
     supabaseServer
       .from('empresas')
       .select('nombre, moneda')
@@ -61,6 +72,9 @@ async function getDashboardData() {
   const byCurrency: Record<string, number> = {};
   const byProject: Record<string, { nombre: string; total: number }> = {};
   const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
+  const usuMap = Object.fromEntries(
+    (usuarios ?? []).map((u) => [u.id, { nombre: u.nombre, email: u.email, telefono: u.telefono_whatsapp }])
+  );
 
   for (const g of allGastos) {
     let m = (g.datos_ocr as any)?.moneda ?? g.moneda ?? 'USD';
@@ -76,7 +90,7 @@ async function getDashboardData() {
     
     totalGastado += valInBase;
     if (g.solicitud_id) mJustificados += valInBase;
-    if (!g.solicitud_id && g.estado === 'PENDIENTE') reembolsosPendientes += valInBase;
+    if (g.es_reembolso && g.estado === 'PENDIENTE') reembolsosPendientes += valInBase;
 
     // Group by project (converted to base currency)
     const pid = g.proyecto_id ?? '__sin_proyecto__';
@@ -100,11 +114,40 @@ async function getDashboardData() {
 
   const currencyBreakdown = Object.entries(byCurrency).map(([cur, total]) => ({ cur, total }));
 
+  const recentReembolsos = allGastos
+    .filter((g) => g.es_reembolso)
+    .slice(0, 6)
+    .map((g) => {
+      const usuario = g.usuario_id ? usuMap[g.usuario_id] : null;
+      const gMoneda = ((g.datos_ocr as any)?.moneda ?? g.moneda ?? 'USD').toUpperCase();
+      const montoUsd =
+        g.monto_usd ??
+        (gMoneda === 'USD' ? (g.monto ?? 0) : convert(g.monto ?? 0, gMoneda === 'BS' ? 'VES' : gMoneda, 'USD'));
+
+      return {
+        id: g.id,
+        empleado: usuario?.nombre ?? 'Sin asignar',
+        empleadoDetalle: usuario?.email || (usuario?.telefono ? `+${usuario.telefono}` : null),
+        fecha_gasto: g.fecha_gasto,
+        comercio: g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—',
+        rif_comercio: g.rif_comercio,
+        numero_factura: g.numero_factura,
+        categoria: g.categoria || 'Otros',
+        monto: g.monto ?? 0,
+        moneda: gMoneda === 'BS' ? 'VES' : gMoneda,
+        monto_usd: montoUsd,
+        monto_ves: g.monto_ves,
+        tasa_cambio: g.tasa_cambio,
+        estado: g.estado,
+      };
+    });
+
   return {
     moneda,
     empresa: empresa?.nombre ?? 'Mi Empresa',
     kpis: { totalGastado, viaticosAprobados, mJustificados, reembolsosPendientes },
-    recentGastos: allGastos.slice(0, 6),
+    recentGastos: allGastos.filter((g) => !g.es_reembolso).slice(0, 6),
+    recentReembolsos,
     projectBreakdown: projectBreakdown.map((p) => ({
       ...p,
       pct: Math.round((p.total / maxProj) * 100),
@@ -116,7 +159,7 @@ async function getDashboardData() {
 
 /* ─── page ─── */
 export default async function DashboardPage() {
-  const { moneda, empresa, kpis, recentGastos, projectBreakdown, currencyBreakdown, proyMap } = await getDashboardData();
+  const { moneda, empresa, kpis, recentGastos, recentReembolsos, projectBreakdown, currencyBreakdown, proyMap } = await getDashboardData();
 
   const kpiCards = [
     { id: 'total-gastado', label: 'Total Registrado', value: fmt(kpis.totalGastado, moneda), icon: DollarSign, color: 'indigo', trend: 'up' as const },
@@ -171,68 +214,181 @@ export default async function DashboardPage() {
       {/* Grid */}
       <div className="dashboard-grid">
 
-        {/* Gastos recientes */}
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title">Últimos Gastos (vía WhatsApp)</h2>
-            <Link href="/dashboard/reembolsos" className="btn btn-ghost btn-sm" id="dashboard-ver-todos-btn">
-              Ver todos <ArrowUpRight size={13} />
-            </Link>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {recentGastos.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon"><DollarSign size={22} /></div>
-                <div className="empty-state-title">Sin gastos registrados</div>
-                <div className="empty-state-desc">Los gastos enviados por WhatsApp aparecerán aquí.</div>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <table className="rendy-table" aria-label="Últimos gastos registrados">
-                  <thead>
-                    <tr>
-                      <th>Comercio</th>
-                      <th>Categoría</th>
-                      <th>Monto Original</th>
-                      <th>Proyecto</th>
-                      <th>Fecha</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                  {recentGastos.map((g) => {
-                    const gMoneda = (g.datos_ocr as any)?.moneda ?? g.moneda ?? moneda;
-                    return (
-                      <tr key={g.id}>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—'}
-                        </td>
-                        <td>
-                          <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
-                            {g.categoria}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {fmt(g.monto ?? 0, gMoneda)}
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                          {g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—'}
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{g.fecha_gasto}</td>
-                        <td><StatusBadge estado={g.estado} /></td>
+        {/* Columna principal: gastos + reembolsos (mismo ancho) */}
+        <div className="dashboard-main-stack">
+          {/* Gastos recientes */}
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">Últimos Gastos (vía WhatsApp)</h2>
+              <Link href="/dashboard/gastos" className="btn btn-ghost btn-sm" id="dashboard-ver-todos-btn">
+                Ver todos <ArrowUpRight size={13} />
+              </Link>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {recentGastos.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon"><DollarSign size={22} /></div>
+                  <div className="empty-state-title">Sin gastos registrados</div>
+                  <div className="empty-state-desc">Los gastos enviados por WhatsApp aparecerán aquí.</div>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table className="rendy-table" aria-label="Últimos gastos registrados">
+                    <thead>
+                      <tr>
+                        <th>Comercio</th>
+                        <th>Categoría</th>
+                        <th>Monto Original</th>
+                        <th>Proyecto</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                    {recentGastos.map((g) => {
+                      const gMoneda = (g.datos_ocr as any)?.moneda ?? g.moneda ?? moneda;
+                      return (
+                        <tr key={g.id}>
+                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—'}
+                          </td>
+                          <td>
+                            <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
+                              {g.categoria}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {fmt(g.monto ?? 0, gMoneda)}
+                          </td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                            {g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—'}
+                          </td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{g.fecha_gasto}</td>
+                          <td><StatusBadge estado={g.estado} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Reembolsos recientes */}
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">Últimas Solicitudes de Reembolso (vía WhatsApp)</h2>
+              <Link href="/dashboard/reembolsos" className="btn btn-ghost btn-sm" id="dashboard-ver-reembolsos-btn">
+                Ver todos <ArrowUpRight size={13} />
+              </Link>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {recentReembolsos.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon"><RotateCcw size={22} /></div>
+                  <div className="empty-state-title">Sin solicitudes de reembolso</div>
+                  <div className="empty-state-desc">Los reembolsos enviados por WhatsApp aparecerán aquí.</div>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table className="rendy-table" aria-label="Últimas solicitudes de reembolso">
+                    <thead>
+                      <tr>
+                        <th>Empleado</th>
+                        <th>Fecha</th>
+                        <th>Comercio / Factura</th>
+                        <th>Categoría</th>
+                        <th>Importe</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentReembolsos.map((r) => {
+                        const initials = r.empleado
+                          .split(' ')
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((w) => w[0]?.toUpperCase() ?? '')
+                          .join('');
+
+                        return (
+                          <tr key={r.id}>
+                            <td style={{ verticalAlign: 'middle' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div
+                                  style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(99, 102, 241, 0.2)',
+                                    color: 'var(--rendy-primary-light)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {initials || '—'}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
+                                    {r.empleado}
+                                  </div>
+                                  {r.empleadoDetalle && (
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                      {r.empleadoDetalle}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                              {r.fecha_gasto || '—'}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
+                                {r.comercio}
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                {r.rif_comercio ? `RIF/ID: ${r.rif_comercio}` : ''}
+                                {r.numero_factura ? ` • Fac: #${r.numero_factura}` : ''}
+                                {!r.rif_comercio && !r.numero_factura ? 'Ticket general' : ''}
+                              </div>
+                            </td>
+                            <td>
+                              <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
+                                {r.categoria}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700, color: 'var(--rendy-accent)', fontSize: '14px' }}>
+                                {fmt(r.monto_ves || r.monto, r.moneda)}
+                              </div>
+                              {r.moneda !== 'USD' && (
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  {fmt(r.monto_usd, 'USD')}
+                                  {r.tasa_cambio ? ` • Tasa: ${Number(r.tasa_cambio).toLocaleString('es-VE')}` : ''}
+                                </div>
+                              )}
+                            </td>
+                            <td><StatusBadge estado={r.estado} /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div>
+        <div className="dashboard-side-stack">
           {/* Gastos por moneda */}
-          <div className="card" style={{ marginBottom: '20px' }}>
+          <div className="card">
             <div className="card-header">
               <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Coins size={16} /> Gastos por Moneda

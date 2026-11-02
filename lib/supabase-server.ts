@@ -77,8 +77,12 @@ export type Database = {
     monto_convertido: number | null;
     fecha_gasto: string;
     url_comprobante: string | null;
+    url_comprobante_pago?: string | null;
+    fecha_transferencia?: string | null;
+    transferido_por?: string | null;
     concepto: string | null;
-    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | 'REVISION_DUPLICADO' | 'REQUIERE_APROBACION_ESPECIAL';
+    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | 'REVISION_DUPLICADO' | 'REQUIERE_APROBACION_ESPECIAL' | 'PROCESADO' | 'TRANSFERIDO';
+    actualizado_en?: string;
     comentario_rechazo: string | null;
     datos_ocr: Record<string, unknown> | null;
     creado_en: string;

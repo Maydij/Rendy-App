@@ -768,9 +768,23 @@ body {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
   gap: 20px;
   align-items: start;
+}
+
+.dashboard-main-stack,
+.dashboard-side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.dashboard-main-stack > .card,
+.dashboard-side-stack > .card {
+  width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 1080px) {

@@ -86,7 +86,7 @@ export async function verifyInvoiceDuplicate(
     // ───── LOCK 1: Direct hash lookup (primary, fastest) ─────
     const { data: hashMatch } = await supabase
       .from('gastos')
-      .select('id, creado_en, usuario_id, usuarios(nombre)')
+      .select('id, creado_en, usuario_id, usuarios!usuario_id(nombre)')
       .eq('hash_duplicado', hash)
       .maybeSingle();
 
@@ -137,7 +137,7 @@ export async function verifyInvoiceDuplicate(
 
     const { data: fieldMatch } = await supabase
       .from('gastos')
-      .select('id, creado_en, usuario_id, usuarios(nombre)')
+      .select('id, creado_en, usuario_id, usuarios!usuario_id(nombre)')
       .eq('rif_comercio', cleanTaxId)
       .eq('numero_factura', cleanInvoice)
       .eq('monto_total', parseFloat(cleanAmount))

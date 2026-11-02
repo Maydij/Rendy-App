@@ -46,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const { count: rCount } = await supabase
         .from('gastos')
         .select('*', { count: 'exact', head: true })
-        .is('metodo_pago_id', null)
+        .eq('es_reembolso', true)
         .eq('estado', 'PENDIENTE');
 
       setPendingViaticos(vCount || 0);

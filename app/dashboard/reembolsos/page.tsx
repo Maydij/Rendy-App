@@ -1,86 +1,98 @@
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
-import ReembolsosClient, { ReembolsoItem } from './reembolsos-client';
-import { getExchangeRates, convertAmount, normalizeMoneda } from '@/lib/currency';
+/**
+ * @name ReembolsosPage
+ * @description [Server Component]: Main server-side page for corporate reimbursement tracking
+ * and settlement (/dashboard/reembolsos). Reads URL searchParams as the single source of truth,
+ * fetches paginated expenses and aggregated KPIs, and coordinates client filtering and mutations.
+ */
 
-async function getReembolsosData(): Promise<{
-  reembolsos: ReembolsoItem[];
-  monedaOrg: string;
-  rates: Record<string, number>;
-}> {
-  // Gastos pagados con Fondos Personales que requieren reembolso
-  const [
-    { data: gastos },
-    { data: usuarios },
-    { data: proyectos },
-    { data: empresa },
-    rates,
-  ] = await Promise.all([
-    supabaseServer
-      .from('gastos')
-      .select('*')
-      .eq('empresa_id', EMPRESA_ID)
-      .is('metodo_pago_id', null) // Sin método corporativo = Fondos Personales
-      .is('solicitud_id', null) // Sin solicitud de viáticos (no es una rendición)
-      .order('creado_en', { ascending: false }),
-    supabaseServer.from('usuarios').select('id, nombre').eq('empresa_id', EMPRESA_ID),
-    supabaseServer.from('proyectos').select('id, nombre').eq('empresa_id', EMPRESA_ID),
-    supabaseServer.from('empresas').select('moneda').eq('id', EMPRESA_ID).single(),
-    getExchangeRates(),
-  ]);
+import React from 'react';
+import { RotateCcw } from 'lucide-react';
+import { EMPRESA_ID } from '@/lib/supabase-server';
+import {
+  obtenerReembolsosPaginados,
+  obtenerKpisReembolsos,
+  obtenerEmpleadosEmpresa,
+  type EstadoReembolso,
+} from '@/lib/services/reembolsos.service';
+import { ReembolsosStatsCards } from './_components/ReembolsosStatsCards';
+import { ReembolsosFilters } from './_components/ReembolsosFilters';
+import { ReembolsosTable } from './_components/ReembolsosTable';
 
-  const monedaOrg = normalizeMoneda(empresa?.moneda || 'USD');
-  const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
-  const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
-
-  const items: ReembolsoItem[] = (gastos ?? [])
-    .filter((g) => g.monto != null || g.comercio != null || (g.datos_ocr as any)?.comercio)
-    .map((g) => {
-      // Normalizar la moneda original del gasto (si es null, inferir de datos_ocr o default a VES)
-      const rawMoneda = g.moneda ?? (g.datos_ocr as any)?.moneda ?? 'VES';
-      const monedaGasto = normalizeMoneda(rawMoneda);
-      const montoOriginal = Number(g.monto ?? 0);
-
-      // Convertir el monto a la moneda de la organización
-      const montoConvertido = convertAmount(montoOriginal, monedaGasto, monedaOrg, rates);
-
-      return {
-        id: g.id,
-        empleado: g.usuario_id ? (usuMap[g.usuario_id] ?? 'Usuario') : 'Sin asignar',
-        categoria: g.categoria || 'Otros',
-        comercio: g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—',
-        monto: montoOriginal,
-        moneda: monedaGasto,
-        monto_convertido_org: Number(montoConvertido.toFixed(2)),
-        fecha_gasto: g.fecha_gasto || '—',
-        proyecto: g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—',
-        metodo_pago: 'Fondos Personales (Reembolso)',
-        estado: g.estado || 'PENDIENTE',
-        url_comprobante: g.url_comprobante ?? (g.datos_ocr as any)?.url_comprobante ?? null,
-        concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
-        moneda_original: g.moneda_original ?? null,
-        origen_tasa: g.origen_tasa ?? null,
-        base_imponible_ves: g.base_imponible_ves ?? null,
-        iva_ves: g.iva_ves ?? null,
-        exento_ves: g.exento_ves ?? null,
-        igtf_ves: g.igtf_ves ?? null,
-        monto_ves: g.monto_ves ?? null,
-        monto_usd: g.monto_usd ?? null,
-        rif_comercio: g.rif_comercio ?? null,
-        numero_factura: g.numero_factura ?? null,
-        requiere_revision_fiscal: g.requiere_revision_fiscal ?? false,
-      };
-    });
-
-  return {
-    reembolsos: items,
-    monedaOrg,
-    rates,
-  };
+interface PageProps {
+  searchParams: Promise<{
+    empleado?: string;
+    estado?: string;
+    desde?: string;
+    hasta?: string;
+    busqueda?: string;
+    page?: string;
+  }>;
 }
 
-export type Reembolso = ReembolsoItem;
+export const dynamic = 'force-dynamic';
 
-export default async function ReembolsosPage() {
-  const { reembolsos, monedaOrg, rates } = await getReembolsosData();
-  return <ReembolsosClient reembolsos={reembolsos} monedaOrg={monedaOrg} rates={rates} />;
+export default async function ReembolsosPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+
+  const validEstados: Set<string> = new Set([
+    'PENDIENTE',
+    'PROCESADO',
+    'TRANSFERIDO',
+    'RECHAZADO',
+    'TODOS',
+  ]);
+
+  const estadoParsed =
+    params.estado && validEstados.has(params.estado)
+      ? (params.estado as EstadoReembolso | 'TODOS')
+      : 'TODOS';
+
+  const filtros = {
+    empleadoId: params.empleado || undefined,
+    estado: estadoParsed,
+    fechaDesde: params.desde || undefined,
+    fechaHasta: params.hasta || undefined,
+    busqueda: params.busqueda || undefined,
+    page: params.page ? parseInt(params.page, 10) : 1,
+    pageSize: 15,
+  };
+
+  // Parallel server fetch for optimal performance
+  const [paginatedData, kpis, empleados] = await Promise.all([
+    obtenerReembolsosPaginados(EMPRESA_ID, filtros),
+    obtenerKpisReembolsos(EMPRESA_ID),
+    obtenerEmpleadosEmpresa(EMPRESA_ID),
+  ]);
+
+  const { reembolsos, totalCount, totalPages, currentPage, pageSize } = paginatedData;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', width: '100%' }}>
+      {/* Page Header */}
+      <div className="page-header" style={{ marginBottom: 0 }}>
+        <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <RotateCcw size={24} strokeWidth={2.2} style={{ color: 'var(--rendy-primary)' }} />
+          Liquidación de Reembolsos
+        </h1>
+        <p className="page-subtitle">
+          Supervisa, aprueba y audita los pagos adeudados a empleados por gastos cubiertos con fondos personales.
+        </p>
+      </div>
+
+      {/* KPI Cards */}
+      <ReembolsosStatsCards kpis={kpis} />
+
+      {/* Filters (URL-Driven with 300ms Debounce) */}
+      <ReembolsosFilters empleados={empleados} />
+
+      {/* Paginated Data Table with Actions & eReceipt Modal */}
+      <ReembolsosTable
+        data={reembolsos}
+        totalCount={totalCount}
+        totalPages={totalPages}
+        currentPage={currentPage}
+        pageSize={pageSize}
+      />
+    </div>
+  );
 }
