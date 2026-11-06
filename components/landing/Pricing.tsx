@@ -13,12 +13,25 @@ import { cn } from "@/lib/utils";
 
 import { Icon, Reveal } from "./primitives";
 
+/**
+ * @name PricingSection
+ * @description [Business Logic]: Renders transparent commercial tiers (Starter, Growth, Enterprise)
+ * with real-time bimonthly/annual discount calculations (-20% savings) to drive customer acquisition
+ * and showcase automated expense management value.
+ */
 export function PricingSection() {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const [hasToggled, setHasToggled] = useState(false);
+
+  const handleCycleChange = (nextCycle: BillingCycle) => {
+    if (nextCycle === cycle) return;
+    setHasToggled(true);
+    setCycle(nextCycle);
+  };
 
   const toggleClass = (active: boolean) =>
     cn(
-      "px-5 py-2 rounded-xl text-label-md font-semibold transition-all duration-300 flex items-center gap-2",
+      "px-5 py-2 rounded-xl text-label-md font-semibold transition-all duration-300 flex items-center gap-2 cursor-pointer",
       active
         ? "text-on-surface bg-surface-bright shadow-sm"
         : "text-on-surface-variant hover:text-on-surface",
@@ -46,7 +59,7 @@ export function PricingSection() {
             <button
               type="button"
               aria-pressed={cycle === "monthly"}
-              onClick={() => setCycle("monthly")}
+              onClick={() => handleCycleChange("monthly")}
               className={toggleClass(cycle === "monthly")}
             >
               Facturación Mensual
@@ -54,7 +67,7 @@ export function PricingSection() {
             <button
               type="button"
               aria-pressed={cycle === "annual"}
-              onClick={() => setCycle("annual")}
+              onClick={() => handleCycleChange("annual")}
               className={toggleClass(cycle === "annual")}
             >
               <span>Facturación Anual</span>
@@ -66,75 +79,119 @@ export function PricingSection() {
         </Reveal>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-          {PLANS.map((plan) => (
+          {PLANS.map((plan, index) => (
             <Reveal
               key={plan.id}
               className={cn(
-                "p-8 rounded-3xl flex flex-col justify-between relative transition-all",
-                plan.featured
-                  ? "bg-surface-container-low shadow-glow-plan border-2 border-primary-container mt-4 lg:mt-0"
-                  : "bg-surface-container shadow-sm border border-outline-variant/30 hover:border-outline-variant/60",
+                "flex flex-col h-full",
+                plan.featured ? "mt-4 lg:mt-0" : "",
               )}
             >
-              <div>
-                {plan.featured && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary-container text-on-primary-fixed text-label-sm font-bold uppercase tracking-wider shadow-md whitespace-nowrap">
-                    RECOMENDADO • MÁS VENDIDO
+              <div
+                key={hasToggled ? `${plan.id}-${cycle}` : undefined}
+                className={cn(
+                  "p-8 rounded-3xl flex flex-col justify-between relative flex-1 transition-all duration-300",
+                  plan.featured
+                    ? "bg-surface-container-low shadow-glow-plan border-2 border-primary-container"
+                    : "bg-surface-container shadow-sm border border-outline-variant/30 hover:border-outline-variant/60",
+                  hasToggled && "animate-pricing-card",
+                  cycle === "annual" && plan.featured && "ring-1 ring-primary-container/40",
+                )}
+                style={
+                  hasToggled
+                    ? {
+                        animationDelay: `${index * 65}ms`,
+                        animationFillMode: "both",
+                      }
+                    : undefined
+                }
+              >
+                {/* Subtle luminous gleam sweeping across the card when passing to annual */}
+                {cycle === "annual" && (
+                  <div
+                    className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none z-10"
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="w-1/2 h-full bg-gradient-to-r from-transparent via-primary-container/15 to-transparent skew-x-[-20deg] animate-pricing-shine"
+                      style={{
+                        animationDelay: `${index * 80}ms`,
+                      }}
+                    />
                   </div>
                 )}
-                <span
+
+                <div>
+                  {plan.featured && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary-container text-on-primary-fixed text-label-sm font-bold uppercase tracking-wider shadow-md whitespace-nowrap z-20">
+                      RECOMENDADO • MÁS VENDIDO
+                    </div>
+                  )}
+                  <span
+                    className={cn(
+                      "text-label-sm uppercase font-bold tracking-wider",
+                      plan.featured ? "text-primary" : "text-on-surface-variant",
+                    )}
+                  >
+                    {plan.tier}
+                  </span>
+                  <h3 className="font-display text-headline-md font-bold text-on-surface mt-2">
+                    {plan.name}
+                  </h3>
+                  <p className="text-body-md text-on-surface-variant mt-2 mb-6">{plan.description}</p>
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span
+                        key={`price-${cycle}`}
+                        className="font-display text-headline-xl font-extrabold text-on-surface inline-block animate-price-tick"
+                      >
+                        {planPrice(plan, cycle)}
+                      </span>
+                      <span className="text-body-md text-on-surface-variant">/mes</span>
+                      {cycle === "annual" && (
+                        <span className="ml-1.5 px-2 py-0.5 rounded-full text-label-sm font-bold bg-primary-container/20 text-primary-container border border-primary-container/30 animate-annual-badge whitespace-nowrap">
+                          {ANNUAL_DISCOUNT_LABEL}
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      key={`note-${cycle}`}
+                      className="text-label-sm text-on-surface-variant block mt-1 animate-price-tick"
+                    >
+                      {billingNote(cycle)}
+                    </span>
+                  </div>
+                  <ul className="flex flex-col gap-3 text-body-md text-on-surface-variant">
+                    {plan.features.map((f) => (
+                      <li key={f.text} className="flex items-start gap-2.5">
+                        <Icon
+                          name="check"
+                          className="text-primary-container text-[20px] shrink-0 mt-0.5"
+                        />
+                        <span
+                          className={cn(
+                            f.emphasis === "strong" && "text-on-surface font-medium",
+                            f.emphasis === "highlight" && "text-primary font-semibold",
+                          )}
+                        >
+                          {f.text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <a
+                  href="#solicitar-demo"
                   className={cn(
-                    "text-label-sm uppercase font-bold tracking-wider",
-                    plan.featured ? "text-primary" : "text-on-surface-variant",
+                    "mt-8 w-full py-3.5 rounded-xl text-center text-label-md transition-all active:scale-95",
+                    plan.featured
+                      ? "font-bold bg-primary-container text-on-primary-fixed shadow-glow-md hover:shadow-glow-lg hover:-translate-y-0.5"
+                      : "font-semibold border border-outline-variant/60 text-on-surface hover:bg-surface-bright",
                   )}
                 >
-                  {plan.tier}
-                </span>
-                <h3 className="font-display text-headline-md font-bold text-on-surface mt-2">
-                  {plan.name}
-                </h3>
-                <p className="text-body-md text-on-surface-variant mt-2 mb-6">{plan.description}</p>
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-display text-headline-xl font-extrabold text-on-surface">
-                      {planPrice(plan, cycle)}
-                    </span>
-                    <span className="text-body-md text-on-surface-variant">/mes</span>
-                  </div>
-                  <span className="text-label-sm text-on-surface-variant block mt-1">
-                    {billingNote(cycle)}
-                  </span>
-                </div>
-                <ul className="flex flex-col gap-3 text-body-md text-on-surface-variant">
-                  {plan.features.map((f) => (
-                    <li key={f.text} className="flex items-start gap-2.5">
-                      <Icon
-                        name="check"
-                        className="text-primary-container text-[20px] shrink-0 mt-0.5"
-                      />
-                      <span
-                        className={cn(
-                          f.emphasis === "strong" && "text-on-surface font-medium",
-                          f.emphasis === "highlight" && "text-primary font-semibold",
-                        )}
-                      >
-                        {f.text}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                  Probar 7 días gratis
+                </a>
               </div>
-              <a
-                href="#solicitar-demo"
-                className={cn(
-                  "mt-8 w-full py-3.5 rounded-xl text-center text-label-md transition-all active:scale-95",
-                  plan.featured
-                    ? "font-bold bg-primary-container text-on-primary-fixed shadow-glow-md hover:shadow-glow-lg hover:-translate-y-0.5"
-                    : "font-semibold border border-outline-variant/60 text-on-surface hover:bg-surface-bright",
-                )}
-              >
-                Probar 7 días gratis
-              </a>
             </Reveal>
           ))}
         </div>

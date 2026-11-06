@@ -285,6 +285,76 @@
   100% { transform: translateX(200%); }
 }
 
+@keyframes pricing-card-switch {
+  0% {
+    transform: scale(0.985) translateY(4px);
+  }
+  50% {
+    transform: scale(1.012) translateY(-3px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes pricing-shine {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+@keyframes price-number-tick {
+  0% {
+    transform: translateY(8px);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes annual-badge-pop {
+  0% {
+    transform: scale(0.7) translateY(2px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06) translateY(-1px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@utility animate-pricing-card {
+  animation: pricing-card-switch 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-pricing-shine {
+  animation: pricing-shine 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility animate-price-tick {
+  animation: price-number-tick 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-annual-badge {
+  animation: annual-badge-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 @utility animate-float-slow {
   animation: float-slow 5s ease-in-out infinite;
 }
