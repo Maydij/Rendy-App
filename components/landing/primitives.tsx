@@ -4,8 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-export const LOGO_URL =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCM5qflo3fGvDja_e6EESbVNM6kC-ih8mlOqgfuwEeGYiK7wKtR9diCopbOZohJXZJ418LVyyDtH8LA2C1UUK8ZlvYE6xD7j0jviVWDq_mTjbDI84d3-OW7tDFFupqHbE-KJCpxawFGLtwkEFpr3Lm3UXCOIJA8j3maPThYuapb-w9naKqiGZUOsDsDbPWab69Rc38onalUSQo2CJgMm3dtyjZsAyzkOQzTwez3wiYZCorYLRTdAblqBQ";
+export const LOGO_URL = "/rendy-logo.png?v=2";
 
 export function Icon({ name, className }: { name: string; className?: string }) {
   return (

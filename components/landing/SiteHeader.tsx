@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { RendyLogo } from "@/components/rendy-logo";
 import { cn } from "@/lib/utils";
 
-import { Icon, LOGO_URL } from "./primitives";
+import { Icon } from "./primitives";
 
 export const NAV_ITEMS = [
   { id: "inicio", label: "Inicio" },
@@ -43,7 +44,7 @@ export function SiteHeader() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/85 backdrop-blur-md shadow-header">
       <div className="h-20 max-w-[1320px] mx-auto px-6 flex items-center justify-between gap-6">
         <a href="#inicio" className="flex items-center shrink-0" aria-label="Rendy — inicio">
-          <img alt="Rendy" className="h-8 w-auto object-contain" src={LOGO_URL} />
+          <RendyLogo className="h-8 w-auto" />
         </a>
 
         <nav className="hidden xl:flex items-center gap-8" aria-label="Principal">
@@ -93,7 +94,7 @@ export function SiteHeader() {
               className="flex flex-col bg-surface-container-lowest border-outline-variant/40 text-on-surface"
             >
               <SheetTitle className="sr-only">Menú</SheetTitle>
-              <img alt="Rendy" className="h-8 w-auto object-contain self-start mt-2" src={LOGO_URL} />
+              <RendyLogo className="h-8 w-auto self-start mt-2" />
               <nav className="flex flex-col gap-1 mt-8" aria-label="Móvil">
                 {NAV_ITEMS.map((item) => (
                   <a

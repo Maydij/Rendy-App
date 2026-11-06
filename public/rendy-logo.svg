@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" fill="none" width="240" height="60">
+  <rect x="0" y="0" width="60" height="60" rx="16" fill="#0B0E17" stroke="#1B2234" stroke-width="1"/>
+  <g transform="translate(1, 2) scale(0.42)">
+    <rect x="36" y="24" width="16" height="82" rx="8" fill="#F8FAFC"/>
+    <path d="M 68 24 H 84 C 98 24, 108 34, 108 48 C 108 62, 98 72, 84 72 H 68 C 63.58 72, 60 68.42, 60 64 V 32 C 60 27.58, 63.58 24, 68 24 Z" fill="#00E599"/>
+    <circle cx="84" cy="48" r="11" fill="#0B0E17"/>
+    <path d="M 79.4 80 H 92.6 Q 96.1 80, 98.3 82.8 L 106.3 93.1 A 8 8 0 0 1 93.7 102.9 L 78.0 82.8 Q 75.9 80, 79.4 80 Z" fill="#06B6D4"/>
+  </g>
+  <text x="76" y="42" font-family="Plus Jakarta Sans, system-ui, -apple-system, sans-serif" font-size="34" font-weight="900" letter-spacing="-0.8" fill="#F8FAFC">Rendy<tspan fill="#FBBF24">.</tspan></text>
+</svg>
