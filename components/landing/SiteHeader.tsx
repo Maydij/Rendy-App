@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { RendyLogo } from "@/components/rendy-logo";
@@ -66,21 +67,25 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-4 shrink-0">
-          <a
-            href="#solicitar-demo"
+          <Link
+            href="/login"
             className="hidden sm:inline-flex items-center justify-center text-label-md px-4 py-2 text-on-surface-variant hover:text-on-surface transition-colors"
           >
             Iniciar sesión
-          </a>
+          </Link>
           <a
             href="#solicitar-demo"
             className="hidden md:inline-flex items-center justify-center text-label-md font-semibold bg-primary-container text-on-primary-fixed rounded-xl px-5 py-2.5 transition-all shadow-glow hover:shadow-glow-lg hover:-translate-y-0.5 active:scale-95"
           >
             Solicitar una demo
           </a>
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+          <Link
+            href="/login"
+            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity"
+            aria-label="Iniciar sesión"
+          >
             <Icon name="person" className="text-on-primary text-[18px]" />
-          </div>
+          </Link>
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger
