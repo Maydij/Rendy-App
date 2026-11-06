@@ -48,7 +48,7 @@ export function RendyLogo({
 
       {/* Wordmark Oficial 'Rendy.' */}
       {variant === 'full' && (
-        <span className={`text-2xl font-black tracking-tight leading-none ${textClass}`}>
+        <span className={`font-display text-2xl font-black tracking-tight leading-none ${textClass}`}>
           Rendy<span className="text-[#FBBF24]">.</span>
         </span>
       )}

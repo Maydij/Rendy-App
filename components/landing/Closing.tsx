@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 
+import { RendyLogo } from "@/components/rendy-logo";
 import { cn } from "@/lib/utils";
 
-import { Icon, LOGO_URL, Reveal } from "./primitives";
+import { Icon, Reveal } from "./primitives";
 
 const FAQS = [
   {
@@ -195,7 +196,7 @@ export function SiteFooter() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-y-12 gap-x-8 pb-12">
           <div className="col-span-2 flex flex-col gap-4">
             <a href="#inicio" className="flex items-center self-start" aria-label="Rendy — inicio">
-              <img alt="Rendy" className="h-8 w-auto object-contain" src={LOGO_URL} />
+              <RendyLogo className="h-8 w-auto" />
             </a>
             <p className="text-body-md text-on-surface-variant max-w-sm">
               Plataforma B2B inteligente de control de gastos corporativos, anticipos de viaje y
