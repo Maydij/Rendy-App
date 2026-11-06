@@ -1050,8 +1050,16 @@
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 340px;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
+}
+
+.dashboard-main-stack,
+.dashboard-side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 @media (max-width: 1080px) {
@@ -1128,6 +1136,12 @@
     grid-template-columns: 1fr;
     gap: 12px;
     margin-bottom: 20px;
+  }
+
+  .dashboard-grid,
+  .dashboard-main-stack,
+  .dashboard-side-stack {
+    gap: 12px;
   }
 
   .card-header {

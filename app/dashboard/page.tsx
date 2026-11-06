@@ -309,7 +309,7 @@ export default async function DashboardPage() {
                           .split(' ')
                           .filter(Boolean)
                           .slice(0, 2)
-                          .map((w) => w[0]?.toUpperCase() ?? '')
+                          .map((w: string) => w[0]?.toUpperCase() ?? '')
                           .join('');
 
                         return (
