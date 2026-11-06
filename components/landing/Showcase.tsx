@@ -54,7 +54,7 @@ const NODES = [
   { x: 250, y: 90, amount: "$8,390 USD", week: "Semana 2", r: 8, dot: 4.5, delay: "0.5s" },
   { x: 500, y: 60, amount: "$12,450 USD", week: "Semana 3", r: 10, dot: 5, delay: "1s" },
   { x: 750, y: 40, amount: "$21,800 USD", week: "Semana 4", r: 8, dot: 4.5, delay: "1.5s" },
-  { x: 995, y: 20, amount: "$48,920 USD", week: "Cierre Actual", r: 10, dot: 6, delay: "2s", final: true },
+  { x: 1000, y: 20, amount: "$48,920 USD", week: "Cierre Actual", r: 10, dot: 6, delay: "2s", final: true },
 ];
 
 const PILLARS = [
@@ -92,11 +92,13 @@ function SpendChart() {
     null,
   );
 
-  const show = (e: PointerEvent<SVGGElement>, node: (typeof NODES)[number]) => {
+  const show = (e: PointerEvent<HTMLDivElement>, node: (typeof NODES)[number]) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const rawX = e.clientX - rect.left;
+    const tipX = rawX > rect.width - 150 ? rawX - 140 : rawX + 10;
     setTip({
-      x: e.clientX - rect.left + 10,
+      x: Math.max(10, tipX),
       y: e.clientY - rect.top - 45,
       amount: node.amount,
       week: node.week,
@@ -177,35 +179,48 @@ function SpendChart() {
             strokeLinecap="round"
             strokeWidth="3.5"
           />
+        </svg>
+
+        <div className="absolute inset-0 pointer-events-none">
           {NODES.map((node) => {
             const color = node.final ? "var(--primary-fixed)" : "var(--primary-container)";
+            const leftPercent = (node.x / 1000) * 100;
+            const topPercent = (node.y / 160) * 100;
+
             return (
-              <g
+              <div
                 key={node.week}
-                className="cursor-pointer"
-                transform={`translate(${node.x}, ${node.y})`}
+                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto flex items-center justify-center w-8 h-8"
+                style={{
+                  left: `${leftPercent}%`,
+                  top: `${topPercent}%`,
+                }}
                 onPointerEnter={(e) => show(e, node)}
                 onPointerMove={(e) => show(e, node)}
                 onPointerLeave={() => setTip(null)}
               >
-                <circle r={16} fill="transparent" />
-                <circle
-                  className="animate-ping"
-                  fill={color}
-                  opacity={0.3}
-                  r={node.r}
-                  style={{ animationDelay: node.delay, transformBox: "fill-box", transformOrigin: "center" }}
+                <span
+                  className="absolute rounded-full animate-ping opacity-30 pointer-events-none"
+                  style={{
+                    width: node.r * 2,
+                    height: node.r * 2,
+                    backgroundColor: color,
+                    animationDelay: node.delay,
+                  }}
                 />
-                <circle
-                  fill={color}
-                  r={node.dot}
-                  stroke="var(--background)"
-                  strokeWidth={node.final ? 2.5 : 2}
+                <span
+                  className="rounded-full pointer-events-none shrink-0"
+                  style={{
+                    width: node.dot * 2,
+                    height: node.dot * 2,
+                    backgroundColor: color,
+                    boxShadow: `0 0 0 ${node.final ? 2.5 : 2}px var(--background)`,
+                  }}
                 />
-              </g>
+              </div>
             );
           })}
-        </svg>
+        </div>
       </div>
       <div className="flex justify-between items-center text-label-sm text-on-surface-variant pt-2 border-t border-outline-variant/20 mt-1">
         {NODES.map((n) => (
