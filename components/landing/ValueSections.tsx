@@ -101,7 +101,7 @@ export function ComparisonSection() {
           <Reveal className="rounded-3xl bg-surface-container p-8 md:p-10 flex flex-col justify-between shadow-md border border-outline-variant/20">
             <div>
               <div className="flex items-center justify-between mb-8">
-                <span className="px-3.5 py-1 rounded-full text-label-sm uppercase tracking-wider bg-error-container text-on-error">
+                <span className="px-3.5 py-1 rounded-full text-label-sm uppercase tracking-wider bg-error-container text-white font-bold">
                   Antes de Rendy
                 </span>
                 <Icon name="cancel" className="text-error text-[28px]" />
