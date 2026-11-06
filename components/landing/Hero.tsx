@@ -167,40 +167,40 @@ export function Hero() {
 
                 <div className="p-4 sm:p-6 flex flex-col gap-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-primary-container/40 transition-colors">
-                      <p className="text-label-sm text-on-surface-variant">Total Gastos</p>
+                    <div className="@container p-2.5 sm:p-3 xl:p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-primary-container/40 transition-colors min-w-0">
+                      <p className="text-label-sm text-on-surface-variant truncate">Total Gastos</p>
                       <Counter
                         value={12450}
                         prefix="$"
                         suffix=".00"
-                        className="font-display text-headline-sm font-bold text-on-surface mt-1"
+                        className="font-display text-[clamp(11px,14cqw,22px)] font-bold tracking-tight text-on-surface mt-1 whitespace-nowrap"
                       />
-                      <span className="text-label-sm text-primary-container">USD mensual</span>
+                      <span className="text-label-sm text-primary-container truncate block">USD mensual</span>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-tertiary-container/40 transition-colors">
-                      <p className="text-label-sm text-on-surface-variant">Pendientes</p>
+                    <div className="@container p-2.5 sm:p-3 xl:p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-tertiary-container/40 transition-colors min-w-0">
+                      <p className="text-label-sm text-on-surface-variant truncate">Pendientes</p>
                       <Counter
                         value={8}
-                        className="font-display text-headline-sm font-bold text-tertiary-container mt-1"
+                        className="font-display text-[clamp(14px,15cqw,20px)] font-bold text-tertiary-container mt-1 whitespace-nowrap"
                       />
-                      <span className="text-label-sm text-on-surface-variant">Por autorizar</span>
+                      <span className="text-label-sm text-on-surface-variant truncate block">Por autorizar</span>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-secondary/40 transition-colors">
-                      <p className="text-label-sm text-on-surface-variant">Comprobantes</p>
+                    <div className="@container p-2.5 sm:p-3 xl:p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-secondary/40 transition-colors min-w-0">
+                      <p className="text-label-sm text-on-surface-variant truncate">Comprobantes</p>
                       <Counter
                         value={14}
-                        className="font-display text-headline-sm font-bold text-secondary mt-1"
+                        className="font-display text-[clamp(14px,15cqw,20px)] font-bold text-secondary mt-1 whitespace-nowrap"
                       />
-                      <span className="text-label-sm text-on-surface-variant">Verificados SAT</span>
+                      <span className="text-label-sm text-on-surface-variant truncate block">Verificados SAT</span>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-primary/40 transition-colors">
-                      <p className="text-label-sm text-on-surface-variant">Rendición</p>
+                    <div className="@container p-2.5 sm:p-3 xl:p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-primary/40 transition-colors min-w-0">
+                      <p className="text-label-sm text-on-surface-variant truncate">Rendición</p>
                       <Counter
                         value={94}
                         suffix="%"
-                        className="font-display text-headline-sm font-bold text-primary mt-1"
+                        className="font-display text-[clamp(14px,15cqw,20px)] font-bold text-primary mt-1 whitespace-nowrap"
                       />
-                      <span className="text-label-sm text-on-surface-variant">+6% vs mes ant.</span>
+                      <span className="text-label-sm text-on-surface-variant truncate block">+6% vs mes ant.</span>
                     </div>
                   </div>
 
