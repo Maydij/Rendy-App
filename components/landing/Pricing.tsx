@@ -31,10 +31,11 @@ export function PricingSection() {
 
   const toggleClass = (active: boolean) =>
     cn(
-      "px-5 py-2 rounded-xl text-label-md font-semibold transition-all duration-300 flex items-center gap-2 cursor-pointer",
+      "group relative px-5 py-2 rounded-xl text-label-md font-semibold flex items-center gap-2 cursor-pointer select-none border origin-center",
+      "transition-all duration-200 ease-out will-change-transform",
       active
-        ? "text-on-surface bg-surface-bright shadow-sm"
-        : "text-on-surface-variant hover:text-on-surface",
+        ? "text-on-surface bg-surface-bright border-outline-variant/30 shadow-sm z-10"
+        : "text-on-surface-variant border-transparent z-0 hover:text-on-surface hover:bg-surface-bright/70 hover:border-outline-variant/40 hover:shadow-md hover:scale-[1.035] hover:z-20 active:scale-[0.98]",
     );
 
   return (
@@ -54,7 +55,7 @@ export function PricingSection() {
           <div
             role="group"
             aria-label="Ciclo de facturación"
-            className="mt-8 inline-flex flex-wrap justify-center items-center p-1.5 rounded-2xl bg-surface-container-high/60 backdrop-blur-md shadow-inner gap-2 border border-outline-variant/20"
+            className="mt-8 inline-flex flex-wrap justify-center items-center p-2 rounded-2xl bg-surface-container-high/60 backdrop-blur-md shadow-inner gap-2 border border-outline-variant/20"
           >
             <button
               type="button"
@@ -71,7 +72,7 @@ export function PricingSection() {
               className={toggleClass(cycle === "annual")}
             >
               <span>Facturación Anual</span>
-              <span className="px-2 py-0.5 rounded-full text-label-sm font-bold bg-primary-container text-on-primary-fixed">
+              <span className="px-2 py-0.5 rounded-full text-label-sm font-bold bg-primary-container text-on-primary-fixed transition-transform duration-200 group-hover:scale-105">
                 {ANNUAL_DISCOUNT_LABEL}
               </span>
             </button>
