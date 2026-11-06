@@ -266,6 +266,26 @@
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-7px) rotate(-0.5deg); }
 }
+@keyframes float-card-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes pulse-glow-ambient {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50% { opacity: 0.24; transform: scale(1.08); }
+}
+@keyframes entrance-fade-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes entrance-fade-down {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes entrance-fade-scale {
+  0% { opacity: 0; transform: scale(0.97) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
 @keyframes pulse-radar {
   0% { transform: scale(1); opacity: 0.9; }
   70% { transform: scale(2.4); opacity: 0; }
@@ -360,6 +380,21 @@
 }
 @utility animate-float-delayed {
   animation: float-delayed 6s ease-in-out 1.2s infinite;
+}
+@utility animate-float-gentle {
+  animation: float-card-gentle 6s ease-in-out infinite;
+}
+@utility animate-glow-ambient {
+  animation: pulse-glow-ambient 7s ease-in-out infinite;
+}
+@utility animate-enter-up {
+  animation: entrance-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@utility animate-enter-down {
+  animation: entrance-fade-down 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@utility animate-enter-card {
+  animation: entrance-fade-scale 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @utility animate-radar {
   &::after {

@@ -68,7 +68,7 @@ export function LoginForm() {
   return (
     <div className="w-full lg:w-[55%] xl:w-[58%] 2xl:w-[60%] bg-surface flex flex-col justify-between min-h-screen relative p-6 sm:p-10 lg:p-12">
       {/* Header bar: Telemetry & Gateway Status */}
-      <header className="w-full flex items-center justify-between z-20 pb-4">
+      <header className="w-full flex items-center justify-between z-20 pb-4 animate-enter-down">
         {/* Mobile Brand Logo */}
         <div className="flex items-center gap-2 lg:hidden">
           <Link href="/">
@@ -96,7 +96,10 @@ export function LoginForm() {
       <main className="w-full flex-1 flex flex-col justify-center max-w-md mx-auto py-8 relative z-10">
         <div className="w-full flex flex-col">
           {/* Top Environment Bar & Simulated Audit Toggle */}
-          <div className="flex items-center justify-between mb-4 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant/20 shadow-sm">
+          <div
+            className="flex items-center justify-between mb-4 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant/20 shadow-sm animate-enter-down"
+            style={{ animationDelay: '80ms' }}
+          >
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-container opacity-75" />
@@ -119,7 +122,10 @@ export function LoginForm() {
           </div>
 
           {/* Main Auth Card */}
-          <div className="bg-surface-container-lowest/85 backdrop-blur-xl rounded-2xl p-6 sm:p-8 border border-outline-variant/30 shadow-2xl relative overflow-hidden">
+          <div
+            className="bg-surface-container-lowest/85 backdrop-blur-xl rounded-2xl p-6 sm:p-8 border border-outline-variant/30 shadow-2xl relative overflow-hidden animate-enter-card"
+            style={{ animationDelay: '140ms' }}
+          >
             {/* Ambient glow accent */}
             <div
               className="absolute -top-24 -right-24 w-64 h-64 bg-primary-container/10 rounded-full blur-[80px] pointer-events-none"
@@ -343,7 +349,10 @@ export function LoginForm() {
       </main>
 
       {/* Footer bar: SSL Encryption & Legal Compliance */}
-      <footer className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-label-sm font-label-sm text-on-surface-variant pt-4 z-20">
+      <footer
+        className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-label-sm font-label-sm text-on-surface-variant pt-4 z-20 animate-enter-up"
+        style={{ animationDelay: '300ms' }}
+      >
         <div className="flex items-center gap-2">
           <Icon name="lock" className="text-primary-container text-[15px]" />
           <span>256-bit SSL Encryption • Rendy FinTech Security</span>
