@@ -332,7 +332,7 @@ export function LoginForm() {
               <p className="font-body-md text-body-md text-on-surface-variant mb-4">
                 ¿Todavía no tienes una cuenta?{' '}
                 <Link
-                  href="/#solicitar-demo"
+                  href="/registro"
                   className="text-primary-container font-semibold hover:underline transition-colors ml-1"
                 >
                   Regístrate
