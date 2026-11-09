@@ -96,7 +96,7 @@ export function OnboardingProgress({
                   <span
                     className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       isActive
-                        ? 'bg-primary-container text-on-primary-container'
+                        ? 'bg-primary-container text-black'
                         : isCompleted
                         ? 'bg-primary/20 text-primary'
                         : 'bg-surface-container-high text-on-surface-variant'
@@ -184,7 +184,7 @@ export function OnboardingProgress({
             className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
               currentStep === 6
                 ? 'bg-primary/20 text-primary'
-                : 'bg-primary-container text-on-primary-container'
+                : 'bg-primary-container text-black'
             }`}
           >
             {currentStep > 6 ? '✓' : '6'}

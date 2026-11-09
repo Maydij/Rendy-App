@@ -132,10 +132,10 @@ export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Pr
           <button
             type="button"
             onClick={onNext}
-            className="px-6 py-3 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+            className="px-6 py-3 rounded-full bg-primary-container text-black font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
           >
             <span>Continuar</span>
-            <Icon name="arrow_forward" className="text-[18px]" />
+            <Icon name="arrow_forward" className="text-[18px] text-black font-bold" />
           </button>
         </div>
       </div>

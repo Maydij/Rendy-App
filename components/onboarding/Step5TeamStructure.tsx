@@ -45,7 +45,7 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
               <span className="font-headline-sm text-[16px] font-bold text-primary">
                 ¡Ya tienes tu rol definido!
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container text-[11px] font-bold uppercase tracking-wider">
+              <span className="px-2 py-0.5 rounded-full bg-primary-container text-black text-[11px] font-bold uppercase tracking-wider">
                 Creador
               </span>
             </div>
@@ -161,10 +161,10 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
             <button
               type="button"
               onClick={onNext}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[16px] font-bold shadow-[0_0_32px_rgba(0,229,153,0.35)] hover:shadow-[0_0_42px_rgba(0,229,153,0.55)] hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary-container text-black font-headline-sm text-[16px] font-bold shadow-[0_0_32px_rgba(0,229,153,0.35)] hover:shadow-[0_0_42px_rgba(0,229,153,0.55)] hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Finalizar Etapa 1 e Ir al Plan</span>
-              <Icon name="arrow_forward" className="text-[20px]" />
+              <Icon name="arrow_forward" className="text-[20px] text-black font-bold" />
             </button>
           </div>
         </div>

@@ -182,8 +182,8 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
               >
                 {/* Ambient Glow Pin */}
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
-                  <span className="px-3 py-1 rounded-full bg-primary-container text-on-primary-container font-label-sm text-label-sm uppercase tracking-wider font-extrabold shadow-md flex items-center gap-1 border border-primary-container/30">
-                    <Icon name="auto_awesome" className="text-[14px]" /> Recomendado para tu empresa
+                  <span className="px-3 py-1 rounded-full bg-primary-container text-black font-label-sm text-label-sm uppercase tracking-wider font-extrabold shadow-md flex items-center gap-1 border border-primary-container/30">
+                    <Icon name="auto_awesome" className="text-[14px] text-black font-bold" /> Recomendado para tu empresa
                   </span>
                 </div>
 
@@ -240,10 +240,10 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
                       handleSelectPlan(plan.id);
                       onNext();
                     }}
-                    className="w-full py-3.5 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                    className="w-full py-3.5 rounded-full bg-primary-container text-black font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] transition-all flex items-center justify-center gap-2 group cursor-pointer"
                   >
                     <span>Continuar con Business</span>
-                    <Icon name="arrow_forward" className="text-[18px] group-hover:translate-x-1 transition-transform" />
+                    <Icon name="arrow_forward" className="text-[18px] text-black font-bold group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               </div>
@@ -317,7 +317,7 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
                   }}
                   className={`w-full py-3 rounded-full font-label-md text-label-md transition-all font-semibold flex items-center justify-center gap-2 cursor-pointer ${
                     isSelected
-                      ? 'bg-primary-container text-on-primary-container font-bold shadow-md'
+                      ? 'bg-primary-container text-black font-bold shadow-md'
                       : 'bg-surface-container-high hover:bg-surface-bright text-on-surface'
                   }`}
                 >
@@ -362,10 +362,10 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
         <button
           type="button"
           onClick={onNext}
-          className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[16px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.3)] hover:shadow-[0_0_32px_rgba(0,229,153,0.45)] transition-all flex items-center justify-center gap-2 group cursor-pointer"
+          className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary-container text-black font-headline-sm text-[16px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.3)] hover:shadow-[0_0_32px_rgba(0,229,153,0.45)] transition-all flex items-center justify-center gap-2 group cursor-pointer"
         >
           <span>Continuar con este plan</span>
-          <Icon name="arrow_forward" className="text-[20px] group-hover:translate-x-1 transition-transform" />
+          <Icon name="arrow_forward" className="text-[20px] text-black font-bold group-hover:translate-x-1 transition-transform" />
         </button>
       </div>
     </div>

@@ -43,14 +43,14 @@ export function OnboardingHeader({ currentStep, onNavigateStage }: OnboardingHea
               onClick={() => onNavigateStage(1)}
               className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full font-label-md transition-all ${
                 isStageOne
-                  ? 'bg-primary-container text-on-primary-container font-bold shadow-sm'
+                  ? 'bg-primary-container text-black font-bold shadow-sm'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
               <span
                 className={`flex items-center justify-center w-5 h-5 rounded-full font-label-sm text-label-sm ${
                   isStageOne
-                    ? 'bg-on-primary-container/20 text-on-primary-container'
+                    ? 'bg-black/15 text-black font-bold'
                     : 'bg-primary/20 text-primary font-bold'
                 }`}
               >
@@ -68,14 +68,14 @@ export function OnboardingHeader({ currentStep, onNavigateStage }: OnboardingHea
               onClick={() => onNavigateStage(2)}
               className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full font-label-md transition-all ${
                 !isStageOne
-                  ? 'bg-primary-container text-on-primary-container font-bold shadow-sm'
+                  ? 'bg-primary-container text-black font-bold shadow-sm'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
               <span
                 className={`flex items-center justify-center w-5 h-5 rounded-full font-label-sm text-label-sm ${
                   !isStageOne
-                    ? 'bg-on-primary-container/20 text-on-primary-container'
+                    ? 'bg-black/15 text-black font-bold'
                     : 'bg-surface-container text-on-surface-variant'
                 }`}
               >

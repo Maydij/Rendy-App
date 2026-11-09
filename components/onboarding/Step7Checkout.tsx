@@ -108,8 +108,8 @@ export function Step7Checkout({
       {/* Top Banner: Today you pay $0.00 */}
       <div className="w-full bg-gradient-to-r from-primary/10 via-surface-container to-secondary/10 border border-primary/25 p-4 sm:p-5 rounded-2xl mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0 font-bold shadow-md">
-            <Icon name="celebration" className="text-[26px]" />
+          <div className="w-12 h-12 rounded-xl bg-primary text-black flex items-center justify-center shrink-0 font-bold shadow-md">
+            <Icon name="celebration" className="text-[26px] text-black font-bold" />
           </div>
           <div>
             <div className="font-headline-sm text-headline-sm text-on-surface font-extrabold flex items-center gap-2">
@@ -148,7 +148,7 @@ export function Step7Checkout({
               <span
                 className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
                   isVisa
-                    ? 'bg-primary text-on-primary shadow-sm'
+                    ? 'bg-primary text-black shadow-sm'
                     : 'bg-surface-container-high text-on-surface-variant'
                 }`}
               >
@@ -331,17 +331,17 @@ export function Step7Checkout({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-4 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[16px] font-extrabold shadow-[0_0_28px_rgba(0,229,153,0.38)] hover:shadow-[0_0_36px_rgba(0,229,153,0.55)] transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                className="w-full py-4 rounded-full bg-primary-container text-black font-headline-sm text-[16px] font-extrabold shadow-[0_0_28px_rgba(0,229,153,0.38)] hover:shadow-[0_0_36px_rgba(0,229,153,0.55)] transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
                     <span>Cifrando datos y activando 7 días...</span>
-                    <Icon name="sync" className="text-[20px] animate-spin" />
+                    <Icon name="sync" className="text-[20px] text-black animate-spin" />
                   </>
                 ) : (
                   <>
                     <span>Activar mi cuenta y comenzar</span>
-                    <Icon name="arrow_forward" className="text-[20px] group-hover:translate-x-1 transition-transform" />
+                    <Icon name="arrow_forward" className="text-[20px] text-black font-bold group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </button>

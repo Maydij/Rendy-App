@@ -98,10 +98,10 @@ export function WorkspaceCreatedModal({
           <button
             type="button"
             onClick={onContinue}
-            className="w-full py-3.5 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_36px_rgba(0,229,153,0.5)] transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 rounded-full bg-primary-container text-black font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_36px_rgba(0,229,153,0.5)] transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>Crear mi Perfil de Administrador</span>
-            <Icon name="arrow_forward" className="text-[18px]" />
+            <Icon name="arrow_forward" className="text-[18px] text-black font-bold" />
           </button>
         </div>
       </div>

@@ -75,7 +75,7 @@ export function OnboardingSuccessModal({ isOpen, formData }: OnboardingSuccessMo
         {/* Badge Icon */}
         <div className="w-20 h-20 rounded-2xl bg-primary/20 text-primary mx-auto flex items-center justify-center mb-6 relative border border-primary/30 shadow-md">
           <Icon name="verified" className="text-[44px]" />
-          <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary text-on-primary text-[12px] flex items-center justify-center font-bold">
+          <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary text-black text-[12px] flex items-center justify-center font-extrabold">
             ✓
           </div>
         </div>
@@ -125,17 +125,17 @@ export function OnboardingSuccessModal({ isOpen, formData }: OnboardingSuccessMo
         <button
           type="button"
           onClick={handleGoDashboard}
-          className="w-full py-4 rounded-full bg-primary-container text-on-primary-container font-headline-sm text-[16px] font-bold shadow-lg hover:shadow-primary/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-4 rounded-full bg-primary-container text-black font-headline-sm text-[16px] font-bold shadow-lg hover:shadow-primary/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           {redirecting ? (
             <>
               <span>Ingresando al Dashboard...</span>
-              <Icon name="check" className="text-[20px]" />
+              <Icon name="check" className="text-[20px] text-black font-bold" />
             </>
           ) : (
             <>
               <span>Ir al Dashboard</span>
-              <Icon name="arrow_forward" className="text-[20px]" />
+              <Icon name="arrow_forward" className="text-[20px] text-black font-bold" />
             </>
           )}
         </button>

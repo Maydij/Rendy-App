@@ -103,7 +103,7 @@ export function OnboardingWizard() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-surface-container-lowest text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container">
+    <div className="min-h-screen w-full flex flex-col bg-surface-container-lowest text-on-surface antialiased selection:bg-primary-container selection:text-black">
       {/* Sticky Global Onboarding Header */}
       <OnboardingHeader
         currentStep={currentStep}
@@ -201,8 +201,8 @@ export function OnboardingWizard() {
       {/* Floating Transition Toast between Stage 1 & 2 */}
       {showToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-surface-container-high border border-primary-container/40 text-on-surface px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
-            <Icon name="done_all" className="text-[18px]" />
+          <div className="w-8 h-8 rounded-full bg-primary-container text-black flex items-center justify-center font-bold">
+            <Icon name="done_all" className="text-[18px] text-black font-bold" />
           </div>
           <div className="flex flex-col">
             <span className="font-label-md text-label-md font-bold text-on-surface">
