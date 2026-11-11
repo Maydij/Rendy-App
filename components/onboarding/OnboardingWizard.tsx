@@ -116,7 +116,6 @@ export function OnboardingWizard() {
         <OnboardingProgress
           currentStep={currentStep}
           onGoToStep={handleGoToStep}
-          onOpenWorkspaceModal={currentStep >= 3 ? handleOpenWorkspaceModal : undefined}
         />
 
         {/* Central Step View Area */}
