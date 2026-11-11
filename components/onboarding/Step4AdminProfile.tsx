@@ -58,7 +58,7 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between animate-enter-up">
           <div className="flex flex-col gap-1">
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold">
               Paso 4 • Identidad del Creador
@@ -78,7 +78,7 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
         {/* Admin Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {/* First & Last Name */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 animate-enter-up [animation-delay:60ms]">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="admin-first-name" className="font-label-md text-label-md text-on-surface font-semibold">
                 Nombre
@@ -123,7 +123,7 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
           </div>
 
           {/* Username with Live Workspace Validator */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 animate-enter-up [animation-delay:110ms]">
             <div className="flex items-center justify-between">
               <label htmlFor="admin-username" className="font-label-md text-label-md text-on-surface font-semibold">
                 Nombre de usuario único
@@ -171,7 +171,7 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
           </div>
 
           {/* Corporate Email & Mobile Phone (2FA) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 animate-enter-up [animation-delay:160ms]">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="admin-email" className="font-label-md text-label-md text-on-surface font-semibold">
                 Correo corporativo
@@ -226,7 +226,7 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
           </div>
 
           {/* Password with Strength Meter */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 animate-enter-up [animation-delay:210ms]">
             <div className="flex items-center justify-between">
               <label htmlFor="admin-password" className="font-label-md text-label-md text-on-surface font-semibold">
                 Contraseña de acceso
@@ -279,7 +279,7 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
           </div>
 
           {/* Bottom Actions */}
-          <div className="flex items-center justify-between pt-4 mt-1 border-t border-surface-container-high/30">
+          <div className="flex items-center justify-between pt-4 mt-1 border-t border-surface-container-high/30 animate-enter-up [animation-delay:260ms]">
             <button
               type="button"
               onClick={onBack}

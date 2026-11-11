@@ -120,9 +120,10 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
             <div
               key={plan.id}
               className={cn(
-                'flex flex-col h-full',
+                'flex flex-col h-full animate-card-enter',
                 isFeatured ? 'mt-3 lg:mt-0' : '',
               )}
+              style={{ animationDelay: `${index * 60}ms` }}
             >
               <div
                 key={hasToggled ? `${plan.id}-${formData.billingCycle}` : undefined}
@@ -293,7 +294,7 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
       </div>
 
       {/* Trust & Free Trial Banner */}
-      <div className="w-full bg-surface-container border border-outline-variant/30 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 shadow-sm">
+      <div className="w-full bg-surface-container border border-outline-variant/30 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 shadow-sm animate-enter-up [animation-delay:220ms]">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20">
             <Icon name="verified_user" className="text-[24px]" />
@@ -314,7 +315,7 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
       </div>
 
       {/* Footer Action CTA */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-outline-variant/20">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-outline-variant/20 animate-enter-up [animation-delay:260ms]">
         <div className="text-xs text-on-surface-variant text-center sm:text-left">
           Plan seleccionado actualmente:{' '}
           <span className="font-bold text-primary">

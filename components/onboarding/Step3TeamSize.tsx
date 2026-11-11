@@ -81,7 +81,7 @@ export function Step3TeamSize({
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between animate-enter-up">
           <div className="flex flex-col gap-1">
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-tertiary-fixed-dim font-semibold">
               Paso 3 • Dimensión de Equipo
@@ -100,7 +100,7 @@ export function Step3TeamSize({
 
         {/* 6 Tier Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-          {TEAM_TIERS.map((tier) => {
+          {TEAM_TIERS.map((tier, index) => {
             const tierValue = `${tier.name} ${tier.range.replace(' personas', '')}`;
             const isSelected = Boolean(
               formData.selectedCompanySize &&
@@ -113,7 +113,8 @@ export function Step3TeamSize({
                 key={tier.name}
                 type="button"
                 onClick={() => updateField('selectedCompanySize', tierValue)}
-                className={`p-4 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-left transition-all group flex flex-col justify-between shadow-sm border border-surface-container-high/40 cursor-pointer min-h-[140px] ${
+                style={{ animationDelay: `${index * 45}ms` }}
+                className={`p-4 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-left transition-all group flex flex-col justify-between shadow-sm border border-surface-container-high/40 cursor-pointer min-h-[140px] animate-card-enter ${
                   isSelected ? 'ring-2 ring-primary-container/80 bg-surface-container/70' : ''
                 }`}
               >
