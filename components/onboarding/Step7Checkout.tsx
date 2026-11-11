@@ -90,7 +90,7 @@ export function Step7Checkout({
       </div>
 
       {/* Headline & Subtitle */}
-      <div className="text-center max-w-2xl mx-auto mb-8">
+      <div className="text-center max-w-2xl mx-auto mb-8 animate-enter-up">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary-container/15 text-secondary border border-secondary/25 mb-3">
           <Icon name="lock" className="text-[16px]" />
           <span className="font-label-sm text-label-sm uppercase tracking-wider font-semibold">
@@ -106,7 +106,7 @@ export function Step7Checkout({
       </div>
 
       {/* Top Banner: Today you pay $0.00 */}
-      <div className="w-full bg-gradient-to-r from-primary/10 via-surface-container to-secondary/10 border border-primary/25 p-4 sm:p-5 rounded-2xl mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+      <div className="w-full bg-gradient-to-r from-primary/10 via-surface-container to-secondary/10 border border-primary/25 p-4 sm:p-5 rounded-2xl mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-enter-up [animation-delay:60ms]">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-primary text-black flex items-center justify-center shrink-0 font-bold shadow-md">
             <Icon name="celebration" className="text-[26px] text-black font-bold" />
@@ -135,7 +135,7 @@ export function Step7Checkout({
       {/* Two-column Checkout Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-8">
         {/* Column 1: Payment Form (7 Cols) */}
-        <div className="lg:col-span-7 bg-surface-container rounded-2xl p-6 sm:p-8 shadow-xl border border-surface-container-high/60">
+        <div className="lg:col-span-7 bg-surface-container rounded-2xl p-6 sm:p-8 shadow-xl border border-surface-container-high/60 animate-card-enter [animation-delay:110ms]">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-surface-container-high/60">
             <div className="flex items-center gap-2.5">
               <Icon name="credit_card" className="text-primary text-[22px]" />
@@ -358,7 +358,7 @@ export function Step7Checkout({
         </div>
 
         {/* Column 2: Plan Summary & 7-Day Timeline (5 Cols) */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="lg:col-span-5 space-y-6 animate-card-enter [animation-delay:170ms]">
           {/* Order Summary Box */}
           <div className="bg-surface-container rounded-2xl p-6 shadow-md border border-surface-container-high/60 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-surface-container-high/60">

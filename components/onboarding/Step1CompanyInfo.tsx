@@ -28,7 +28,7 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
         {/* Step Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between animate-enter-up">
           <div className="flex flex-col gap-1">
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary-container font-semibold">
               Paso 1 • Identidad Legal
@@ -48,7 +48,7 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
         {/* Legal Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {/* Legal Business Name */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 animate-enter-up [animation-delay:60ms]">
             <label
               htmlFor="company-legal-name"
               className="font-label-md text-label-md text-on-surface font-semibold flex items-center justify-between"
@@ -74,7 +74,7 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
           </div>
 
           {/* Tax ID & Operating Country */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 animate-enter-up [animation-delay:120ms]">
             {/* Tax ID */}
             <div className="flex flex-col gap-1.5">
               <label
@@ -132,7 +132,7 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
           </div>
 
           {/* Sede Principal / Fiscal Address */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 animate-enter-up [animation-delay:180ms]">
             <label htmlFor="company-address" className="font-label-md text-label-md text-on-surface font-semibold">
               Sede Principal
             </label>
@@ -153,7 +153,7 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
           </div>
 
           {/* Micro Trust Badge */}
-          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-surface-container/60 border border-surface-container-high/50 mt-1">
+          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-surface-container/60 border border-surface-container-high/50 mt-1 animate-enter-up [animation-delay:230ms]">
             <Icon name="verified_user" className="text-primary text-[18px] flex-shrink-0" />
             <p className="font-label-sm text-label-sm text-on-surface-variant leading-relaxed">
               Datos cifrados mediante grado bancario. Rendy procesa y resguarda tu expediente contable de
@@ -162,7 +162,7 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
           </div>
 
           {/* Action CTA */}
-          <div className="flex items-center justify-between pt-4 mt-1 border-t border-surface-container-high/30">
+          <div className="flex items-center justify-between pt-4 mt-1 border-t border-surface-container-high/30 animate-enter-up [animation-delay:270ms]">
             <span className="text-on-surface-variant text-label-sm font-label-sm font-medium">
               Paso 1 de 7
             </span>

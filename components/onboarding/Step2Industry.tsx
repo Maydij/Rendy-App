@@ -74,7 +74,7 @@ export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Pr
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between animate-enter-up">
           <div className="flex flex-col gap-1">
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">
               Paso 2 • Clasificación Operativa
@@ -93,7 +93,7 @@ export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Pr
 
         {/* 6 Industry Options Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-          {INDUSTRIES.map((ind) => {
+          {INDUSTRIES.map((ind, index) => {
             const isSelected = formData.selectedIndustry === ind.id;
 
             return (
@@ -101,7 +101,8 @@ export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Pr
                 key={ind.id}
                 type="button"
                 onClick={() => updateField('selectedIndustry', ind.id)}
-                className={`p-4 rounded-xl bg-surface-container-lowest hover:bg-surface-container flex flex-col items-start gap-3 text-left transition-all group shadow-sm border border-surface-container-high/40 cursor-pointer ${
+                style={{ animationDelay: `${index * 45}ms` }}
+                className={`p-4 rounded-xl bg-surface-container-lowest hover:bg-surface-container flex flex-col items-start gap-3 text-left transition-all group shadow-sm border border-surface-container-high/40 cursor-pointer animate-card-enter ${
                   isSelected ? 'ring-2 ring-primary-container/80 bg-surface-container/70' : ''
                 }`}
               >
@@ -126,7 +127,7 @@ export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Pr
         </div>
 
         {/* Bottom Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-surface-container-high/30">
+        <div className="flex items-center justify-between pt-4 border-t border-surface-container-high/30 animate-enter-up [animation-delay:300ms]">
           <button
             type="button"
             onClick={onBack}

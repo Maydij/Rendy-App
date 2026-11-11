@@ -18,7 +18,7 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between animate-enter-up">
           <div className="flex flex-col gap-1">
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold">
               Paso 5 • Arquitectura de Acceso
@@ -36,7 +36,7 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
         </div>
 
         {/* Creator Role Confirmation Banner */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-surface-container-lowest border border-surface-container-high/40 flex items-start gap-4 shadow-md">
+        <div className="p-4 sm:p-5 rounded-2xl bg-surface-container-lowest border border-surface-container-high/40 flex items-start gap-4 shadow-md animate-enter-up [animation-delay:60ms]">
           <div className="w-11 h-11 rounded-xl bg-primary-container/20 text-primary-container flex items-center justify-center flex-shrink-0">
             <Icon name="verified" className="text-[26px]" />
           </div>
@@ -60,7 +60,7 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
         {/* Two Comparison Role Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Card 1: Administrador (Root Authority) */}
-          <div className="p-6 rounded-2xl bg-surface-container-lowest border border-primary-container/40 flex flex-col justify-between relative shadow-lg">
+          <div className="p-6 rounded-2xl bg-surface-container-lowest border border-primary-container/40 flex flex-col justify-between relative shadow-lg animate-card-enter [animation-delay:110ms]">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
           </div>
 
           {/* Card 2: Colaborador */}
-          <div className="p-6 rounded-2xl bg-surface-container-lowest/80 border border-surface-container-high/40 flex flex-col justify-between relative shadow-sm">
+          <div className="p-6 rounded-2xl bg-surface-container-lowest/80 border border-surface-container-high/40 flex flex-col justify-between relative shadow-sm animate-card-enter [animation-delay:170ms]">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
         </div>
 
         {/* Completion Actions */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-surface-container-high/30">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-surface-container-high/30 animate-enter-up [animation-delay:230ms]">
           <button
             type="button"
             onClick={onBack}

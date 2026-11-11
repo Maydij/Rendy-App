@@ -361,6 +361,82 @@
   }
 }
 
+/* Onboarding Step Entrance and Exit Transitions */
+@keyframes step-fade-in-forward {
+  0% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes step-fade-out-forward {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.985);
+  }
+}
+
+@keyframes step-fade-in-backward {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes step-fade-out-backward {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.985);
+  }
+}
+
+@keyframes card-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@utility animate-step-enter-forward {
+  animation: step-fade-in-forward 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-step-exit-forward {
+  animation: step-fade-out-forward 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@utility animate-step-enter-backward {
+  animation: step-fade-in-backward 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-step-exit-backward {
+  animation: step-fade-out-backward 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@utility animate-card-enter {
+  animation: card-item-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @utility animate-pricing-card {
   animation: pricing-card-switch 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

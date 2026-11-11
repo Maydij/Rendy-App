@@ -50,6 +50,9 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
  */
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [displayStep, setDisplayStep] = useState<number>(1);
+  const [isExiting, setIsExiting] = useState<boolean>(false);
+  const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
   const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_FORM_DATA);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState<boolean>(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
@@ -61,10 +64,19 @@ export function OnboardingWizard() {
   };
 
   const handleGoToStep = (step: number) => {
-    if (step >= 1 && step <= 7) {
-      setCurrentStep(step);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    if (step === displayStep || step < 1 || step > 7 || isExiting) return;
+
+    const nextDirection = step > displayStep ? 'forward' : 'backward';
+    setTransitionDirection(nextDirection);
+    setIsExiting(true);
+    setCurrentStep(step);
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    setTimeout(() => {
+      setDisplayStep(step);
+      setIsExiting(false);
+    }, 180);
   };
 
   const handleStageNavigation = (targetStage: 1 | 2) => {
@@ -91,7 +103,7 @@ export function OnboardingWizard() {
     setTimeout(() => {
       setShowToast(false);
       handleGoToStep(6);
-    }, 900);
+    }, 700);
   };
 
   // Step 7 Checkout Submit
@@ -102,6 +114,17 @@ export function OnboardingWizard() {
       setIsSuccessModalOpen(true);
     }, 1200);
   };
+
+  const stepAnimationClass = cn(
+    'w-full will-change-transform',
+    isExiting
+      ? transitionDirection === 'forward'
+        ? 'animate-step-exit-forward'
+        : 'animate-step-exit-backward'
+      : transitionDirection === 'forward'
+      ? 'animate-step-enter-forward'
+      : 'animate-step-enter-backward',
+  );
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-surface-container-lowest text-on-surface antialiased selection:bg-primary-container selection:text-black">
@@ -123,83 +146,85 @@ export function OnboardingWizard() {
         <div
           className={cn(
             'w-full mx-auto relative flex flex-col justify-center transition-all duration-300',
-            currentStep === 6 ? 'max-w-[1360px]' : currentStep === 7 ? 'max-w-5xl' : 'max-w-4xl',
+            displayStep === 6 ? 'max-w-[1360px]' : displayStep === 7 ? 'max-w-5xl' : 'max-w-4xl',
           )}
         >
-          {currentStep === 1 && (
-            <div className="w-full max-w-2xl mx-auto animate-fade-in">
-              <Step1CompanyInfo
-                formData={formData}
-                updateField={updateField}
-                onNext={() => handleGoToStep(2)}
-              />
-            </div>
-          )}
+          <div key={displayStep} className={stepAnimationClass}>
+            {displayStep === 1 && (
+              <div className="w-full max-w-2xl mx-auto">
+                <Step1CompanyInfo
+                  formData={formData}
+                  updateField={updateField}
+                  onNext={() => handleGoToStep(2)}
+                />
+              </div>
+            )}
 
-          {currentStep === 2 && (
-            <div className="w-full max-w-2xl mx-auto animate-fade-in">
-              <Step2Industry
-                formData={formData}
-                updateField={updateField}
-                onNext={() => handleGoToStep(3)}
-                onBack={() => handleGoToStep(1)}
-              />
-            </div>
-          )}
+            {displayStep === 2 && (
+              <div className="w-full max-w-2xl mx-auto">
+                <Step2Industry
+                  formData={formData}
+                  updateField={updateField}
+                  onNext={() => handleGoToStep(3)}
+                  onBack={() => handleGoToStep(1)}
+                />
+              </div>
+            )}
 
-          {currentStep === 3 && (
-            <div className="w-full max-w-2xl mx-auto animate-fade-in">
-              <Step3TeamSize
-                formData={formData}
-                updateField={updateField}
-                onSubmitCreateWorkspace={handleOpenWorkspaceModal}
-                onBack={() => handleGoToStep(2)}
-              />
-            </div>
-          )}
+            {displayStep === 3 && (
+              <div className="w-full max-w-2xl mx-auto">
+                <Step3TeamSize
+                  formData={formData}
+                  updateField={updateField}
+                  onSubmitCreateWorkspace={handleOpenWorkspaceModal}
+                  onBack={() => handleGoToStep(2)}
+                />
+              </div>
+            )}
 
-          {currentStep === 4 && (
-            <div className="w-full max-w-2xl mx-auto animate-fade-in">
-              <Step4AdminProfile
-                formData={formData}
-                updateField={updateField}
-                onNext={() => handleGoToStep(5)}
-                onBack={() => handleGoToStep(3)}
-              />
-            </div>
-          )}
+            {displayStep === 4 && (
+              <div className="w-full max-w-2xl mx-auto">
+                <Step4AdminProfile
+                  formData={formData}
+                  updateField={updateField}
+                  onNext={() => handleGoToStep(5)}
+                  onBack={() => handleGoToStep(3)}
+                />
+              </div>
+            )}
 
-          {currentStep === 5 && (
-            <div className="w-full max-w-2xl mx-auto animate-fade-in">
-              <Step5TeamStructure
-                onNext={handleFinishStageOne}
-                onBack={() => handleGoToStep(4)}
-              />
-            </div>
-          )}
+            {displayStep === 5 && (
+              <div className="w-full max-w-2xl mx-auto">
+                <Step5TeamStructure
+                  onNext={handleFinishStageOne}
+                  onBack={() => handleGoToStep(4)}
+                />
+              </div>
+            )}
 
-          {currentStep === 6 && (
-            <div className="w-full animate-fade-in">
-              <Step6PlanSelection
-                formData={formData}
-                updateField={updateField}
-                onNext={() => handleGoToStep(7)}
-                onBack={() => handleGoToStep(5)}
-              />
-            </div>
-          )}
+            {displayStep === 6 && (
+              <div className="w-full">
+                <Step6PlanSelection
+                  formData={formData}
+                  updateField={updateField}
+                  onNext={() => handleGoToStep(7)}
+                  onBack={() => handleGoToStep(5)}
+                />
+              </div>
+            )}
 
-          {currentStep === 7 && (
-            <div className="w-full animate-fade-in">
-              <Step7Checkout
-                formData={formData}
-                updateField={updateField}
-                onSubmitCheckout={handleCheckoutSubmit}
-                onBack={() => handleGoToStep(6)}
-                isSubmitting={isSubmitting}
-              />
-            </div>
-          )}
+            {displayStep === 7 && (
+              <div className="w-full">
+                <Step7Checkout
+                  formData={formData}
+                  updateField={updateField}
+                  onSubmitCheckout={handleCheckoutSubmit}
+                  onBack={() => handleGoToStep(6)}
+                  isSubmitting={isSubmitting}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
