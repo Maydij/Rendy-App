@@ -355,7 +355,7 @@ export function LoginForm() {
       >
         <div className="flex items-center gap-2">
           <Icon name="lock" className="text-primary-container text-[15px]" />
-          <span>256-bit SSL Encryption • Rendy FinTech Security</span>
+          <span>Rendy FinTech Security</span>
         </div>
 
         <div className="flex items-center gap-3">

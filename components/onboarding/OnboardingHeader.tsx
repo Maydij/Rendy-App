@@ -26,16 +26,8 @@ export function OnboardingHeader({ currentStep, onNavigateStage }: OnboardingHea
           <RendyLogo variant="full" theme="dark" className="h-8 w-auto" />
         </Link>
 
-        {/* Global Security Protocol & Stage Tabs */}
+        {/* Stepper Stage Tabs */}
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-low/80 border border-outline-variant/30 backdrop-blur-md shadow-sm">
-            <Icon name="lock" className="text-primary text-[16px]" />
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">
-              256-bit TLS • SOC 2 Type II Encrypted
-            </span>
-          </div>
-
-          {/* Stepper Stage Tabs */}
           <nav className="flex items-center gap-1 bg-surface-container-low/60 p-1 rounded-full border border-surface-container-high/60 backdrop-blur-md">
             {/* Stage 1 Pill */}
             <button
