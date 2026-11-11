@@ -1,7 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '@/components/landing/primitives';
+import { cn } from '@/lib/utils';
+import {
+  ANNUAL_DISCOUNT_LABEL,
+  PLANS,
+  billingNote,
+  planPrice,
+} from '@/lib/pricing';
 import { BillingCycle, OnboardingFormData, PlanTier } from './types';
 
 interface Step6Props {
@@ -11,96 +18,42 @@ interface Step6Props {
   onBack: () => void;
 }
 
-interface PlanConfig {
-  id: PlanTier;
-  title: string;
-  badge: string;
-  badgeColor?: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  annualTotal: number;
-  description: string;
-  targetBadge?: string;
-  featuresTitle: string;
-  features: string[];
-  isRecommended?: boolean;
-}
-
-const PLANS: PlanConfig[] = [
-  {
-    id: 'starter',
-    title: 'Starter',
-    badge: 'Equipos Ágiles',
-    monthlyPrice: 19,
-    annualPrice: 15,
-    annualTotal: 180,
-    description: 'Ideal para startups que inician la automatización de rendiciones básicas.',
-    featuresTitle: 'Incluye:',
-    features: [
-      'Hasta 10 miembros activos',
-      'Rendición de viáticos con OCR básico',
-      'Flujo de aprobación simple (1 nivel)',
-      'Exportación Excel y PDF',
-    ],
-  },
-  {
-    id: 'business',
-    title: 'Business',
-    badge: 'Más Vendido',
-    badgeColor: 'bg-tertiary-container text-on-tertiary-container',
-    monthlyPrice: 49,
-    annualPrice: 39,
-    annualTotal: 468,
-    targetBadge: '11 - 30 empleados',
-    description:
-      'Gestión integral de viáticos, emisión de tarjetas corporativas virtuales y conciliación bancaria instantánea.',
-    featuresTitle: 'Todo lo de Starter, más:',
-    features: [
-      'Hasta 50 colaboradores incluidos',
-      'Tarjetas Rendy Visa Corporativas Virtuales',
-      'Reglas y políticas de gastos automatizadas',
-      'Aprobación multinivel por departamento',
-      'Integración contable API & ERP',
-    ],
-    isRecommended: true,
-  },
-  {
-    id: 'enterprise',
-    title: 'Enterprise',
-    badge: 'Corporativo',
-    badgeColor: 'bg-secondary-container/20 text-secondary',
-    monthlyPrice: 99,
-    annualPrice: 79,
-    annualTotal: 948,
-    description: 'Grandes corporaciones con requerimientos de auditoría y soporte continuo.',
-    featuresTitle: 'Todo lo de Business, más:',
-    features: [
-      'Usuarios ilimitados y multi-razón social',
-      'Manejo multi-divisa automático y FOREX',
-      'Auditoría de cumplimiento SOC-2 & SLA 99.9%',
-      'Gerente de cuenta & soporte 24/7 VIP',
-    ],
-  },
-];
-
 /**
  * @name Step6PlanSelection
- * @description [Business Logic]: Presents tailored subscription tiers tailored to the team size,
- * transparently calculating monthly vs. 20% annual savings before entering zero-dollar trial checkout.
+ * @description [Business Logic]: Presents transparent commercial tiers (Starter, Growth, Enterprise)
+ * mirroring the official landing page pricing catalog and interaction design. Supports instantaneous
+ * monthly vs. 20% annual discount calculations and micro-interactions before starting the 7-day free trial.
  */
 export function Step6PlanSelection({ formData, updateField, onNext, onBack }: Step6Props) {
+  const [hasToggled, setHasToggled] = useState(false);
+
   const isAnnual = formData.billingCycle === 'annual';
+
+  const handleCycleChange = (nextCycle: BillingCycle) => {
+    if (nextCycle === formData.billingCycle) return;
+    setHasToggled(true);
+    updateField('billingCycle', nextCycle);
+  };
 
   const handleSelectPlan = (planId: PlanTier) => {
     updateField('selectedPlan', planId);
   };
 
   const currentPlan = PLANS.find((p) => p.id === formData.selectedPlan) || PLANS[1];
-  const currentPrice = isAnnual ? currentPlan.annualPrice : currentPlan.monthlyPrice;
+  const currentPrice = planPrice(currentPlan, formData.billingCycle);
   const cycleLabel = isAnnual ? 'Anual' : 'Mensual';
 
+  const toggleClass = (active: boolean) =>
+    cn(
+      'group relative px-5 py-2 rounded-xl text-label-md font-semibold flex items-center gap-2 cursor-pointer select-none border origin-center',
+      'transition-all duration-200 ease-out will-change-transform',
+      active
+        ? 'text-on-surface bg-surface-bright border-outline-variant/30 shadow-sm z-10'
+        : 'text-on-surface-variant border-transparent z-0 hover:text-on-surface hover:bg-surface-bright/70 hover:border-outline-variant/40 hover:shadow-md hover:scale-[1.035] hover:z-20 active:scale-[0.98]',
+    );
+
   return (
-    <div className="w-full max-w-5xl mx-auto transition-opacity duration-300">
+    <div className="w-full max-w-[1360px] mx-auto transition-opacity duration-300">
       {/* Back button */}
       <div className="mb-4">
         <button
@@ -114,125 +67,197 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
       </div>
 
       {/* Headline & Subtitle */}
-      <div className="text-center max-w-2xl mx-auto mb-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container border border-surface-container-high/60 mb-4 text-on-surface-variant">
+      <div className="text-center max-w-3xl mx-auto mb-8">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container border border-outline-variant/30 mb-3 text-on-surface-variant">
           <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           <span className="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold">
-            Recomendación Personalizada
+            Planes Transparentes
           </span>
         </div>
-        <h1 className="font-headline-lg text-headline-lg sm:text-headline-xl text-on-surface mb-3 tracking-tight font-bold">
+        <h1 className="font-headline-lg text-headline-lg sm:text-headline-xl text-on-surface mb-2.5 tracking-tight font-bold">
           Elige cómo quieres gestionar tu empresa
         </h1>
-        <p className="font-body-lg text-body-lg text-on-surface-variant">
-          Encontramos algunas opciones para ti. Según el tamaño de tu equipo ({formData.selectedCompanySize || '11-30 colaboradores'}), esta es nuestra recomendación.
+        <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto">
+          Automatiza la rendición de viáticos y reembolsos por WhatsApp con IA contable. 7 días
+          de prueba gratis en todos los planes, cancela cuando quieras.
         </p>
-      </div>
 
-      {/* Segmented Billing Period Toggle */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
-        <div className="bg-surface-container p-1 rounded-full flex items-center shadow-inner border border-surface-container-high/60">
+        {/* Animated Segmented Billing Cycle Toggle (identical to Landing Page) */}
+        <div
+          role="group"
+          aria-label="Ciclo de facturación"
+          className="mt-6 inline-flex flex-wrap justify-center items-center p-2 rounded-2xl bg-surface-container-high/60 backdrop-blur-md shadow-inner gap-2 border border-outline-variant/20"
+        >
           <button
             type="button"
-            onClick={() => updateField('billingCycle', 'monthly')}
-            className={`px-5 py-2 rounded-full font-label-md text-label-md transition-all cursor-pointer ${
-              !isAnnual
-                ? 'bg-surface-bright text-on-surface shadow-md font-bold'
-                : 'text-on-surface-variant hover:text-on-surface'
-            }`}
+            aria-pressed={formData.billingCycle === 'monthly'}
+            onClick={() => handleCycleChange('monthly')}
+            className={toggleClass(formData.billingCycle === 'monthly')}
           >
-            Facturación mensual
+            Facturación Mensual
           </button>
           <button
             type="button"
-            onClick={() => updateField('billingCycle', 'annual')}
-            className={`px-5 py-2 rounded-full font-label-md text-label-md transition-all flex items-center gap-2 cursor-pointer ${
-              isAnnual
-                ? 'bg-surface-bright text-on-surface shadow-md font-bold'
-                : 'text-on-surface-variant hover:text-on-surface'
-            }`}
+            aria-pressed={formData.billingCycle === 'annual'}
+            onClick={() => handleCycleChange('annual')}
+            className={toggleClass(formData.billingCycle === 'annual')}
           >
-            <span>Facturación anual</span>
-            <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-sm text-label-sm uppercase tracking-wide font-bold">
-              Ahorra 20%
+            <span>Facturación Anual</span>
+            <span className="px-2 py-0.5 rounded-full text-label-sm font-bold bg-primary-container text-black transition-transform duration-200 group-hover:scale-105">
+              {ANNUAL_DISCOUNT_LABEL}
             </span>
           </button>
         </div>
       </div>
 
-      {/* 3 Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch mb-8">
-        {PLANS.map((plan) => {
+      {/* 3 Pricing Cards Grid (wider cards with optimal reading density) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 xl:gap-8 items-stretch mb-8">
+        {PLANS.map((plan, index) => {
           const isSelected = formData.selectedPlan === plan.id;
-          const price = isAnnual ? plan.annualPrice : plan.monthlyPrice;
-          const billingSubtext = isAnnual
-            ? `Facturado anualmente (USD ${plan.annualTotal}/año)`
-            : 'Facturado mensualmente';
+          const isFeatured = plan.featured;
 
-          if (plan.isRecommended) {
-            return (
+          return (
+            <div
+              key={plan.id}
+              className={cn(
+                'flex flex-col h-full',
+                isFeatured ? 'mt-3 lg:mt-0' : '',
+              )}
+            >
               <div
-                key={plan.id}
+                key={hasToggled ? `${plan.id}-${formData.billingCycle}` : undefined}
                 onClick={() => handleSelectPlan(plan.id)}
-                className={`plan-card relative cursor-pointer rounded-2xl bg-surface-container-low p-6 sm:p-7 flex flex-col justify-between border transition-all duration-300 ${
+                className={cn(
+                  'p-6 sm:p-7 xl:p-8 rounded-3xl flex flex-col justify-between relative flex-1 transition-all duration-300 cursor-pointer',
                   isSelected
-                    ? 'border-primary-container shadow-[0_0_35px_rgba(0,229,153,0.22)] -translate-y-2'
-                    : 'border-surface-container-high/80 hover:-translate-y-1 shadow-md'
-                }`}
+                    ? 'bg-surface-container-low shadow-glow-plan border-2 border-primary-container -translate-y-2 ring-2 ring-primary-container/40'
+                    : isFeatured
+                    ? 'bg-surface-container shadow-sm border border-primary-container/30 hover:border-primary-container/60 hover:-translate-y-1'
+                    : 'bg-surface-container shadow-sm border border-outline-variant/30 hover:border-outline-variant/60 hover:-translate-y-1',
+                  hasToggled && 'animate-pricing-card',
+                  formData.billingCycle === 'annual' && isSelected && 'ring-1 ring-primary-container/40',
+                )}
+                style={
+                  hasToggled
+                    ? {
+                        animationDelay: `${index * 65}ms`,
+                        animationFillMode: 'both',
+                      }
+                    : undefined
+                }
               >
-                {/* Ambient Glow Pin */}
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
-                  <span className="px-3 py-1 rounded-full bg-primary-container text-black font-label-sm text-label-sm uppercase tracking-wider font-extrabold shadow-md flex items-center gap-1 border border-primary-container/30">
-                    <Icon name="auto_awesome" className="text-[14px] text-black font-bold" /> Recomendado para tu empresa
-                  </span>
-                </div>
+                {/* Subtle luminous gleam sweeping across the selected card when passing to annual */}
+                {formData.billingCycle === 'annual' && isSelected && (
+                  <div
+                    className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none z-10"
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="w-1/2 h-full bg-gradient-to-r from-transparent via-primary-container/15 to-transparent skew-x-[-20deg] animate-pricing-shine"
+                      style={{
+                        animationDelay: `${index * 80}ms`,
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div>
-                  <div className="flex items-center justify-between mb-4 mt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-label-sm text-label-sm tracking-wider uppercase text-primary font-bold">
-                        {plan.title}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container font-label-sm text-label-sm font-bold uppercase tracking-wider">
-                        {plan.badge}
-                      </span>
+                  {/* Distinct Top Badges: Clear separation between Featured vs User Selected */}
+                  {isSelected && isFeatured && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary-container text-black text-label-sm font-bold uppercase tracking-wider shadow-md whitespace-nowrap z-20 flex items-center gap-1.5">
+                      <Icon name="auto_awesome" className="text-[14px] text-black font-extrabold" />
+                      <span>RECOMENDADO • SELECCIONADO</span>
                     </div>
-                    {plan.targetBadge && (
-                      <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-md font-semibold border border-primary/20">
-                        {plan.targetBadge}
+                  )}
+
+                  {isSelected && !isFeatured && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary-container text-black text-label-sm font-bold uppercase tracking-wider shadow-md whitespace-nowrap z-20 flex items-center gap-1.5">
+                      <Icon name="check_circle" className="text-[14px] text-black font-extrabold" />
+                      <span>PLAN SELECCIONADO</span>
+                    </div>
+                  )}
+
+                  {!isSelected && isFeatured && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3.5 py-0.5 rounded-full bg-surface-container-high/90 text-primary text-label-sm font-bold uppercase tracking-wider border border-primary/30 shadow-sm whitespace-nowrap z-20 flex items-center gap-1">
+                      <Icon name="auto_awesome" className="text-[13px] text-primary" />
+                      <span>Recomendado por Rendy</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mb-2">
+                    <span
+                      className={cn(
+                        'text-label-sm uppercase font-bold tracking-wider',
+                        isSelected ? 'text-primary' : isFeatured ? 'text-primary/70' : 'text-on-surface-variant',
+                      )}
+                    >
+                      {plan.tier}
+                    </span>
+
+                    {isSelected ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-primary-container text-black flex items-center gap-1 shadow-sm">
+                        <Icon name="check" className="text-[13px] text-black font-extrabold" />
+                        <span>Seleccionado</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-on-surface-variant/50 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-outline-variant/60" />
+                        <span>Clic para elegir</span>
                       </span>
                     )}
                   </div>
 
-                  <div className="mb-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="font-headline-sm text-headline-sm text-on-surface font-normal">USD</span>
-                      <span className="font-numeric-metric text-numeric-metric text-primary font-extrabold text-4xl">
-                        {price}
-                      </span>
-                      <span className="text-on-surface-variant text-body-md font-body-md">/mes</span>
-                    </div>
-                    <p className="text-xs text-primary/80 mt-0.5">{billingSubtext}</p>
-                  </div>
-
-                  <p className="font-body-md text-body-md text-on-surface mb-6 leading-relaxed">
+                  <h3 className="font-display text-headline-md font-bold text-on-surface mt-1.5">
+                    {plan.name}
+                  </h3>
+                  <p className="text-body-md text-on-surface-variant mt-2 mb-5 leading-relaxed">
                     {plan.description}
                   </p>
 
-                  <div className="space-y-3 pt-4 bg-surface-container/60 -mx-6 sm:-mx-7 px-6 sm:px-7 pb-6 rounded-b-xl border-t border-surface-container-high/40">
-                    <div className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
-                      {plan.featuresTitle}
+                  <div className="mb-5">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span
+                        key={`price-${formData.billingCycle}`}
+                        className="font-display text-headline-xl font-extrabold text-on-surface inline-block animate-price-tick"
+                      >
+                        {planPrice(plan, formData.billingCycle)}
+                      </span>
+                      <span className="text-body-md text-on-surface-variant">/mes</span>
+                      {formData.billingCycle === 'annual' && (
+                        <span className="ml-1.5 px-2 py-0.5 rounded-full text-label-sm font-bold bg-primary-container/20 text-primary-container border border-primary-container/30 animate-annual-badge whitespace-nowrap">
+                          {ANNUAL_DISCOUNT_LABEL}
+                        </span>
+                      )}
                     </div>
-                    {plan.features.map((feat) => (
-                      <div key={feat} className="flex items-start gap-2.5 text-sm text-on-surface">
-                        <Icon name="verified" className="text-primary text-[18px] shrink-0 mt-0.5" />
-                        <span>{feat}</span>
-                      </div>
-                    ))}
+                    <span
+                      key={`note-${formData.billingCycle}`}
+                      className="text-label-sm text-on-surface-variant block mt-1 animate-price-tick"
+                    >
+                      {billingNote(formData.billingCycle)}
+                    </span>
                   </div>
+
+                  <ul className="flex flex-col gap-2.5 text-body-md text-on-surface-variant">
+                    {plan.features.map((f) => (
+                      <li key={f.text} className="flex items-start gap-2.5 leading-snug">
+                        <Icon
+                          name="check"
+                          className="text-primary-container text-[20px] shrink-0 mt-0.5"
+                        />
+                        <span
+                          className={cn(
+                            f.emphasis === 'strong' && 'text-on-surface font-medium',
+                            f.emphasis === 'highlight' && 'text-primary font-semibold',
+                          )}
+                        >
+                          {f.text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
-                <div className="mt-6 pt-4">
+                <div className="mt-7 pt-2">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -240,89 +265,27 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
                       handleSelectPlan(plan.id);
                       onNext();
                     }}
-                    className="w-full py-3.5 rounded-full bg-primary-container text-black font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                    className={cn(
+                      'w-full py-3.5 rounded-xl text-center text-label-md transition-all active:scale-95 flex items-center justify-center gap-2 group cursor-pointer',
+                      isSelected
+                        ? 'font-bold bg-primary-container text-black shadow-glow-md hover:shadow-glow-lg hover:-translate-y-0.5'
+                        : 'font-semibold border border-outline-variant/60 text-on-surface hover:bg-surface-bright hover:border-outline-variant/80',
+                    )}
                   >
-                    <span>Continuar con Business</span>
-                    <Icon name="arrow_forward" className="text-[18px] text-black font-bold group-hover:translate-x-1 transition-transform" />
+                    <span>
+                      {isSelected
+                        ? `Continuar con ${plan.tier}`
+                        : `Elegir ${plan.tier}`}
+                    </span>
+                    <Icon
+                      name="arrow_forward"
+                      className={cn(
+                        'text-[18px] group-hover:translate-x-1 transition-transform',
+                        isSelected ? 'text-black font-bold' : 'text-on-surface',
+                      )}
+                    />
                   </button>
                 </div>
-              </div>
-            );
-          }
-
-          // Regular Starter or Enterprise Card
-          return (
-            <div
-              key={plan.id}
-              onClick={() => handleSelectPlan(plan.id)}
-              className={`plan-card cursor-pointer rounded-2xl bg-surface-container p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 border ${
-                isSelected
-                  ? 'border-primary-container shadow-[0_0_30px_rgba(0,229,153,0.18)] -translate-y-2'
-                  : 'border-surface-container-high/60 hover:-translate-y-1 shadow-md'
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-label-sm text-label-sm tracking-wider uppercase text-on-surface-variant font-bold">
-                    {plan.title}
-                  </span>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold ${
-                      plan.badgeColor || 'bg-surface-container-high text-on-surface-variant'
-                    }`}
-                  >
-                    {plan.badge}
-                  </span>
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-headline-sm text-headline-sm text-on-surface font-normal">USD</span>
-                    <span className="font-numeric-metric text-numeric-metric text-on-surface font-extrabold text-4xl">
-                      {price}
-                    </span>
-                    <span className="text-on-surface-variant text-body-md font-body-md">/mes</span>
-                  </div>
-                  <p className="text-xs text-on-surface-variant/70 mt-0.5">{billingSubtext}</p>
-                </div>
-
-                <p className="font-body-md text-body-md text-on-surface-variant mb-6 leading-relaxed">
-                  {plan.description}
-                </p>
-
-                <div className="space-y-3 pt-4 bg-surface-container-lowest/30 -mx-6 sm:-mx-7 px-6 sm:px-7 pb-6 rounded-b-xl border-t border-surface-container-high/30">
-                  <div className="text-xs font-semibold text-on-surface uppercase tracking-wider mb-2">
-                    {plan.featuresTitle}
-                  </div>
-                  {plan.features.map((feat) => (
-                    <div key={feat} className="flex items-start gap-2.5 text-sm text-on-surface">
-                      <Icon
-                        name="check"
-                        className={`text-[18px] shrink-0 mt-0.5 ${
-                          plan.id === 'enterprise' ? 'text-secondary' : 'text-primary'
-                        }`}
-                      />
-                      <span>{feat}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectPlan(plan.id);
-                  }}
-                  className={`w-full py-3 rounded-full font-label-md text-label-md transition-all font-semibold flex items-center justify-center gap-2 cursor-pointer ${
-                    isSelected
-                      ? 'bg-primary-container text-black font-bold shadow-md'
-                      : 'bg-surface-container-high hover:bg-surface-bright text-on-surface'
-                  }`}
-                >
-                  <span>{isSelected ? `Plan ${plan.title} seleccionado` : `Elegir ${plan.title}`}</span>
-                </button>
               </div>
             </div>
           );
@@ -330,7 +293,7 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
       </div>
 
       {/* Trust & Free Trial Banner */}
-      <div className="w-full bg-surface-container border border-surface-container-high/60 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 shadow-sm">
+      <div className="w-full bg-surface-container border border-outline-variant/30 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 shadow-sm">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20">
             <Icon name="verified_user" className="text-[24px]" />
@@ -344,18 +307,18 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant shrink-0 bg-surface-container-low border border-surface-container-high/40 px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant shrink-0 bg-surface-container-low border border-outline-variant/40 px-3 py-1.5 rounded-full">
           <Icon name="lock" className="text-primary text-[16px]" />
           <span>Cancelación en 1-clic</span>
         </div>
       </div>
 
       {/* Footer Action CTA */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-surface-container-high/40">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-outline-variant/20">
         <div className="text-xs text-on-surface-variant text-center sm:text-left">
           Plan seleccionado actualmente:{' '}
           <span className="font-bold text-primary">
-            {currentPlan.title} {cycleLabel} (USD {currentPrice}/mes)
+            {currentPlan.tier} ({currentPlan.name}) - {cycleLabel} ({currentPrice}/mes)
           </span>
         </div>
 
@@ -371,4 +334,3 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
     </div>
   );
 }
-

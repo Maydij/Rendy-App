@@ -12,7 +12,7 @@ interface OnboardingSuccessModalProps {
 
 const PLAN_NAMES: Record<string, string> = {
   starter: 'Starter',
-  business: 'Business',
+  growth: 'Growth',
   enterprise: 'Enterprise',
 };
 
@@ -59,7 +59,7 @@ export function OnboardingSuccessModal({ isOpen, formData }: OnboardingSuccessMo
 
   if (!isOpen) return null;
 
-  const planTitle = PLAN_NAMES[formData.selectedPlan] || 'Business';
+  const planTitle = PLAN_NAMES[formData.selectedPlan] || 'Growth';
   const cycleTitle = formData.billingCycle === 'annual' ? 'Anual' : 'Mensual';
 
   const handleGoDashboard = () => {
