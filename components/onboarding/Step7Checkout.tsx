@@ -188,8 +188,8 @@ export function Step7Checkout({
                   required
                   value={formData.cardholderName}
                   onChange={(e) => updateField('cardholderName', e.target.value)}
-                  placeholder="Carlos Mendoza"
-                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md transition-all border border-surface-container-high/40"
+                  placeholder="Ej: Carlos Mendoza"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md transition-all border border-surface-container-high/40"
                 />
                 <Icon
                   name="person"
@@ -212,7 +212,7 @@ export function Step7Checkout({
                   value={formData.cardNumber}
                   onChange={handleCardNumberChange}
                   placeholder="4532 •••• •••• 8892"
-                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md tracking-wider transition-all border border-surface-container-high/40"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md tracking-wider transition-all border border-surface-container-high/40"
                 />
                 <div className="absolute right-3 top-2.5 flex items-center gap-1 text-on-surface-variant/60">
                   <Icon name="credit_card" className="text-[22px]" />
@@ -234,7 +234,7 @@ export function Step7Checkout({
                   value={formData.cardExp}
                   onChange={handleExpChange}
                   placeholder="12/28"
-                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md transition-all text-center border border-surface-container-high/40"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md transition-all text-center border border-surface-container-high/40"
                 />
               </div>
 
@@ -254,7 +254,7 @@ export function Step7Checkout({
                     value={formData.cardCvc}
                     onChange={handleCvcChange}
                     placeholder="•••"
-                    className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md text-center transition-all border border-surface-container-high/40"
+                    className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md text-center transition-all border border-surface-container-high/40"
                   />
                   <Icon
                     name="lock"
@@ -295,8 +295,8 @@ export function Step7Checkout({
                   type="text"
                   value={formData.cardPostal}
                   onChange={(e) => updateField('cardPostal', e.target.value)}
-                  placeholder="7550000"
-                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md transition-all border border-surface-container-high/40"
+                  placeholder="Ej: 1010"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 font-body-md text-body-md transition-all border border-surface-container-high/40"
                 />
               </div>
             </div>

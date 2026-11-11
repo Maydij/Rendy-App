@@ -63,8 +63,8 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
                 required
                 value={formData.companyLegalName}
                 onChange={(e) => updateField('companyLegalName', e.target.value)}
-                placeholder="Ej: Acme Global Technologies S.A."
-                className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
+                placeholder="Ej: Acme Solutions C.A."
+                className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
               />
               <Icon
                 name="domain"
@@ -91,8 +91,8 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
                   required
                   value={formData.companyTaxId}
                   onChange={(e) => updateField('companyTaxId', e.target.value)}
-                  placeholder="J-12345678-9"
-                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner font-mono border border-surface-container-high/40 transition-all"
+                  placeholder="Ej: J-50493821-0"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner font-mono border border-surface-container-high/40 transition-all"
                 />
                 <Icon
                   name="badge"
@@ -142,8 +142,8 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
                 type="text"
                 value={formData.companyAddress}
                 onChange={(e) => updateField('companyAddress', e.target.value)}
-                placeholder="Calle, Edificio, Ciudad"
-                className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
+                placeholder="Ej: Av. Francisco de Miranda, Torre Cavendes, Piso 9"
+                className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
               />
               <Icon
                 name="location_on"

@@ -63,6 +63,13 @@ const INDUSTRIES: IndustryOption[] = [
  * to dynamically optimize fiscal categorization, travel rules, and card spending limits.
  */
 export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Props) {
+  const handleContinue = () => {
+    if (!formData.selectedIndustry) {
+      updateField('selectedIndustry', 'Tecnología & SaaS');
+    }
+    onNext();
+  };
+
   return (
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
@@ -131,7 +138,7 @@ export function Step2Industry({ formData, updateField, onNext, onBack }: Step2Pr
 
           <button
             type="button"
-            onClick={onNext}
+            onClick={handleContinue}
             className="px-6 py-3 rounded-full bg-primary-container text-black font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
           >
             <span>Continuar</span>
