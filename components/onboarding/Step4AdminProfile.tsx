@@ -29,22 +29,26 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
     return score;
   };
 
-  const strengthScore = getPasswordStrength(formData.adminPassword);
+  const pwLength = formData.adminPassword.length;
+  const strengthScore = pwLength === 0 ? 0 : getPasswordStrength(formData.adminPassword);
 
-  const getStrengthLabel = (score: number) => {
+  const getStrengthLabel = (score: number, length: number) => {
+    if (length === 0) return { text: 'Mínimo 10 caracteres', color: 'text-on-surface-variant/50 font-normal' };
     if (score <= 1) return { text: 'Débil (25%)', color: 'text-error' };
     if (score === 2) return { text: 'Media (50%)', color: 'text-tertiary' };
     if (score === 3) return { text: 'Buena (75%)', color: 'text-primary' };
     return { text: 'Excelente (100%)', color: 'text-primary font-semibold' };
   };
 
-  const strengthMeta = getStrengthLabel(strengthScore);
+  const strengthMeta = getStrengthLabel(strengthScore, pwLength);
 
-  const isUsernameValid = formData.adminUsername.trim().length >= 3;
+  const usernameTrimmed = formData.adminUsername.trim();
+  const isUsernameTouched = usernameTrimmed.length > 0;
+  const isUsernameValid = usernameTrimmed.length >= 3;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.adminFirstName || !formData.adminEmail || !isUsernameValid) {
+    if (!formData.adminFirstName.trim() || !formData.adminEmail.trim() || !isUsernameValid) {
       return;
     }
     onNext();
@@ -86,8 +90,8 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
                   required
                   value={formData.adminFirstName}
                   onChange={(e) => updateField('adminFirstName', e.target.value)}
-                  placeholder="Carlos"
-                  className="w-full bg-surface-container-lowest text-on-surface rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
+                  placeholder="Ej: Carlos"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
                 />
                 <Icon
                   name="person"
@@ -107,8 +111,8 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
                   required
                   value={formData.adminLastName}
                   onChange={(e) => updateField('adminLastName', e.target.value)}
-                  placeholder="Mendoza"
-                  className="w-full bg-surface-container-lowest text-on-surface rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
+                  placeholder="Ej: Mendoza"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
                 />
                 <Icon
                   name="badge"
@@ -126,14 +130,28 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
               </label>
               <span
                 className={`font-label-sm text-label-sm flex items-center gap-1 font-mono ${
-                  isUsernameValid ? 'text-primary' : 'text-error'
+                  !isUsernameTouched
+                    ? 'text-on-surface-variant/50'
+                    : isUsernameValid
+                    ? 'text-primary'
+                    : 'text-error'
                 }`}
               >
                 <Icon
-                  name={isUsernameValid ? 'check_circle' : 'cancel'}
+                  name={
+                    !isUsernameTouched
+                      ? 'info'
+                      : isUsernameValid
+                      ? 'check_circle'
+                      : 'cancel'
+                  }
                   className="text-[14px]"
                 />
-                {isUsernameValid ? 'Disponible en el workspace' : 'Mínimo 3 letras'}
+                {!isUsernameTouched
+                  ? 'Mínimo 3 letras'
+                  : isUsernameValid
+                  ? 'Disponible en el workspace'
+                  : 'Mínimo 3 letras'}
               </span>
             </div>
             <div className="relative flex items-center">
@@ -146,8 +164,8 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
                 required
                 value={formData.adminUsername}
                 onChange={(e) => updateField('adminUsername', e.target.value)}
-                placeholder="tu.alias"
-                className="w-full bg-surface-container-lowest text-on-surface rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-28 shadow-inner font-mono border border-surface-container-high/40 transition-all"
+                placeholder="cmendoza"
+                className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-28 shadow-inner font-mono border border-surface-container-high/40 transition-all"
               />
             </div>
           </div>
@@ -165,8 +183,8 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
                   required
                   value={formData.adminEmail}
                   onChange={(e) => updateField('adminEmail', e.target.value)}
-                  placeholder="nombre@tuempresa.com"
-                  className="w-full bg-surface-container-lowest text-on-surface rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
+                  placeholder="Ej: carlos@acmesolutions.com"
+                  className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 shadow-inner border border-surface-container-high/40 transition-all"
                 />
                 <Icon
                   name="mail"
@@ -199,8 +217,8 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
                     required
                     value={formData.adminPhone}
                     onChange={(e) => updateField('adminPhone', e.target.value)}
-                    placeholder="412 1234567"
-                    className="w-full bg-surface-container-lowest text-on-surface rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 shadow-inner font-mono border border-surface-container-high/40 transition-all"
+                    placeholder="Ej: 412 8901234"
+                    className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 shadow-inner font-mono border border-surface-container-high/40 transition-all"
                   />
                 </div>
               </div>
@@ -224,8 +242,8 @@ export function Step4AdminProfile({ formData, updateField, onNext, onBack }: Ste
                 required
                 value={formData.adminPassword}
                 onChange={(e) => updateField('adminPassword', e.target.value)}
-                placeholder="Mínimo 10 caracteres alfanuméricos"
-                className="w-full bg-surface-container-lowest text-on-surface rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 pr-11 shadow-inner border border-surface-container-high/40 transition-all"
+                placeholder="Ej: Rendy#Fintech$2025!"
+                className="w-full bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/35 rounded-xl px-4 py-3 text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container/40 pl-11 pr-11 shadow-inner border border-surface-container-high/40 transition-all"
               />
               <Icon
                 name="key"

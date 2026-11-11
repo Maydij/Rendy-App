@@ -70,6 +70,13 @@ export function Step3TeamSize({
   onSubmitCreateWorkspace,
   onBack,
 }: Step3Props) {
+  const handleCreateWorkspace = () => {
+    if (!formData.selectedCompanySize) {
+      updateField('selectedCompanySize', 'STARTER 11-30');
+    }
+    onSubmitCreateWorkspace();
+  };
+
   return (
     <section className="step-pane w-full transition-all duration-300">
       <div className="bg-surface-container-low rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl border border-surface-container-high/40 flex flex-col gap-6 relative overflow-hidden">
@@ -95,9 +102,11 @@ export function Step3TeamSize({
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
           {TEAM_TIERS.map((tier) => {
             const tierValue = `${tier.name} ${tier.range.replace(' personas', '')}`;
-            const isSelected =
-              formData.selectedCompanySize === tierValue ||
-              formData.selectedCompanySize.includes(tier.name);
+            const isSelected = Boolean(
+              formData.selectedCompanySize &&
+                (formData.selectedCompanySize === tierValue ||
+                  formData.selectedCompanySize.includes(tier.name))
+            );
 
             return (
               <button
@@ -165,7 +174,7 @@ export function Step3TeamSize({
 
           <button
             type="button"
-            onClick={onSubmitCreateWorkspace}
+            onClick={handleCreateWorkspace}
             className="px-6 py-3 rounded-full bg-primary-container text-black font-headline-sm text-[15px] font-bold shadow-[0_0_24px_rgba(0,229,153,0.35)] hover:shadow-[0_0_32px_rgba(0,229,153,0.5)] hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
           >
             <span>Crear espacio de empresa</span>
