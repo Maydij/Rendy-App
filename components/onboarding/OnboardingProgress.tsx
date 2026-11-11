@@ -6,7 +6,6 @@ import { Icon } from '@/components/landing/primitives';
 interface OnboardingProgressProps {
   currentStep: number;
   onGoToStep: (step: number) => void;
-  onOpenWorkspaceModal?: () => void;
 }
 
 const STEP_PERCENTAGES: Record<number, number> = {
@@ -35,7 +34,6 @@ const STAGE_ONE_PILLS = [
 export function OnboardingProgress({
   currentStep,
   onGoToStep,
-  onOpenWorkspaceModal,
 }: OnboardingProgressProps) {
   const isStageOne = currentStep <= 5;
   const progressPercent = STEP_PERCENTAGES[currentStep] || 14;
@@ -75,57 +73,37 @@ export function OnboardingProgress({
         </div>
 
         {/* Step Navigation Pills */}
-        <div className="flex items-center justify-between pt-1 overflow-x-auto no-scrollbar gap-2 text-center">
-          {STAGE_ONE_PILLS.map((item, index) => {
+        <div className="flex items-center justify-between pt-1 overflow-x-auto no-scrollbar gap-2 sm:gap-3 text-center">
+          {STAGE_ONE_PILLS.map((item) => {
             const isActive = item.step === currentStep;
             const isCompleted = item.step < currentStep;
 
             return (
-              <React.Fragment key={item.step}>
-                <button
-                  type="button"
-                  onClick={() => onGoToStep(item.step)}
-                  className={`step-nav-pill px-3 py-1 rounded-full font-label-sm text-label-sm transition-all flex items-center gap-1.5 flex-shrink-0 ${
+              <button
+                key={item.step}
+                type="button"
+                onClick={() => onGoToStep(item.step)}
+                className={`step-nav-pill px-3 py-1 rounded-full font-label-sm text-label-sm transition-all flex items-center justify-center gap-1.5 flex-shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'text-on-surface bg-surface-container-high shadow-sm font-bold border border-primary-container/30'
+                    : isCompleted
+                    ? 'text-on-surface/80 bg-surface-container/60 hover:bg-surface-container'
+                    : 'text-on-surface-variant hover:text-on-surface bg-surface-container/40'
+                }`}
+              >
+                <span
+                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
                     isActive
-                      ? 'text-on-surface bg-surface-container-high shadow-sm font-bold border border-primary-container/30'
+                      ? 'bg-primary-container text-black'
                       : isCompleted
-                      ? 'text-on-surface/80 bg-surface-container/60 hover:bg-surface-container'
-                      : 'text-on-surface-variant hover:text-on-surface bg-surface-container/40'
+                      ? 'bg-primary/20 text-primary'
+                      : 'bg-surface-container-high text-on-surface-variant'
                   }`}
                 >
-                  <span
-                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      isActive
-                        ? 'bg-primary-container text-black'
-                        : isCompleted
-                        ? 'bg-primary/20 text-primary'
-                        : 'bg-surface-container-high text-on-surface-variant'
-                    }`}
-                  >
-                    {isCompleted ? '✓' : item.step}
-                  </span>
-                  <span>{item.label}</span>
-                </button>
-
-                {/* Optional checkpoint modal button between step 3 and 4 */}
-                {item.step === 3 && onOpenWorkspaceModal && (
-                  <>
-                    <div className="w-3 h-[1px] bg-surface-container-high flex-shrink-0 hidden sm:block" />
-                    <button
-                      type="button"
-                      onClick={onOpenWorkspaceModal}
-                      className="step-nav-pill px-3 py-1 rounded-full font-label-sm text-label-sm text-secondary hover:text-secondary-fixed bg-secondary-container/10 border border-secondary/20 transition-all flex items-center gap-1.5 flex-shrink-0"
-                    >
-                      <Icon name="hub" className="text-[13px]" />
-                      <span>Espacio Listo</span>
-                    </button>
-                  </>
-                )}
-
-                {index < STAGE_ONE_PILLS.length - 1 && item.step !== 3 && (
-                  <div className="w-3 h-[1px] bg-surface-container-high flex-shrink-0 hidden sm:block" />
-                )}
-              </React.Fragment>
+                  {isCompleted ? '✓' : item.step}
+                </span>
+                <span>{item.label}</span>
+              </button>
             );
           })}
         </div>
