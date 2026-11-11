@@ -13,9 +13,9 @@ interface Step7Props {
 }
 
 const PLAN_META: Record<string, { name: string; monthly: number; annual: number; annualTotal: number }> = {
-  starter: { name: 'Starter', monthly: 19, annual: 15, annualTotal: 180 },
-  business: { name: 'Business', monthly: 49, annual: 39, annualTotal: 468 },
-  enterprise: { name: 'Enterprise', monthly: 99, annual: 79, annualTotal: 948 },
+  starter: { name: 'Starter', monthly: 49, annual: 39, annualTotal: 468 },
+  growth: { name: 'Growth', monthly: 119, annual: 95, annualTotal: 1140 },
+  enterprise: { name: 'Enterprise', monthly: 249, annual: 199, annualTotal: 2388 },
 };
 
 /**
@@ -33,7 +33,7 @@ export function Step7Checkout({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const isAnnual = formData.billingCycle === 'annual';
-  const planInfo = PLAN_META[formData.selectedPlan] || PLAN_META.business;
+  const planInfo = PLAN_META[formData.selectedPlan] || PLAN_META.growth;
   const price = isAnnual ? planInfo.annual : planInfo.monthly;
   const cycleName = isAnnual ? 'Anual' : 'Mensual';
   const regularTotalPrice = isAnnual

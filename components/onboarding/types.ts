@@ -1,4 +1,4 @@
-export type PlanTier = 'starter' | 'business' | 'enterprise';
+export type PlanTier = 'starter' | 'growth' | 'enterprise';
 export type BillingCycle = 'annual' | 'monthly';
 
 export interface OnboardingFormData {

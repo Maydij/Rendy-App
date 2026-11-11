@@ -15,6 +15,7 @@ import { Step7Checkout } from './Step7Checkout';
 import { OnboardingSuccessModal } from './OnboardingSuccessModal';
 import { OnboardingFormData } from './types';
 import { Icon } from '@/components/landing/primitives';
+import { cn } from '@/lib/utils';
 
 const INITIAL_FORM_DATA: OnboardingFormData = {
   companyLegalName: '',
@@ -30,7 +31,7 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   adminPhoneCountryCode: '+58',
   adminPhone: '',
   adminPassword: '',
-  selectedPlan: 'business',
+  selectedPlan: 'growth',
   billingCycle: 'annual',
   cardholderName: '',
   cardNumber: '',
@@ -111,7 +112,7 @@ export function OnboardingWizard() {
       />
 
       {/* Main Container */}
-      <main className="relative z-10 flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-16 flex flex-col justify-start items-center">
+      <main className="relative z-10 flex-1 w-full max-w-[1400px] mx-auto px-4 md:px-6 pt-6 pb-16 flex flex-col justify-start items-center">
         {/* Dynamic Multi-Segment Progress Tracker */}
         <OnboardingProgress
           currentStep={currentStep}
@@ -119,7 +120,12 @@ export function OnboardingWizard() {
         />
 
         {/* Central Step View Area */}
-        <div className="w-full max-w-4xl mx-auto relative flex flex-col justify-center">
+        <div
+          className={cn(
+            'w-full mx-auto relative flex flex-col justify-center transition-all duration-300',
+            currentStep === 6 ? 'max-w-[1360px]' : currentStep === 7 ? 'max-w-5xl' : 'max-w-4xl',
+          )}
+        >
           {currentStep === 1 && (
             <div className="w-full max-w-2xl mx-auto animate-fade-in">
               <Step1CompanyInfo
