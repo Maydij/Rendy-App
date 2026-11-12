@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Receipt,
   Settings,
+  FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
   Bell,
@@ -75,6 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     {
       label: 'Administración',
       items: [
+        { href: '/dashboard/reportes', icon: FileSpreadsheet, label: 'Reportes Contables', badge: null },
         { href: '/dashboard/configuracion', icon: Settings, label: 'Organización', badge: null },
       ],
     },
@@ -86,6 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     '/dashboard/justificacion': 'Progreso de Justificación',
     '/dashboard/gastos': 'Gastos de Empresa',
     '/dashboard/reembolsos': 'Reembolsos',
+    '/dashboard/reportes': 'Reportes Contables',
     '/dashboard/configuracion': 'Organización',
   };
 
