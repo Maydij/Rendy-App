@@ -1,12 +1,14 @@
 'use server';
 
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdminSession } from '@/lib/auth/session-context';
 import { revalidatePath } from 'next/cache';
 
 export async function crearProyecto(nombre: string) {
+  const session = await requireAdminSession();
   const { data, error } = await supabaseServer
     .from('proyectos')
-    .insert({ empresa_id: EMPRESA_ID, nombre, activo: true })
+    .insert({ empresa_id: session.empresaId, nombre, activo: true })
     .select()
     .single();
 
@@ -16,11 +18,12 @@ export async function crearProyecto(nombre: string) {
 }
 
 export async function toggleProyecto(id: string, activo: boolean) {
+  const session = await requireAdminSession();
   const { error } = await supabaseServer
     .from('proyectos')
     .update({ activo })
     .eq('id', id)
-    .eq('empresa_id', EMPRESA_ID);
+    .eq('empresa_id', session.empresaId);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/configuracion');
@@ -28,11 +31,12 @@ export async function toggleProyecto(id: string, activo: boolean) {
 }
 
 export async function eliminarProyecto(id: string) {
+  const session = await requireAdminSession();
   const { error } = await supabaseServer
     .from('proyectos')
     .delete()
     .eq('id', id)
-    .eq('empresa_id', EMPRESA_ID);
+    .eq('empresa_id', session.empresaId);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/configuracion');
@@ -40,9 +44,10 @@ export async function eliminarProyecto(id: string) {
 }
 
 export async function crearMetodoPago(nombre: string) {
+  const session = await requireAdminSession();
   const { data, error } = await supabaseServer
     .from('metodos_pago')
-    .insert({ empresa_id: EMPRESA_ID, nombre })
+    .insert({ empresa_id: session.empresaId, nombre })
     .select()
     .single();
 
@@ -52,11 +57,12 @@ export async function crearMetodoPago(nombre: string) {
 }
 
 export async function eliminarMetodoPago(id: string) {
+  const session = await requireAdminSession();
   const { error } = await supabaseServer
     .from('metodos_pago')
     .delete()
     .eq('id', id)
-    .eq('empresa_id', EMPRESA_ID);
+    .eq('empresa_id', session.empresaId);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/configuracion');
@@ -64,10 +70,11 @@ export async function eliminarMetodoPago(id: string) {
 }
 
 export async function actualizarMonedaEmpresa(moneda: string) {
+  const session = await requireAdminSession();
   const { error } = await supabaseServer
     .from('empresas')
     .update({ moneda })
-    .eq('id', EMPRESA_ID);
+    .eq('id', session.empresaId);
 
   if (error) return { error: error.message };
 

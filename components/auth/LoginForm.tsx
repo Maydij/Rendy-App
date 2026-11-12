@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/landing/primitives';
 import { RendyLogo } from '@/components/rendy-logo';
+import { loginWithCredentialsAction } from '@/app/actions/auth.actions';
 
 /**
  * @name LoginForm
- * @description [Business Logic]: Manages corporate user authentication, credential validation,
- * interactive password visibility toggling, error state previewing for enterprise compliance,
- * and SSO identity federation (Google Workspace & Microsoft 365).
+ * @description [Business Logic]: Manages corporate user authentication via Argon2id constant-time
+ * credential verification, Redis rate-limiting, anti-enumeration error handling, and role-based
+ * routing (/dashboard for Project Administrators, /portal for Employees).
  */
 export function LoginForm() {
   const router = useRouter();
@@ -18,51 +19,39 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [isErrorActive, setIsErrorActive] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   /**
-   * @name handleToggleErrorState
-   * @description Toggles between normal state and simulated validation error
-   * for enterprise compliance and security audit reviews.
+   * @name handleSubmit
+   * @description Authenticates credentials against the Zero-Trust auth action and redirects by RBAC role.
    */
-  const handleToggleErrorState = () => {
-    setIsErrorActive((prev) => {
-      const next = !prev;
-      if (next) {
-        setEmail('usuario.invalido@rendy-test.io');
-      } else {
-        setEmail('');
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    startTransition(async () => {
+      const result = await loginWithCredentialsAction({ email, password });
+
+      if (!result.success || !result.redirectTo) {
+        setErrorMessage(result.error || 'Credenciales inválidas. Verifica tu correo y contraseña.');
+        return;
       }
-      return next;
+
+      router.push(result.redirectTo);
+      router.refresh();
     });
   };
 
   /**
-   * @name handleSubmit
-   * @description Handles form submission, simulates verification, and redirects to dashboard.
-   */
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    // Simulate verification delay for realistic UX
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push('/dashboard');
-    }, 700);
-  };
-
-  /**
    * @name handleSSOLogin
-   * @description Handles federated single sign-on redirect for corporate identities.
+   * @description Displays enterprise SSO status until SAML/OIDC tenant federation is configured.
    */
   const handleSSOLogin = (provider: 'google' | 'microsoft') => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push('/dashboard');
-    }, 600);
+    const providerLabel = provider === 'google' ? 'Google Workspace' : 'Microsoft 365';
+    setErrorMessage(
+      `El inicio de sesión federado con ${providerLabel} debe ser habilitado primero por el administrador de tu organización.`
+    );
   };
 
   return (
@@ -95,7 +84,7 @@ export function LoginForm() {
       {/* Main Content Area */}
       <main className="w-full flex-1 flex flex-col justify-center max-w-md mx-auto py-8 relative z-10">
         <div className="w-full flex flex-col">
-          {/* Top Environment Bar & Simulated Audit Toggle */}
+          {/* Top Environment Bar */}
           <div
             className="flex items-center justify-between mb-4 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant/20 shadow-sm animate-enter-down"
             style={{ animationDelay: '80ms' }}
@@ -106,19 +95,13 @@ export function LoginForm() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-container" />
               </span>
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">
-                Entorno Producción v2.14
+                Entorno Seguro Zero-Trust v2.14
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={handleToggleErrorState}
-              className="font-label-sm text-label-sm px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-primary-container transition-all flex items-center gap-1 cursor-pointer border border-outline-variant/20"
-              title="Alternar previsualización de error de autenticación"
-            >
-              <Icon name="bug_report" className="text-[14px]" />
-              <span>{isErrorActive ? 'Restablecer estado normal' : 'Ver estado con error'}</span>
-            </button>
+            <span className="font-label-sm text-label-sm text-primary-container font-semibold">
+              Ed25519 • Argon2id
+            </span>
           </div>
 
           {/* Main Auth Card */}
@@ -148,8 +131,8 @@ export function LoginForm() {
               </p>
             </div>
 
-            {/* Dynamic Feedback Banner (Simulated validation error) */}
-            {isErrorActive && (
+            {/* Dynamic Feedback Banner */}
+            {errorMessage && (
               <div
                 className="relative z-10 mb-5 p-4 rounded-xl bg-error-container/40 border border-error/40 text-on-error-container animate-in fade-in slide-in-from-top-2 duration-300"
                 role="alert"
@@ -158,10 +141,10 @@ export function LoginForm() {
                   <Icon name="error" className="text-error text-[22px] shrink-0 mt-0.5" />
                   <div>
                     <p className="font-label-md text-label-md font-bold text-white">
-                      Credenciales no coincidentes
+                      No se pudo iniciar sesión
                     </p>
                     <p className="font-label-sm text-label-sm text-on-surface-variant mt-0.5 leading-relaxed">
-                      El correo institucional o la clave ingresada no son válidos en el directorio SSO.
+                      {errorMessage}
                     </p>
                   </div>
                 </div>
@@ -178,7 +161,7 @@ export function LoginForm() {
                 >
                   <span className="font-semibold">Correo electrónico</span>
                   <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">
-                    SSO habilitado
+                    Admin / Empleado
                   </span>
                 </label>
                 <div className="relative rounded-xl bg-surface-container-high border border-outline-variant/30 focus-within:border-primary-container focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
@@ -192,6 +175,7 @@ export function LoginForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="nombre@empresa.com"
                     required
+                    disabled={isPending}
                     className="w-full pl-11 pr-4 py-3 bg-transparent rounded-xl text-on-surface font-body-md text-body-md placeholder-on-surface-variant/40 focus:outline-none transition-colors"
                   />
                 </div>
@@ -216,6 +200,7 @@ export function LoginForm() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Ingresa tu contraseña"
                     required
+                    disabled={isPending}
                     className="w-full pl-11 pr-11 py-3 bg-transparent rounded-xl text-on-surface font-body-md text-body-md placeholder-on-surface-variant/40 focus:outline-none transition-colors"
                   />
                   <button
@@ -249,7 +234,9 @@ export function LoginForm() {
                   href="#recuperar"
                   onClick={(e) => {
                     e.preventDefault();
-                    alert('Por favor contacta al administrador de TI de tu empresa para restablecer tus credenciales SSO.');
+                    setErrorMessage(
+                      'Para restablecer tu contraseña de forma segura, contacta al administrador de tu organización.'
+                    );
                   }}
                   className="text-primary-container hover:underline transition-colors font-medium"
                 >
@@ -260,10 +247,10 @@ export function LoginForm() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isPending}
                 className="w-full py-3.5 px-6 rounded-xl bg-primary-container text-on-primary-fixed font-headline-sm text-[16px] font-bold shadow-glow hover:shadow-glow-lg hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:pointer-events-none mt-2"
               >
-                {isLoading ? (
+                {isPending ? (
                   <span>Verificando credenciales...</span>
                 ) : (
                   <>
@@ -287,6 +274,7 @@ export function LoginForm() {
               {/* Google Workspace */}
               <button
                 type="button"
+                disabled={isPending}
                 onClick={() => handleSSOLogin('google')}
                 className="flex items-center justify-center gap-2.5 py-3 px-4 bg-surface-container hover:bg-surface-container-high rounded-xl text-on-surface font-label-md text-label-md font-semibold transition-all group border border-outline-variant/20 hover:border-outline-variant/40 cursor-pointer shadow-sm"
               >
@@ -314,6 +302,7 @@ export function LoginForm() {
               {/* Microsoft 365 */}
               <button
                 type="button"
+                disabled={isPending}
                 onClick={() => handleSSOLogin('microsoft')}
                 className="flex items-center justify-center gap-2.5 py-3 px-4 bg-surface-container hover:bg-surface-container-high rounded-xl text-on-surface font-label-md text-label-md font-semibold transition-all group border border-outline-variant/20 hover:border-outline-variant/40 cursor-pointer shadow-sm"
               >
@@ -375,4 +364,3 @@ export function LoginForm() {
     </div>
   );
 }
-
