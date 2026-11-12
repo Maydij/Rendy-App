@@ -1,7 +1,10 @@
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdminSession } from '@/lib/auth/session-context';
 import { TrendingUp, TrendingDown, Wallet, ClipboardCheck, RotateCcw, DollarSign, ArrowUpRight, Coins } from 'lucide-react';
 import Link from 'next/link';
 import { getExchangeRates, convertAmount, formatCurrency, normalizeMoneda } from '@/lib/currency';
+import { DashboardInteractiveShell } from '@/components/dashboard/DashboardInteractiveShell';
+import type { FtuxState } from '@/app/actions/ftux.actions';
 
 const fmt = formatCurrency;
 
@@ -22,8 +25,8 @@ function StatusBadge({ estado }: { estado: string }) {
   );
 }
 
-/* ─── data fetching ─── */
-async function getDashboardData() {
+/* ─── Multi-Tenant Data Fetching ─── */
+async function getDashboardData(empresaId: string) {
   const [
     { data: gastos },
     { data: solicitudes },
@@ -35,25 +38,25 @@ async function getDashboardData() {
     supabaseServer
       .from('gastos')
       .select('id, comercio, categoria, monto, moneda, monto_usd, monto_ves, tasa_cambio, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto, solicitud_id, es_reembolso, rif_comercio, numero_factura')
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', empresaId)
       .order('creado_en', { ascending: false }),
     supabaseServer
       .from('solicitudes_viaticos')
       .select('id, monto_solicitado, monto_aprobado, moneda, estado, usuario_id, proyecto_id')
-      .eq('empresa_id', EMPRESA_ID),
+      .eq('empresa_id', empresaId),
     supabaseServer
       .from('proyectos')
       .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', empresaId)
       .eq('activo', true),
     supabaseServer
       .from('usuarios')
       .select('id, nombre, email, telefono_whatsapp')
-      .eq('empresa_id', EMPRESA_ID),
+      .eq('empresa_id', empresaId),
     supabaseServer
       .from('empresas')
-      .select('nombre, moneda')
-      .eq('id', EMPRESA_ID)
+      .select('nombre, moneda, ftux_state')
+      .eq('id', empresaId)
       .single(),
     getExchangeRates(),
   ]);
@@ -77,33 +80,31 @@ async function getDashboardData() {
   );
 
   for (const g of allGastos) {
-    let m = (g.datos_ocr as any)?.moneda ?? g.moneda ?? 'USD';
-    m = m.toUpperCase();
+    const ocrRecord = g.datos_ocr as Record<string, unknown> | null;
+    const rawCurrency = typeof ocrRecord?.moneda === 'string' ? ocrRecord.moneda : g.moneda ?? 'USD';
+    let m = rawCurrency.toUpperCase();
     if (m === 'BS') m = 'VES';
-    
-    // Group by currency (native amount)
+
     if (!byCurrency[m]) byCurrency[m] = 0;
     byCurrency[m] += g.monto ?? 0;
 
-    // Convert to base currency for KPIs
     const valInBase = convert(g.monto ?? 0, m, moneda);
-    
+
     totalGastado += valInBase;
     if (g.solicitud_id) mJustificados += valInBase;
     if (g.es_reembolso && g.estado === 'PENDIENTE') reembolsosPendientes += valInBase;
 
-    // Group by project (converted to base currency)
     const pid = g.proyecto_id ?? '__sin_proyecto__';
     if (!byProject[pid]) byProject[pid] = { nombre: proyMap[pid] ?? 'Sin proyecto', total: 0 };
     byProject[pid].total += valInBase;
   }
 
   let viaticosAprobados = 0;
-  for (const s of (solicitudes ?? [])) {
+  for (const s of solicitudes ?? []) {
     if (s.estado === 'APROBADO') {
-       const mSol = (s as any).moneda || 'USD';
-       const val = convert(s.monto_aprobado ?? s.monto_solicitado ?? 0, mSol, moneda);
-       viaticosAprobados += val;
+      const mSol = s.moneda || 'USD';
+      const val = convert(s.monto_aprobado ?? s.monto_solicitado ?? 0, mSol, moneda);
+      viaticosAprobados += val;
     }
   }
 
@@ -119,7 +120,9 @@ async function getDashboardData() {
     .slice(0, 6)
     .map((g) => {
       const usuario = g.usuario_id ? usuMap[g.usuario_id] : null;
-      const gMoneda = ((g.datos_ocr as any)?.moneda ?? g.moneda ?? 'USD').toUpperCase();
+      const ocrRecord = g.datos_ocr as Record<string, unknown> | null;
+      const rawCurrency = typeof ocrRecord?.moneda === 'string' ? ocrRecord.moneda : g.moneda ?? 'USD';
+      const gMoneda = rawCurrency.toUpperCase();
       const montoUsd =
         g.monto_usd ??
         (gMoneda === 'USD' ? (g.monto ?? 0) : convert(g.monto ?? 0, gMoneda === 'BS' ? 'VES' : gMoneda, 'USD'));
@@ -129,7 +132,7 @@ async function getDashboardData() {
         empleado: usuario?.nombre ?? 'Sin asignar',
         empleadoDetalle: usuario?.email || (usuario?.telefono ? `+${usuario.telefono}` : null),
         fecha_gasto: g.fecha_gasto,
-        comercio: g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—',
+        comercio: g.comercio ?? (typeof ocrRecord?.comercio === 'string' ? ocrRecord.comercio : '—'),
         rif_comercio: g.rif_comercio,
         numero_factura: g.numero_factura,
         categoria: g.categoria || 'Otros',
@@ -142,9 +145,17 @@ async function getDashboardData() {
       };
     });
 
+  const defaultFtux: FtuxState = {
+    accounting_template_selected: null,
+    setup_call_scheduled: false,
+    first_employee_invited: false,
+    checklist_dismissed: false,
+  };
+
   return {
     moneda,
     empresa: empresa?.nombre ?? 'Mi Empresa',
+    ftuxState: (empresa?.ftux_state as FtuxState | null) ?? defaultFtux,
     kpis: { totalGastado, viaticosAprobados, mJustificados, reembolsosPendientes },
     recentGastos: allGastos.filter((g) => !g.es_reembolso).slice(0, 6),
     recentReembolsos,
@@ -157,9 +168,20 @@ async function getDashboardData() {
   };
 }
 
-/* ─── page ─── */
+/* ─── Page ─── */
 export default async function DashboardPage() {
-  const { moneda, empresa, kpis, recentGastos, recentReembolsos, projectBreakdown, currencyBreakdown, proyMap } = await getDashboardData();
+  const session = await requireAdminSession();
+  const {
+    moneda,
+    empresa,
+    ftuxState,
+    kpis,
+    recentGastos,
+    recentReembolsos,
+    projectBreakdown,
+    currencyBreakdown,
+    proyMap,
+  } = await getDashboardData(session.empresaId);
 
   const kpiCards = [
     { id: 'total-gastado', label: 'Total Registrado', value: fmt(kpis.totalGastado, moneda), icon: DollarSign, color: 'indigo', trend: 'up' as const },
@@ -179,6 +201,9 @@ export default async function DashboardPage() {
         </h1>
         <p className="page-subtitle">Resumen ejecutivo de gastos, viáticos y reembolsos de tu organización (convirtiendo monedas locales a {moneda}).</p>
       </div>
+
+      {/* FTUX Checklist + Invite Employee Modal + Active Dwell-Time Telemetry */}
+      <DashboardInteractiveShell companyName={empresa} ftuxState={ftuxState} />
 
       {/* KPIs */}
       <div className="kpi-grid" role="list" aria-label="Indicadores clave">
@@ -213,8 +238,6 @@ export default async function DashboardPage() {
 
       {/* Grid */}
       <div className="dashboard-grid">
-
-        {/* Columna principal: gastos + reembolsos (mismo ancho) */}
         <div className="dashboard-main-stack">
           {/* Gastos recientes */}
           <div className="card">
@@ -245,31 +268,32 @@ export default async function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                    {recentGastos.map((g) => {
-                      const gMoneda = (g.datos_ocr as any)?.moneda ?? g.moneda ?? moneda;
-                      return (
-                        <tr key={g.id}>
-                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {g.comercio ?? (g.datos_ocr as any)?.comercio ?? '—'}
-                          </td>
-                          <td>
-                            <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
-                              {g.categoria}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {fmt(g.monto ?? 0, gMoneda)}
-                          </td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                            {g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—'}
-                          </td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{g.fecha_gasto}</td>
-                          <td><StatusBadge estado={g.estado} /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      {recentGastos.map((g) => {
+                        const ocrRecord = g.datos_ocr as Record<string, unknown> | null;
+                        const gMoneda = typeof ocrRecord?.moneda === 'string' ? ocrRecord.moneda : g.moneda ?? moneda;
+                        return (
+                          <tr key={g.id}>
+                            <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {g.comercio ?? (typeof ocrRecord?.comercio === 'string' ? ocrRecord.comercio : '—')}
+                            </td>
+                            <td>
+                              <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-accent)' }}>
+                                {g.categoria}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {fmt(g.monto ?? 0, gMoneda)}
+                            </td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                              {g.proyecto_id ? (proyMap[g.proyecto_id] ?? '—') : '—'}
+                            </td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{g.fecha_gasto}</td>
+                            <td><StatusBadge estado={g.estado} /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -450,7 +474,6 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
-
       </div>
     </>
   );
