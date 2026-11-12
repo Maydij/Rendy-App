@@ -125,6 +125,19 @@ export type Database = {
     datos_temporales: Record<string, unknown> | null;
     ultima_interaccion: string;
   };
+  reportes_generados: {
+    id: string;
+    empresa_id: string;
+    usuario_id: string;
+    nombre_reporte: string;
+    formato: 'XLSX' | 'PDF';
+    filtros_aplicados: Record<string, unknown>;
+    total_gastos_incluidos: number;
+    monto_total_usd: number;
+    monto_total_ves: number;
+    url_archivo: string | null;
+    creado_en: string;
+  };
 };
 
 function createServerClient() {
