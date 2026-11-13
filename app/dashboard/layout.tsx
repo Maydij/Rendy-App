@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { RendyLogo } from '@/components/rendy-logo';
+import { LogoutConfirmModal } from '@/components/dashboard/LogoutConfirmModal';
 
 const SidebarContext = createContext({ collapsed: false });
 export const useSidebar = () => useContext(SidebarContext);
@@ -29,6 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pendingViaticos, setPendingViaticos] = useState<number>(0);
   const [pendingReembolsos, setPendingReembolsos] = useState<number>(0);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -187,7 +189,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Bell size={16} />
                 <span className="topbar-btn-dot" />
               </button>
-              <button className="topbar-btn" id="topbar-logout-btn"><LogOut size={16} /></button>
+              <button
+                className="topbar-btn"
+                id="topbar-logout-btn"
+                onClick={() => setIsLogoutModalOpen(true)}
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut size={16} />
+              </button>
               <div className="topbar-avatar">A</div>
             </div>
           </header>
@@ -196,6 +206,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {children}
           </main>
         </div>
+
+        {/* Logout Confirmation Modal */}
+        <LogoutConfirmModal
+          isOpen={isLogoutModalOpen}
+          onClose={() => setIsLogoutModalOpen(false)}
+        />
       </div>
     </SidebarContext.Provider>
   );

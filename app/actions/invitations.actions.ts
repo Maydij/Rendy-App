@@ -26,7 +26,7 @@ import { enviarMensajeWhatsApp } from '@/app/lib/whatsapp';
  * Strict Zod Schemas (.strict() prevents Mass Assignment)
  * ───────────────────────────────────────────────────────────── */
 
-export const ExpenseCategoryPermissionsSchema = z
+const ExpenseCategoryPermissionsSchema = z
   .object({
     ALIMENTACION: z.boolean(),
     TRANSPORTE: z.boolean(),
