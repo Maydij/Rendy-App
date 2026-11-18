@@ -5,6 +5,17 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Rendy — Control Financiero Inteligente",
   description: "Plataforma B2B inteligente de control de gastos corporativos",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -15,6 +26,11 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <head>
+        {/* Favicons & Brand Icons */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
+
         {/* Google Fonts: Material Symbols & Web Fonts */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
