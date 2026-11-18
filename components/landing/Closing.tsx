@@ -166,7 +166,7 @@ const FOOTER_COLUMNS = [
       ["Sobre Rendy", "#inicio"],
       ["Clientes & Casos", "#inicio"],
       ["Carreras", "#inicio"],
-      ["Prensa & Medios", "#inicio"],
+      ["Prensa & Medios", ""],
     ],
   },
   {
@@ -195,7 +195,7 @@ export function SiteFooter() {
       <div className="max-w-[1320px] mx-auto px-6">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-y-12 gap-x-8 pb-12">
           <div className="col-span-2 flex flex-col gap-4">
-            <a href="#inicio" className="flex items-center self-start" aria-label="Rendy — inicio">
+            <a href="/" className="flex items-center self-start" aria-label="Rendy — inicio">
               <RendyLogo className="h-8 w-auto" />
             </a>
             <p className="text-body-md text-on-surface-variant max-w-sm">

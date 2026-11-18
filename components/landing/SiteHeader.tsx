@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "./primitives";
 
 export const NAV_ITEMS = [
-  { id: "inicio", label: "Inicio" },
+  { id: "/", label: "Inicio" },
   { id: "funcionalidades", label: "Funcionalidades" },
   { id: "como-funciona", label: "Cómo funciona" },
   { id: "beneficios", label: "Beneficios" },
@@ -44,7 +44,7 @@ export function SiteHeader() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/85 backdrop-blur-md shadow-header">
       <div className="h-20 max-w-[1320px] mx-auto px-6 flex items-center justify-between gap-6">
-        <a href="#inicio" className="flex items-center shrink-0" aria-label="Rendy — inicio">
+        <a href="/" className="flex items-center shrink-0" aria-label="Rendy — inicio">
           <RendyLogo className="h-8 w-auto" />
         </a>
 

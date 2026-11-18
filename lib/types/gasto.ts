@@ -43,4 +43,14 @@ export type Gasto = {
   rif_comercio?: string | null;
   numero_factura?: string | null;
   requiere_revision_fiscal?: boolean | null;
+
+  // ── USA Sales Tax & Geography ──
+  pais_gasto?: 'US' | 'VE' | 'MX' | 'OTRO' | string | null;
+  estado_region?: string | null;
+  ciudad?: string | null;
+  codigo_postal?: string | null;
+  estado_tax_usa?: string | null;
+  subtotal_usd?: number | null;
+  sales_tax_usd?: number | null;
+  propina_usd?: number | null;
 };

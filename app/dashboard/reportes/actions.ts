@@ -135,7 +135,15 @@ export async function exportAccountingReportAction(
         monto_usd,
         estado,
         url_comprobante,
-        datos_ocr
+        datos_ocr,
+        pais_gasto,
+        estado_region,
+        ciudad,
+        codigo_postal,
+        estado_tax_usa,
+        subtotal_usd,
+        sales_tax_usd,
+        propina_usd
       `)
       .eq('empresa_id', EMPRESA_ID);
 
@@ -279,6 +287,14 @@ export async function exportAccountingReportAction(
         totalUsd,
         status: g.estado || 'REGISTRADO',
         receiptUrl: g.url_comprobante || null,
+        countryCode: g.pais_gasto || (resolvedCurrency === 'USD' ? 'US' : 'VE'),
+        stateRegion: g.estado_region || ((g.datos_ocr as Record<string, unknown>)?.estado_region as string) || null,
+        city: g.ciudad || ((g.datos_ocr as Record<string, unknown>)?.ciudad as string) || null,
+        zipCode: g.codigo_postal || ((g.datos_ocr as Record<string, unknown>)?.codigo_postal as string) || null,
+        usaTaxStatus: g.estado_tax_usa || ((g.datos_ocr as Record<string, unknown>)?.estado_tax_usa as string) || 'NO_APLICA',
+        subtotalUsd: Number(g.subtotal_usd ?? ((g.datos_ocr as Record<string, unknown>)?.subtotal_usd ?? (totalUsd - Number(g.sales_tax_usd || 0) - Number(g.propina_usd || 0)))),
+        salesTaxUsd: Number(g.sales_tax_usd ?? ((g.datos_ocr as Record<string, unknown>)?.sales_tax_usd ?? 0)),
+        tipUsd: Number(g.propina_usd ?? ((g.datos_ocr as Record<string, unknown>)?.propina_usd ?? 0)),
       });
     }
 

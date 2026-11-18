@@ -205,10 +205,73 @@ export async function enviarBotonesWhatsApp(
   }
 }
 
+/**
+ * @name enviarArchivoWhatsApp
+ * @description [Business Logic]: Sends a media file (PDF document or image) to a WhatsApp recipient
+ * via Meta Graph API v20.0. Supports document links (such as Tax-Exempt certificates) and images.
+ */
+export async function enviarArchivoWhatsApp(
+  to: string,
+  url: string,
+  caption?: string,
+  filename = 'Certificado_Tax_Exempt.pdf'
+) {
+  const token = process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const isImage = /\.(png|jpe?g|webp)$/i.test(url.split('?')[0]);
+  const mediaPayload = isImage
+    ? {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'image',
+        image: {
+          link: url,
+          ...(caption ? { caption } : {}),
+        },
+      }
+    : {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'document',
+        document: {
+          link: url,
+          ...(caption ? { caption } : {}),
+          filename,
+        },
+      };
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mediaPayload),
+      }
+    );
+
+    const data = await res.json();
+    if (data?.error) {
+      console.error('❌ Meta WhatsApp Media API Error:', JSON.stringify(data.error));
+    }
+    return data;
+  } catch (error) {
+    console.error('❌ Error sending WhatsApp media file:', error);
+    return null;
+  }
+}
+
 // Aliases for alternate naming conventions
 export const enviarWhatsAppTexto = enviarMensajeWhatsApp;
 export const enviarWhatsAppLista = enviarListaWhatsApp;
 export const enviarWhatsAppBotones = enviarBotonesWhatsApp;
+export const enviarWhatsAppArchivo = enviarArchivoWhatsApp;
 
 /**
  * @name enviarMenuPrincipalListMessage

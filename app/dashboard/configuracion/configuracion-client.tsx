@@ -12,6 +12,10 @@ import {
   X,
   ShieldCheck,
   Clock,
+  FileText,
+  UploadCloud,
+  ExternalLink,
+  FileCheck,
 } from 'lucide-react';
 import {
   crearProyecto,
@@ -20,11 +24,21 @@ import {
   crearMetodoPago,
   eliminarMetodoPago,
   actualizarMonedaEmpresa,
+  actualizarExencionFiscalUsa,
+  subirCertificadoTaxExempt,
+  eliminarCertificadoTaxExempt,
 } from './actions';
 import { cancelTrialOrSubscriptionAction } from '@/app/actions/subscription.actions';
 import { InviteEmployeeModal } from '@/components/dashboard/InviteEmployeeModal';
 
-type Empresa = { id: string; nombre: string; moneda: string; creado_en: string };
+type Empresa = {
+  id: string;
+  nombre: string;
+  moneda: string;
+  creado_en: string;
+  us_tax_exempt?: boolean;
+  url_certificado_tax_exempt?: string | null;
+};
 type Usuario = {
   id: string;
   nombre: string;
@@ -120,7 +134,7 @@ export default function ConfiguracionClient({
   subscription: SubscriptionInfo | null;
   pendingInvitations: PendingInvitation[];
 }) {
-  const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos' | 'suscripcion'>(
+  const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos' | 'suscripcion' | 'fiscal'>(
     'usuarios'
   );
   const [proyectos, setProyectos] = useState(initProyectos);
@@ -131,16 +145,72 @@ export default function ConfiguracionClient({
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // USA Tax-Exempt Certificate State
+  const [usTaxExempt, setUsTaxExempt] = useState(Boolean(empresa?.us_tax_exempt));
+  const [urlCertificado, setUrlCertificado] = useState<string | null>(empresa?.url_certificado_tax_exempt || null);
+  const [isUploadingCert, setIsUploadingCert] = useState(false);
+
   function toast(msg: string) {
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 3500);
   }
+
+  const handleToggleTaxExempt = (enabled: boolean) => {
+    setUsTaxExempt(enabled);
+    startTransition(async () => {
+      const res = await actualizarExencionFiscalUsa(enabled);
+      if (res?.error) {
+        setUsTaxExempt(!enabled);
+        toast(`❌ ${res.error}`);
+      } else {
+        toast(enabled ? '✅ Exención Fiscal USA activada.' : 'ℹ️ Exención Fiscal USA desactivada.');
+      }
+    });
+  };
+
+  const handleUploadCertificate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setIsUploadingCert(true);
+    try {
+      const res = await subirCertificadoTaxExempt(formData);
+      if (res?.error) {
+        toast(`❌ ${res.error}`);
+      } else if (res?.url) {
+        setUrlCertificado(res.url);
+        setUsTaxExempt(true);
+        toast('✅ Certificado Tax-Exempt subido exitosamente.');
+      }
+    } catch {
+      toast('❌ Error inesperado al subir el certificado.');
+    } finally {
+      setIsUploadingCert(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteCertificate = () => {
+    startTransition(async () => {
+      const res = await eliminarCertificadoTaxExempt();
+      if (res?.error) {
+        toast(`❌ ${res.error}`);
+      } else {
+        setUrlCertificado(null);
+        toast('🗑️ Certificado Tax-Exempt eliminado.');
+      }
+    });
+  };
 
   const TABS = [
     { id: 'usuarios' as const, label: 'Usuarios', icon: Users, count: usuarios.length },
     { id: 'proyectos' as const, label: 'Proyectos', icon: FolderKanban, count: proyectos.length },
     { id: 'metodos' as const, label: 'Métodos de Pago', icon: CreditCard, count: metodos.length },
     { id: 'suscripcion' as const, label: 'Suscripción y Plan', icon: ShieldCheck, count: 1 },
+    { id: 'fiscal' as const, label: 'Exención Fiscal USA', icon: FileText, count: usTaxExempt ? 'Activo' : 'Off' },
   ];
 
   return (
@@ -743,6 +813,273 @@ export default function ConfiguracionClient({
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Exención Fiscal EE. UU. (Tax-Exempt) ── */}
+      {activeTab === 'fiscal' && (
+        <div className="card">
+          <div style={{ padding: '24px' }}>
+            <SectionHeader
+              title="Exención Fiscal EE. UU. (Tax-Exempt)"
+              subtitle="Configura el estatus de exención tributaria (Sales Tax) para compras en Estados Unidos y entrega del certificado vía WhatsApp."
+            />
+
+            {/* Toggle Switch Card */}
+            <div
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--bg-border)',
+                borderRadius: '12px',
+                padding: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '16px',
+                marginBottom: '20px',
+              }}
+            >
+              <div style={{ maxWidth: '620px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Empresa exenta de Sales Tax en Estados Unidos (Tax-Exempt)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: usTaxExempt ? 'rgba(0, 168, 107, 0.15)' : 'rgba(100, 116, 139, 0.15)',
+                      color: usTaxExempt ? 'var(--rendy-success, #00A86B)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {usTaxExempt ? 'ACTIVADO' : 'DESACTIVADO'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Al activar esta opción, Rendy auditará cualquier Sales Tax cobrado en EE. UU. como <strong>Fuga Fiscal Recuperable</strong> para reclamar la devolución estatal y habilitará la entrega proactiva del certificado a los empleados.
+                </p>
+              </div>
+
+              <label
+                style={{
+                  position: 'relative',
+                  display: 'inline-block',
+                  width: '48px',
+                  height: '26px',
+                  cursor: isPending ? 'wait' : 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={usTaxExempt}
+                  disabled={isPending}
+                  onChange={(e) => handleToggleTaxExempt(e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    cursor: 'pointer',
+                    inset: 0,
+                    backgroundColor: usTaxExempt ? 'var(--rendy-primary)' : 'var(--bg-overlay)',
+                    borderRadius: '26px',
+                    transition: 'var(--transition-fast)',
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      content: '""',
+                      height: '20px',
+                      width: '20px',
+                      left: usTaxExempt ? '25px' : '3px',
+                      bottom: '3px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      transition: 'var(--transition-fast)',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    }}
+                  />
+                </span>
+              </label>
+            </div>
+
+            {/* Certificate Uploader & Active Document Display */}
+            <div
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--bg-border)',
+                borderRadius: '12px',
+                padding: '20px',
+                marginBottom: '20px',
+              }}
+            >
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Certificado Oficial Tax-Exempt de la Empresa
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                Sube el documento oficial (PDF, PNG o JPG) emitido por la autoridad fiscal de EE. UU. Este archivo se enviará por WhatsApp a tus colaboradores cuando escriban &quot;Certificado&quot; en caja o cuando se les aprueben viáticos en USD.
+              </p>
+
+              {urlCertificado ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid rgba(0, 168, 107, 0.3)',
+                    borderRadius: '10px',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '8px',
+                        background: 'rgba(0, 168, 107, 0.15)',
+                        color: 'var(--rendy-success, #00A86B)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <FileCheck size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Certificado Tax-Exempt Vigente
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Almacenado de forma segura en Supabase Storage
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <a
+                      href={urlCertificado}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary btn-sm"
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <ExternalLink size={14} />
+                      Ver / Descargar
+                    </a>
+
+                    <label
+                      className="btn btn-secondary btn-sm"
+                      style={{ cursor: isUploadingCert ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <UploadCloud size={14} />
+                      {isUploadingCert ? 'Subiendo...' : 'Reemplazar'}
+                      <input
+                        type="file"
+                        accept=".pdf,image/png,image/jpeg,image/webp"
+                        disabled={isUploadingCert}
+                        onChange={handleUploadCertificate}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      disabled={isPending || isUploadingCert}
+                      className="btn btn-danger btn-sm"
+                      onClick={handleDeleteCertificate}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Trash2 size={14} />
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: '2px dashed var(--bg-border)',
+                    borderRadius: '10px',
+                    padding: '30px 20px',
+                    textAlign: 'center',
+                    background: 'var(--bg-surface)',
+                  }}
+                >
+                  <UploadCloud size={36} style={{ color: 'var(--text-muted)', marginBottom: '10px' }} />
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    Ningún certificado cargado actualmente
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 16px auto' }}>
+                    Arrastra o selecciona el documento de exención fiscal de tu empresa (PDF, PNG, JPG, máximo 10 MB).
+                  </p>
+                  <label
+                    className="btn btn-primary btn-sm"
+                    style={{ cursor: isUploadingCert ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <UploadCloud size={15} />
+                    {isUploadingCert ? 'Subiendo certificado...' : 'Seleccionar Archivo'}
+                    <input
+                      type="file"
+                      accept=".pdf,image/png,image/jpeg,image/webp"
+                      disabled={isUploadingCert}
+                      onChange={handleUploadCertificate}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Informational Guidelines Card */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '14px',
+              }}
+            >
+              <div
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--rendy-primary-light)' }}>
+                  <ShieldCheck size={16} />
+                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Integración Inmediata con WhatsApp</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Tus empleados en viaje pueden escribir <strong>&quot;Certificado&quot;</strong> o <strong>&quot;Tax Exempt&quot;</strong> en cualquier momento al bot de WhatsApp de Rendy para recibir el archivo y mostrarlo en caja antes de pagar.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--rendy-success)' }}>
+                  <FileText size={16} />
+                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Estados sin Sales Tax Estatal</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Los gastos en <strong>Alaska (AK), Delaware (DE), Montana (MT), New Hampshire (NH) y Oregon (OR)</strong> se clasifican automáticamente como libres de impuesto sobre las ventas estatal.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
