@@ -9,8 +9,8 @@ import { securityLogger } from './logger';
 export const ACCESS_COOKIE_NAME = 'rendy_access_token';
 export const REFRESH_COOKIE_NAME = 'rendy_refresh_token';
 
-const ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes
-const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes
+export const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 const PKCS8_ED25519_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
 export type UserRole = 'ADMIN' | 'EMPLOYEE';
@@ -20,6 +20,11 @@ export interface AuthenticatedSessionPayload {
   empresaId: string;
   role: UserRole;
   familyId: string;
+}
+
+export interface RotatedSessionResult extends AuthenticatedSessionPayload {
+  accessToken: string;
+  refreshToken: string;
 }
 
 interface Ed25519KeyPair {
@@ -116,56 +121,67 @@ function extractSessionFromJwtPayload(
 /**
  * @name setSessionCookies
  * @description [Security]: Writes HttpOnly, SameSite=Strict, Secure cookies for both the
- * short-lived Access Token and the rotating Refresh Token.
+ * short-lived Access Token and the rotating Refresh Token. Safely ignores mutation errors
+ * when invoked in read-only Server Component rendering contexts.
  */
 export async function setSessionCookies(
   accessToken: string,
   rawRefreshToken: string
 ): Promise<void> {
-  const cookieStore = await cookies();
-  const isSecure = serverEnv.NODE_ENV === 'production';
+  try {
+    const cookieStore = await cookies();
+    const isSecure = serverEnv.NODE_ENV === 'production';
 
-  cookieStore.set(ACCESS_COOKIE_NAME, accessToken, {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: ACCESS_TOKEN_TTL_SECONDS,
-  });
+    cookieStore.set(ACCESS_COOKIE_NAME, accessToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: ACCESS_TOKEN_TTL_SECONDS,
+    });
 
-  cookieStore.set(REFRESH_COOKIE_NAME, rawRefreshToken, {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: REFRESH_TOKEN_TTL_SECONDS,
-  });
+    cookieStore.set(REFRESH_COOKIE_NAME, rawRefreshToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: REFRESH_TOKEN_TTL_SECONDS,
+    });
+  } catch {
+    // In Next.js Server Component rendering, cookies() is read-only.
+    // Suppress so it does not crash Server Components.
+  }
 }
 
 /**
  * @name clearSessionCookies
  * @description [Security]: Immediately expires and clears all authentication cookies on logout
- * or security revocation.
+ * or security revocation. Safely ignores mutation errors when invoked in read-only contexts.
  */
 export async function clearSessionCookies(): Promise<void> {
-  const cookieStore = await cookies();
-  const isSecure = serverEnv.NODE_ENV === 'production';
+  try {
+    const cookieStore = await cookies();
+    const isSecure = serverEnv.NODE_ENV === 'production';
 
-  cookieStore.set(ACCESS_COOKIE_NAME, '', {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 0,
-  });
+    cookieStore.set(ACCESS_COOKIE_NAME, '', {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 0,
+    });
 
-  cookieStore.set(REFRESH_COOKIE_NAME, '', {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 0,
-  });
+    cookieStore.set(REFRESH_COOKIE_NAME, '', {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 0,
+    });
+  } catch {
+    // In Next.js Server Component rendering, cookies() is read-only.
+    // Suppress so it does not crash Server Components.
+  }
 }
 
 /**
@@ -219,7 +235,7 @@ export async function createAuthenticatedSession(params: {
  */
 export async function rotateRefreshTokenSession(
   rawRefreshToken: string
-): Promise<AuthenticatedSessionPayload | null> {
+): Promise<RotatedSessionResult | null> {
   const presentedHash = hashSha256(rawRefreshToken);
 
   const { data: family } = await supabaseServer
@@ -292,5 +308,9 @@ export async function rotateRefreshTokenSession(
   const nextAccessToken = await signAccessToken(sessionPayload);
   await setSessionCookies(nextAccessToken, nextRawRefresh);
 
-  return sessionPayload;
+  return {
+    ...sessionPayload,
+    accessToken: nextAccessToken,
+    refreshToken: nextRawRefresh,
+  };
 }

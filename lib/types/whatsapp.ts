@@ -58,6 +58,17 @@ export interface ExtraccionOcrSesion {
   url_comprobante?: string | null;
   hash_comprobante?: string | null;
   requiere_revision_fiscal?: boolean;
+
+  // ── USA Sales Tax & Geography ──
+  pais_gasto?: 'US' | 'VE' | 'MX' | 'OTRO';
+  estado_region?: string | null;
+  ciudad?: string | null;
+  codigo_postal?: string | null;
+  estado_tax_usa?: string;
+  subtotal_usd?: number;
+  sales_tax_usd?: number;
+  propina_usd?: number;
+  alerta_tax_usa?: string | null;
 }
 
 /**

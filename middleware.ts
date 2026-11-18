@@ -53,16 +53,23 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return applySecurityHeaders(NextResponse.redirect(new URL(destination, request.url)));
   }
 
-  // Protected routes: require valid Access Token (or allow client/API refresh flow if refresh cookie exists)
+  // Protected routes: require valid Access Token (or transparently refresh via Route Handler)
   if (isAdminRoute || isEmployeePortalRoute) {
-    if (!session && !hasRefreshCookie) {
+    if (!session) {
+      if (hasRefreshCookie) {
+        // Transparent session refresh via Route Handler where Set-Cookie headers are supported
+        const refreshUrl = new URL('/api/auth/refresh', request.url);
+        refreshUrl.searchParams.set('next', pathname);
+        return applySecurityHeaders(NextResponse.redirect(refreshUrl));
+      }
+
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('next', pathname);
       return applySecurityHeaders(NextResponse.redirect(loginUrl));
     }
 
     // Strict RBAC Enforcement: Employees cannot access Administrator /dashboard routes
-    if (session && isAdminRoute && session.role !== 'ADMIN') {
+    if (isAdminRoute && session.role !== 'ADMIN') {
       return applySecurityHeaders(NextResponse.redirect(new URL('/portal', request.url)));
     }
   }

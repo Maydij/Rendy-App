@@ -11,8 +11,9 @@ import {
 /**
  * @name requireAuthenticatedSession
  * @description [Business Logic]: Resolves the active multi-tenant session (`userId`, `empresaId`,
- * `role`) on the server, rotating the Refresh Token if the 15-minute Access Token expired,
- * or redirecting to /login if unauthenticated.
+ * `role`) on the server. If the Access Token is valid, returns the verified payload immediately.
+ * In Server Actions (POST), will attempt Refresh Token Rotation if expired. In Server Components (GET),
+ * safely redirects to /login if unauthenticated without crashing on read-only cookie stores.
  */
 export async function requireAuthenticatedSession(): Promise<AuthenticatedSessionPayload> {
   const cookieStore = await cookies();
@@ -25,8 +26,13 @@ export async function requireAuthenticatedSession(): Promise<AuthenticatedSessio
 
   const refreshToken = cookieStore.get(REFRESH_COOKIE_NAME)?.value;
   if (refreshToken) {
-    const rotated = await rotateRefreshTokenSession(refreshToken);
-    if (rotated) return rotated;
+    try {
+      const rotated = await rotateRefreshTokenSession(refreshToken);
+      if (rotated) return rotated;
+    } catch {
+      // In Next.js Server Components, cookies cannot be modified during rendering.
+      // Transparent session refresh is orchestrated at the Middleware and Route Handler layers.
+    }
   }
 
   redirect('/login');

@@ -32,8 +32,10 @@ import {
   enviarListaWhatsApp,
   enviarBotonesWhatsApp,
   enviarMenuPrincipalListMessage,
+  enviarArchivoWhatsApp,
   type WhatsAppRow,
 } from '@/app/lib/whatsapp';
+import { auditarGastoUSA } from '@/lib/services/usaTaxEngine';
 import {
   scheduleInactivityTimers,
   clearInactivityTimers,
@@ -165,6 +167,33 @@ export async function routerMensajeWhatsApp({
   }
 
   const textoLimpio = cuerpoTexto?.trim().toLowerCase() || '';
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 3.1. On-Demand Keyword: Tax-Exempt Certificate Dispatch ("Certificado" / "Tax Exempt")
+  // ───────────────────────────────────────────────────────────────────────────
+  const TAX_EXEMPT_KEYWORDS = ['certificado', 'tax exempt', 'tax-exempt', 'exencion', 'exención'];
+  if (tipoMensaje === 'text' && TAX_EXEMPT_KEYWORDS.some((kw) => textoLimpio.includes(kw))) {
+    const { data: empresaData } = await supabase
+      .from('empresas')
+      .select('url_certificado_tax_exempt, us_tax_exempt')
+      .eq('id', empresaId)
+      .maybeSingle();
+
+    if (empresaData?.url_certificado_tax_exempt) {
+      await enviarArchivoWhatsApp(
+        telefono,
+        empresaData.url_certificado_tax_exempt,
+        '📄 *Certificado Oficial Tax-Exempt*\nMuéstralo en caja antes de procesar el pago para evitar el cobro de Sales Tax.',
+        'Certificado_Tax_Exempt.pdf'
+      );
+    } else {
+      await enviarMensajeWhatsApp(
+        telefono,
+        '⚠️ Tu empresa aún no ha cargado el Certificado Tax-Exempt en la plataforma web.'
+      );
+    }
+    return { status: 'certificado_tax_exempt_despachado' };
+  }
 
   // ───────────────────────────────────────────────────────────────────────────
   // 4. Global Rule: Manual Escape Commands (Cancelar / Volver / Menú)
@@ -1375,6 +1404,26 @@ async function manejarIngestaComprobanteEnFrio({
     exento: Number(raw.exento || 0),
     igtf: Number(raw.igtf || 0),
     total: Number(raw.total || 0),
+    pais_detectado: raw.pais_detectado,
+    estado_region: raw.estado_region,
+    ciudad: raw.ciudad,
+    codigo_postal: raw.codigo_postal,
+    subtotal_usd: Number(raw.subtotal_usd || 0),
+    sales_tax_usd: Number(raw.sales_tax_usd || 0),
+    propina_usd: Number(raw.propina_usd || 0),
+  });
+
+  const { data: empTaxData } = await supabase
+    .from('empresas')
+    .select('us_tax_exempt')
+    .eq('id', empresaId)
+    .maybeSingle();
+
+  const auditoriaUSA = auditarGastoUSA({
+    esEmpresaTaxExempt: Boolean(empTaxData?.us_tax_exempt),
+    estadoUs: fiscalResult.estado_region,
+    salesTaxUsd: fiscalResult.sales_tax_usd,
+    paisGasto: fiscalResult.pais_gasto,
   });
 
   let hashArchivo: string | null = null;
@@ -1448,6 +1497,15 @@ async function manejarIngestaComprobanteEnFrio({
     url_comprobante: urlComprobante,
     hash_comprobante: hashArchivo,
     requiere_revision_fiscal: fiscalResult.requiere_revision_fiscal,
+    pais_gasto: fiscalResult.pais_gasto,
+    estado_region: fiscalResult.estado_region,
+    ciudad: fiscalResult.ciudad,
+    codigo_postal: fiscalResult.codigo_postal,
+    estado_tax_usa: auditoriaUSA.estado_tax_usa,
+    subtotal_usd: fiscalResult.subtotal_usd,
+    sales_tax_usd: fiscalResult.sales_tax_usd,
+    propina_usd: fiscalResult.propina_usd,
+    alerta_tax_usa: auditoriaUSA.alerta_whatsapp,
   };
 
   const viaticosActivos = await obtenerViaticosActivosEmpleado(supabase, empleadoId, {
@@ -1598,6 +1656,26 @@ async function manejarComprobanteEnRutaGuiada({
     exento: Number(raw.exento || 0),
     igtf: Number(raw.igtf || 0),
     total: Number(raw.total || 0),
+    pais_detectado: raw.pais_detectado,
+    estado_region: raw.estado_region,
+    ciudad: raw.ciudad,
+    codigo_postal: raw.codigo_postal,
+    subtotal_usd: Number(raw.subtotal_usd || 0),
+    sales_tax_usd: Number(raw.sales_tax_usd || 0),
+    propina_usd: Number(raw.propina_usd || 0),
+  });
+
+  const { data: empTaxData } = await supabase
+    .from('empresas')
+    .select('us_tax_exempt')
+    .eq('id', empresaId)
+    .maybeSingle();
+
+  const auditoriaUSA = auditarGastoUSA({
+    esEmpresaTaxExempt: Boolean(empTaxData?.us_tax_exempt),
+    estadoUs: fiscalResult.estado_region,
+    salesTaxUsd: fiscalResult.sales_tax_usd,
+    paisGasto: fiscalResult.pais_gasto,
   });
 
   const fiscalDupResult = await verifyInvoiceDuplicate(supabase, {
@@ -1641,6 +1719,15 @@ async function manejarComprobanteEnRutaGuiada({
     categoria: categoriaNormalizada,
     url_comprobante: urlComprobante,
     requiere_revision_fiscal: fiscalResult.requiere_revision_fiscal,
+    pais_gasto: fiscalResult.pais_gasto,
+    estado_region: fiscalResult.estado_region,
+    ciudad: fiscalResult.ciudad,
+    codigo_postal: fiscalResult.codigo_postal,
+    estado_tax_usa: auditoriaUSA.estado_tax_usa,
+    subtotal_usd: fiscalResult.subtotal_usd,
+    sales_tax_usd: fiscalResult.sales_tax_usd,
+    propina_usd: fiscalResult.propina_usd,
+    alerta_tax_usa: auditoriaUSA.alerta_whatsapp,
   };
 
   const policyResult = await validateExpensePolicy({
@@ -1853,6 +1940,14 @@ async function persistirGastoDefinitivo(
     detalle_exceso: detalleExceso,
     estado: estadoFinal,
     requiere_revision_fiscal: Boolean(ocr.requiere_revision_fiscal),
+    pais_gasto: ocr.pais_gasto || (ocr.moneda === 'USD' ? 'US' : 'VE'),
+    estado_region: ocr.estado_region || null,
+    ciudad: ocr.ciudad || null,
+    codigo_postal: ocr.codigo_postal || null,
+    estado_tax_usa: ocr.estado_tax_usa || 'NO_APLICA',
+    subtotal_usd: ocr.subtotal_usd || 0,
+    sales_tax_usd: ocr.sales_tax_usd || 0,
+    propina_usd: ocr.propina_usd || 0,
     datos_ocr: {
       ...ocr,
       comercio: ocr.nombre_comercio,
@@ -1865,6 +1960,14 @@ async function persistirGastoDefinitivo(
       exento: ocr.exento_ves,
       igtf: ocr.igtf_ves,
       url_comprobante: urlComprobante,
+      pais_gasto: ocr.pais_gasto,
+      estado_region: ocr.estado_region,
+      ciudad: ocr.ciudad,
+      codigo_postal: ocr.codigo_postal,
+      estado_tax_usa: ocr.estado_tax_usa,
+      subtotal_usd: ocr.subtotal_usd,
+      sales_tax_usd: ocr.sales_tax_usd,
+      propina_usd: ocr.propina_usd,
     } as unknown as Record<string, unknown>,
   });
 
@@ -1987,6 +2090,33 @@ async function enviarConfirmacionGastoInteractiva(
   } else {
     const nominal = (ocr.monto_original ?? ocr.monto_usd).toLocaleString('es-VE', { minimumFractionDigits: 2 });
     cuerpo += `💵 *Total Factura:* ${nominal} ${ocr.moneda} (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa 1 USD = ${ocr.tasa_cambio} ${ocr.moneda})\n`;
+  }
+
+  // USA Tax & Geographic Breakdown
+  if (
+    ocr.pais_gasto === 'US' ||
+    (ocr.moneda === 'USD' &&
+      ((ocr.sales_tax_usd ?? 0) > 0 || (ocr.propina_usd ?? 0) > 0 || Boolean(ocr.estado_region)))
+  ) {
+    const ubicacion = [
+      ocr.ciudad,
+      ocr.estado_region,
+      ocr.codigo_postal ? `ZIP ${ocr.codigo_postal}` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    if (ubicacion) {
+      cuerpo += `📍 *Ubicación:* ${ubicacion}\n`;
+    }
+    const sub =
+      ocr.subtotal_usd ??
+      Math.max(0, ocr.monto_usd - (ocr.sales_tax_usd || 0) - (ocr.propina_usd || 0));
+    cuerpo += `• Subtotal: $${sub.toFixed(2)} | Sales Tax: $${(ocr.sales_tax_usd || 0).toFixed(2)} | Propina: $${(ocr.propina_usd || 0).toFixed(2)}\n`;
+
+    if (ocr.estado_tax_usa === 'FUGA_FISCAL_RECUPERABLE' && ocr.alerta_tax_usa) {
+      cuerpo += `\n${ocr.alerta_tax_usa}\n`;
+    }
   }
 
   if (contexto.tipo === 'VIATICO_ASIGNADO') {

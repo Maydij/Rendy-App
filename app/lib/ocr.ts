@@ -34,6 +34,17 @@ REGLAS DE EXTRACCIÓN FISCAL:
    - Si es en euros (€), es "EUR".
 8. Tasa Impresa: Si el ticket imprime explícitamente una tasa de cambio (ej. "Tasa BCV: 68.50" o "Tipo de cambio: 18.50"), extrae ese número decimal. Si no la menciona, devuelve null.
 9. Categoría de Gasto: Clasifica el gasto según su naturaleza en una de las siguientes categorías estándar: ALIMENTACION (restaurantes, comida, bebidas, supermercados), TRANSPORTE (gasolina, taxi, estacionamiento, peajes, boletos aéreos/terrestres, alquiler de vehículos), HOSPEDAJE (hoteles, posadas, alojamiento), REPRESENTACION (eventos, regalos corporativos, entretenimiento de clientes), OTROS (cualquier otra cosa no clasificable en las anteriores).
+10. Ubicación Geográfica del Gasto (Especial atención a recibos de Estados Unidos):
+    - Determina el país del emisor o donde ocurrió la compra: "US" para Estados Unidos, "VE" para Venezuela, "MX" para México, u "OTRO" para el resto.
+    - Si el comprobante es de Estados Unidos (o moneda USD con dirección o comercio estadounidense):
+      * estado_region: Código oficial de 2 letras en mayúsculas del Estado de EE. UU. (ej. "FL", "TX", "NY", "CA", "IL", "GA", etc.). Si no está explícito, dedúcelo a partir de la ciudad, código postal (ZIP Code) o código de área telefónico del comercio.
+      * ciudad: Nombre de la ciudad estadounidense donde se encuentra el comercio (ej. "Miami", "Houston", "Orlando", "New York").
+      * codigo_postal: Código postal estadounidense de 5 dígitos (ZIP code).
+11. Aislamiento Estricto de Montos en Recibos de Estados Unidos (NUNCA mezclar Tax con Propina):
+    * subtotal_usd: Monto base de la compra antes de impuestos y propinas.
+    * sales_tax_usd: ÚNICAMENTE el impuesto estatal o local sobre las ventas ("Sales Tax", "State Tax", "Local Tax", "Tax"). Si no se cobró impuesto, devuelve 0.00.
+    * propina_usd: Monto de propina voluntaria ("Tip", "Gratuity", "Service Charge"). NUNCA sumarlo dentro de sales_tax_usd.
+    * total: Total final pagado (Subtotal + Sales Tax + Propina).
 
 Devuelve estrictamente un objeto JSON con la estructura solicitada, sin rodeos ni Markdown adicional.`;
 
@@ -65,10 +76,42 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
       description: 'Expense category: ALIMENTACION, TRANSPORTE, HOSPEDAJE, REPRESENTACION, or OTROS',
       enum: ['ALIMENTACION', 'TRANSPORTE', 'HOSPEDAJE', 'REPRESENTACION', 'OTROS'],
     },
+    pais_detectado: {
+      type: SchemaType.STRING,
+      description: 'Country where expense took place: US, VE, MX, or OTRO',
+    },
+    estado_region: {
+      type: SchemaType.STRING,
+      description: '2-letter uppercase US State postal code (e.g. FL, TX, NY, CA) or state/region name',
+      nullable: true,
+    },
+    ciudad: {
+      type: SchemaType.STRING,
+      description: 'City where purchase occurred',
+      nullable: true,
+    },
+    codigo_postal: {
+      type: SchemaType.STRING,
+      description: 'Postal/ZIP code',
+      nullable: true,
+    },
+    subtotal_usd: {
+      type: SchemaType.NUMBER,
+      description: 'Subtotal in USD before taxes and tips (0 if not applicable)',
+    },
+    sales_tax_usd: {
+      type: SchemaType.NUMBER,
+      description: 'Sales tax amount in USD (0 if none charged)',
+    },
+    propina_usd: {
+      type: SchemaType.NUMBER,
+      description: 'Tip or gratuity in USD (never mix with sales_tax_usd)',
+    },
   },
   required: [
     'nombre_comercio', 'rif_comercio', 'numero_factura', 'fecha_emision',
     'moneda', 'base_imponible', 'iva', 'exento', 'igtf', 'total', 'categoria_gasto',
+    'pais_detectado', 'subtotal_usd', 'sales_tax_usd', 'propina_usd',
   ],
 };
 
@@ -134,6 +177,17 @@ export async function procesarFacturaConIA(
     // Normalize tasa_impresa: Gemini may return 0 instead of null
     if (parsed.tasa_impresa === 0) {
       parsed.tasa_impresa = null;
+    }
+
+    // Normalize US / Geographic fields
+    if (parsed.subtotal_usd === undefined || parsed.subtotal_usd === null) {
+      parsed.subtotal_usd = parsed.moneda === 'USD' ? parsed.total : 0;
+    }
+    if (parsed.sales_tax_usd === undefined || parsed.sales_tax_usd === null) {
+      parsed.sales_tax_usd = 0;
+    }
+    if (parsed.propina_usd === undefined || parsed.propina_usd === null) {
+      parsed.propina_usd = 0;
     }
 
     return parsed;
@@ -374,6 +428,17 @@ export async function procesarFacturaPDFConIA(
     // Normalize tasa_impresa: Gemini may return 0 instead of null
     if (parsed.tasa_impresa === 0) {
       parsed.tasa_impresa = null;
+    }
+
+    // Normalize US / Geographic fields
+    if (parsed.subtotal_usd === undefined || parsed.subtotal_usd === null) {
+      parsed.subtotal_usd = parsed.moneda === 'USD' ? parsed.total : 0;
+    }
+    if (parsed.sales_tax_usd === undefined || parsed.sales_tax_usd === null) {
+      parsed.sales_tax_usd = 0;
+    }
+    if (parsed.propina_usd === undefined || parsed.propina_usd === null) {
+      parsed.propina_usd = 0;
     }
 
     return parsed;

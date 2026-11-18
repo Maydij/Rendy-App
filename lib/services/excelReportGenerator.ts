@@ -15,6 +15,7 @@ import {
   JURISDICTION_CATALOG,
   type TaxJurisdictionRules,
 } from './taxRulesEngine';
+import { US_STATE_NAMES_MAP, type EstadoTaxUSA } from './usaTaxEngine';
 
 /* ─────────────────────────────────────────────────────────────
  * Types & Interfaces
@@ -57,6 +58,16 @@ export interface ReportExpenseItem {
   totalUsd: number;
   status: string;
   receiptUrl: string | null;
+
+  // ── USA Tax Audit & Geography ──
+  countryCode?: 'US' | 'VE' | 'MX' | 'OTRO' | string;
+  stateRegion?: string | null;
+  city?: string | null;
+  zipCode?: string | null;
+  usaTaxStatus?: EstadoTaxUSA | string;
+  subtotalUsd?: number;
+  salesTaxUsd?: number;
+  tipUsd?: number;
 }
 
 export interface GenerateExcelReportOptions {
@@ -82,6 +93,9 @@ const COLORS = {
   borderGray: 'FFE2E8F0',      // Slate 200
   textMuted: 'FF64748B',       // Slate 500
   textDark: 'FF0F172A',        // Slate 900
+  amberLeakageBg: 'FFFEF3C7',   // Amber 100 soft fill
+  amberLeakageText: 'FF92400E', // Amber 800 dark text
+  amberLeakageBorder: 'FFF59E0B', // Amber 500 border
 };
 
 const BORDER_THIN: Partial<ExcelJS.Borders> = {
@@ -130,6 +144,9 @@ export async function generateAccountingExcelReport(
 
   // 2. Build "Detalle de Gastos" Sheet (Analytical multi-currency table)
   buildExpenseDetailSheet(workbook, expenses);
+
+  // 3. Build "Recuperación Tax USA" Sheet (Dedicated Tax-Exempt Audit & State Recovery)
+  buildUsaTaxRecoverySheet(workbook, { companyName, companyRif, generatedByName, filters, expenses });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer as ArrayBuffer);
@@ -565,6 +582,11 @@ function buildExpenseDetailSheet(
     { header: 'N° Factura / Control', key: 'invoiceNumber', width: 18, align: 'center' },
     { header: 'Concepto', key: 'concept', width: 30, align: 'left' },
     { header: 'Jurisdicción Fiscal', key: 'jurisdictionName', width: 22, align: 'left' },
+    { header: 'Estado (USA)', key: 'stateRegion', width: 14, align: 'center' },
+    { header: 'Subtotal USD', key: 'subtotalUsd', width: 16, align: 'right', format: '$#,##0.00' },
+    { header: 'Sales Tax USD', key: 'salesTaxUsd', width: 16, align: 'right', format: '$#,##0.00' },
+    { header: 'Propina USD', key: 'tipUsd', width: 14, align: 'right', format: '$#,##0.00' },
+    { header: 'Estado Tax USA', key: 'usaTaxStatusLabel', width: 24, align: 'center' },
     { header: 'Moneda Orig.', key: 'originalCurrency', width: 13, align: 'center' },
     { header: 'Monto Nominal', key: 'nominalAmount', width: 16, align: 'right', format: '#,##0.00' },
     { header: 'Tasa vs USD', key: 'exchangeRate', width: 14, align: 'right', format: '#,##0.0000' },
@@ -609,7 +631,10 @@ function buildExpenseDetailSheet(
   expenses.forEach((item, index) => {
     const rowNumber = index + 2;
     const isZebra = index % 2 === 1;
-    const rowFill: ExcelJS.Fill = isZebra
+    const isLeakage = item.usaTaxStatus === 'FUGA_FISCAL_RECUPERABLE';
+    const rowFill: ExcelJS.Fill = isLeakage
+      ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.amberLeakageBg } }
+      : isZebra
       ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.zebraRow } }
       : { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.white } };
 
@@ -628,6 +653,11 @@ function buildExpenseDetailSheet(
       invoiceNumber: item.invoiceNumber || '—',
       concept: item.concept || '—',
       jurisdictionName: item.jurisdictionName,
+      stateRegion: item.stateRegion || '—',
+      subtotalUsd: item.subtotalUsd ?? item.totalUsd,
+      salesTaxUsd: item.salesTaxUsd ?? 0,
+      tipUsd: item.tipUsd ?? 0,
+      usaTaxStatusLabel: formatUsaTaxStatus(item.usaTaxStatus),
       originalCurrency: item.originalCurrency,
       nominalAmount: item.nominalAmount,
       exchangeRate: item.exchangeRate,
@@ -689,11 +719,562 @@ function buildExpenseDetailSheet(
     const startRow = 2;
     const endRow = totalRowNum - 1;
 
-    // Total USD (col 20 / T)
-    const usdCell = footerRow.getCell(20);
-    usdCell.value = { formula: `SUM(T${startRow}:T${endRow})` };
+    // Dynamically calculate column letter for Total USD
+    const totalUsdColIdx = columns.findIndex((c) => c.key === 'totalUsd') + 1;
+    const toColLetter = (n: number) => {
+      let s = '';
+      while (n > 0) {
+        const m = (n - 1) % 26;
+        s = String.fromCharCode(65 + m) + s;
+        n = Math.floor((n - m) / 26);
+      }
+      return s;
+    };
+    const usdColLetter = toColLetter(totalUsdColIdx);
+    const usdCell = footerRow.getCell(totalUsdColIdx);
+    usdCell.value = { formula: `SUM(${usdColLetter}${startRow}:${usdColLetter}${endRow})` };
     usdCell.numFmt = '$#,##0.00';
     usdCell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.accentGreen } };
     usdCell.alignment = { horizontal: 'right', vertical: 'middle' };
   }
+}
+
+/**
+ * @name formatUsaTaxStatus
+ * @description Translates the internal US tax audit state into an accounting-friendly Spanish label.
+ */
+function formatUsaTaxStatus(status?: string): string {
+  switch (status) {
+    case 'FUGA_FISCAL_RECUPERABLE':
+      return 'Fuga Recuperable (Tax Cobrado)';
+    case 'EXENTO_APLICADO':
+      return 'Exento Aplicado (Sin Tax)';
+    case 'ESTADO_SIN_SALES_TAX':
+      return 'Estado Sin Sales Tax';
+    case 'NO_APLICA':
+    default:
+      return 'No Aplica';
+  }
+}
+
+/**
+ * @name buildUsaTaxRecoverySheet
+ * @description [Business Logic]: Constructs the dedicated "Recuperación Tax USA" sheet for
+ * sales tax audit, employee tax-exempt compliance tracking, and state refund filing preparation.
+ */
+function buildUsaTaxRecoverySheet(
+  workbook: ExcelJS.Workbook,
+  options: GenerateExcelReportOptions
+): void {
+  const { companyName, filters, expenses } = options;
+
+  const sheet = workbook.addWorksheet('Recuperación Tax USA', {
+    views: [{ showGridLines: true }],
+  });
+
+  const usExpenses = expenses.filter(
+    (e) =>
+      e.countryCode === 'US' ||
+      e.originalCurrency === 'USD' ||
+      (e.salesTaxUsd && e.salesTaxUsd > 0)
+  );
+
+  // Title Block
+  sheet.mergeCells('B2:M2');
+  const titleCell = sheet.getCell('B2');
+  titleCell.value = 'RENDY • AUDITORÍA DE SALES TAX Y EXENCIÓN FISCAL EN EE. UU.';
+  titleCell.font = { name: 'Calibri', size: 15, bold: true, color: { argb: COLORS.headerBg } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  sheet.getRow(2).height = 26;
+
+  sheet.mergeCells('B3:M3');
+  const subCell = sheet.getCell('B3');
+  subCell.value = 'Control de Fugas Tributarias, Desglose por Estado y Soporte para Reclamo de Devolución Estatal de Impuestos';
+  subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: COLORS.textMuted } };
+  sheet.getRow(3).height = 18;
+
+  // Metadata summary
+  sheet.getCell('B5').value = 'Empresa:';
+  sheet.getCell('B5').font = { name: 'Calibri', size: 9, bold: true };
+  sheet.getCell('C5').value = companyName;
+
+  sheet.getCell('B6').value = 'Período:';
+  sheet.getCell('B6').font = { name: 'Calibri', size: 9, bold: true };
+  sheet.getCell('C6').value = filters.dateFrom && filters.dateTo ? `${filters.dateFrom} al ${filters.dateTo}` : 'Histórico Completo';
+
+  sheet.getCell('E5').value = 'Total Compras USA:';
+  sheet.getCell('E5').font = { name: 'Calibri', size: 9, bold: true };
+  sheet.getCell('F5').value = usExpenses.length;
+  sheet.getCell('F5').numFmt = '#,##0';
+
+  const totalLeakageUsd = usExpenses
+    .filter((e) => e.usaTaxStatus === 'FUGA_FISCAL_RECUPERABLE')
+    .reduce((sum, e) => sum + (e.salesTaxUsd || 0), 0);
+
+  sheet.getCell('E6').value = 'Total Sales Tax Recuperable:';
+  sheet.getCell('E6').font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.amberLeakageText } };
+  sheet.getCell('F6').value = totalLeakageUsd;
+  sheet.getCell('F6').numFmt = '$#,##0.00';
+  sheet.getCell('F6').font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.amberLeakageText } };
+
+  let currentRow = 8;
+
+  // ─────────────────────────────────────────────────────────────
+  // TABLA 1: Resumen por Estado (Para reclamo estatal de devolución)
+  // ─────────────────────────────────────────────────────────────
+  sheet.mergeCells(`B${currentRow}:F${currentRow}`);
+  const t1Title = sheet.getCell(`B${currentRow}`);
+  t1Title.value = 'TABLA 1 — RESUMEN POR ESTADO (RECLAMO ESTATAL DE DEVOLUCIÓN)';
+  t1Title.font = { name: 'Calibri', size: 11, bold: true, color: { argb: COLORS.headerBg } };
+  sheet.getRow(currentRow).height = 22;
+  currentRow++;
+
+  const t1Headers = [
+    { label: 'Estado (USA)', width: 24 },
+    { label: 'Total Recibos', width: 16 },
+    { label: 'Recibos con Tax', width: 16 },
+    { label: 'Subtotal Gravado (USD)', width: 24 },
+    { label: 'Total Sales Tax Recuperable (USD)', width: 30 },
+  ];
+
+  sheet.getRow(currentRow).height = 22;
+  ['B', 'C', 'D', 'E', 'F'].forEach((colLetter, idx) => {
+    const c = sheet.getCell(`${colLetter}${currentRow}`);
+    c.value = t1Headers[idx].label;
+    c.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.white } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.summaryHeaderBg } };
+    c.border = BORDER_HEADER;
+    c.alignment = {
+      horizontal: idx === 0 ? 'left' : idx <= 2 ? 'center' : 'right',
+      vertical: 'middle',
+    };
+  });
+  const t1StartDataRow = currentRow + 1;
+  currentRow++;
+
+  // Group by State
+  const stateMap = new Map<string, { totalCount: number; taxCount: number; taxedSubtotal: number; recoverableTax: number }>();
+  usExpenses.forEach((e) => {
+    const st = e.stateRegion || 'Sin Estado';
+    const curr = stateMap.get(st) || { totalCount: 0, taxCount: 0, taxedSubtotal: 0, recoverableTax: 0 };
+    curr.totalCount += 1;
+    if ((e.salesTaxUsd || 0) > 0) {
+      curr.taxCount += 1;
+      curr.taxedSubtotal += e.subtotalUsd || 0;
+      if (e.usaTaxStatus === 'FUGA_FISCAL_RECUPERABLE' || !e.usaTaxStatus || e.usaTaxStatus === 'NO_APLICA') {
+        curr.recoverableTax += e.salesTaxUsd || 0;
+      }
+    }
+    stateMap.set(st, curr);
+  });
+
+  const sortedStates = Array.from(stateMap.entries()).sort((a, b) => b[1].recoverableTax - a[1].recoverableTax);
+
+  if (sortedStates.length === 0) {
+    sheet.getRow(currentRow).height = 20;
+    sheet.getCell(`B${currentRow}`).value = 'No se registran transacciones en EE. UU.';
+    sheet.getCell(`B${currentRow}`).font = { name: 'Calibri', size: 9, italic: true };
+    sheet.getCell(`B${currentRow}`).border = BORDER_THIN;
+    ['C', 'D', 'E', 'F'].forEach((col) => {
+      sheet.getCell(`${col}${currentRow}`).value = 0;
+      sheet.getCell(`${col}${currentRow}`).border = BORDER_THIN;
+    });
+    currentRow++;
+  } else {
+    sortedStates.forEach(([stateCode, data], idx) => {
+      sheet.getRow(currentRow).height = 19;
+      const isZebra = idx % 2 === 1;
+      const fill: ExcelJS.Fill = isZebra
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.zebraRow } }
+        : { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.white } };
+
+      const stateDisplay = US_STATE_NAMES_MAP[stateCode]
+        ? `${stateCode} - ${US_STATE_NAMES_MAP[stateCode]}`
+        : stateCode;
+
+      const b = sheet.getCell(`B${currentRow}`);
+      b.value = stateDisplay;
+      b.font = { name: 'Calibri', size: 9, bold: true };
+      b.fill = fill;
+      b.border = BORDER_THIN;
+
+      const c = sheet.getCell(`C${currentRow}`);
+      c.value = data.totalCount;
+      c.numFmt = '#,##0';
+      c.alignment = { horizontal: 'center' };
+      c.fill = fill;
+      c.border = BORDER_THIN;
+
+      const d = sheet.getCell(`D${currentRow}`);
+      d.value = data.taxCount;
+      d.numFmt = '#,##0';
+      d.alignment = { horizontal: 'center' };
+      d.fill = fill;
+      d.border = BORDER_THIN;
+
+      const e = sheet.getCell(`E${currentRow}`);
+      e.value = data.taxedSubtotal;
+      e.numFmt = '$#,##0.00';
+      e.alignment = { horizontal: 'right' };
+      e.fill = fill;
+      e.border = BORDER_THIN;
+
+      const f = sheet.getCell(`F${currentRow}`);
+      f.value = data.recoverableTax;
+      f.numFmt = '$#,##0.00';
+      f.font = {
+        name: 'Calibri',
+        size: 9,
+        bold: true,
+        color: data.recoverableTax > 0 ? { argb: COLORS.amberLeakageText } : { argb: COLORS.textDark },
+      };
+      f.alignment = { horizontal: 'right' };
+      f.fill = fill;
+      f.border = BORDER_THIN;
+
+      currentRow++;
+    });
+  }
+
+  // Totals Row for Table 1
+  const t1EndDataRow = currentRow - 1;
+  sheet.getRow(currentRow).height = 22;
+  const t1TotB = sheet.getCell(`B${currentRow}`);
+  t1TotB.value = 'TOTAL ESTADOS';
+  t1TotB.font = { name: 'Calibri', size: 9, bold: true };
+  t1TotB.border = BORDER_TOTAL;
+
+  const t1TotC = sheet.getCell(`C${currentRow}`);
+  t1TotC.value = { formula: `SUM(C${t1StartDataRow}:C${t1EndDataRow})` };
+  t1TotC.numFmt = '#,##0';
+  t1TotC.font = { name: 'Calibri', size: 9, bold: true };
+  t1TotC.alignment = { horizontal: 'center' };
+  t1TotC.border = BORDER_TOTAL;
+
+  const t1TotD = sheet.getCell(`D${currentRow}`);
+  t1TotD.value = { formula: `SUM(D${t1StartDataRow}:D${t1EndDataRow})` };
+  t1TotD.numFmt = '#,##0';
+  t1TotD.font = { name: 'Calibri', size: 9, bold: true };
+  t1TotD.alignment = { horizontal: 'center' };
+  t1TotD.border = BORDER_TOTAL;
+
+  const t1TotE = sheet.getCell(`E${currentRow}`);
+  t1TotE.value = { formula: `SUM(E${t1StartDataRow}:E${t1EndDataRow})` };
+  t1TotE.numFmt = '$#,##0.00';
+  t1TotE.font = { name: 'Calibri', size: 9, bold: true };
+  t1TotE.alignment = { horizontal: 'right' };
+  t1TotE.border = BORDER_TOTAL;
+
+  const t1TotF = sheet.getCell(`F${currentRow}`);
+  t1TotF.value = { formula: `SUM(F${t1StartDataRow}:F${t1EndDataRow})` };
+  t1TotF.numFmt = '$#,##0.00';
+  t1TotF.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.accentGreen } };
+  t1TotF.alignment = { horizontal: 'right' };
+  t1TotF.border = BORDER_TOTAL;
+
+  currentRow += 3;
+
+  // ─────────────────────────────────────────────────────────────
+  // TABLA 2: Cumplimiento por Empleado (Auditoría interna)
+  // ─────────────────────────────────────────────────────────────
+  sheet.mergeCells(`B${currentRow}:F${currentRow}`);
+  const t2Title = sheet.getCell(`B${currentRow}`);
+  t2Title.value = 'TABLA 2 — CUMPLIMIENTO POR EMPLEADO (AUDITORÍA INTERNA TAX-EXEMPT)';
+  t2Title.font = { name: 'Calibri', size: 11, bold: true, color: { argb: COLORS.headerBg } };
+  sheet.getRow(currentRow).height = 22;
+  currentRow++;
+
+  const t2Headers = [
+    { label: 'Empleado', width: 26 },
+    { label: 'Compras en USA', width: 16 },
+    { label: 'Exenciones Aplicadas (OK)', width: 22 },
+    { label: 'Omisiones (Con Tax)', width: 20 },
+    { label: 'Total Tax Pagado por Omisión (USD)', width: 30 },
+  ];
+
+  sheet.getRow(currentRow).height = 22;
+  ['B', 'C', 'D', 'E', 'F'].forEach((colLetter, idx) => {
+    const c = sheet.getCell(`${colLetter}${currentRow}`);
+    c.value = t2Headers[idx].label;
+    c.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.white } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.summaryHeaderBg } };
+    c.border = BORDER_HEADER;
+    c.alignment = {
+      horizontal: idx === 0 ? 'left' : idx <= 3 ? 'center' : 'right',
+      vertical: 'middle',
+    };
+  });
+  const t2StartDataRow = currentRow + 1;
+  currentRow++;
+
+  // Group by Employee
+  const empMap = new Map<string, { totalPurchases: number; exemptOk: number; omissions: number; omissionTax: number }>();
+  usExpenses.forEach((e) => {
+    const emp = e.employeeName || 'Sin Asignar';
+    const curr = empMap.get(emp) || { totalPurchases: 0, exemptOk: 0, omissions: 0, omissionTax: 0 };
+    curr.totalPurchases += 1;
+    if (e.usaTaxStatus === 'FUGA_FISCAL_RECUPERABLE' || (e.salesTaxUsd || 0) > 0) {
+      curr.omissions += 1;
+      curr.omissionTax += e.salesTaxUsd || 0;
+    } else {
+      curr.exemptOk += 1;
+    }
+    empMap.set(emp, curr);
+  });
+
+  const sortedEmps = Array.from(empMap.entries()).sort((a, b) => b[1].omissionTax - a[1].omissionTax);
+
+  if (sortedEmps.length === 0) {
+    sheet.getRow(currentRow).height = 20;
+    sheet.getCell(`B${currentRow}`).value = 'No se registran compras en EE. UU. por empleados.';
+    sheet.getCell(`B${currentRow}`).font = { name: 'Calibri', size: 9, italic: true };
+    sheet.getCell(`B${currentRow}`).border = BORDER_THIN;
+    ['C', 'D', 'E', 'F'].forEach((col) => {
+      sheet.getCell(`${col}${currentRow}`).value = 0;
+      sheet.getCell(`${col}${currentRow}`).border = BORDER_THIN;
+    });
+    currentRow++;
+  } else {
+    sortedEmps.forEach(([empName, data], idx) => {
+      sheet.getRow(currentRow).height = 19;
+      const isZebra = idx % 2 === 1;
+      const fill: ExcelJS.Fill = isZebra
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.zebraRow } }
+        : { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.white } };
+
+      const b = sheet.getCell(`B${currentRow}`);
+      b.value = empName;
+      b.font = { name: 'Calibri', size: 9, bold: true };
+      b.fill = fill;
+      b.border = BORDER_THIN;
+
+      const c = sheet.getCell(`C${currentRow}`);
+      c.value = data.totalPurchases;
+      c.numFmt = '#,##0';
+      c.alignment = { horizontal: 'center' };
+      c.fill = fill;
+      c.border = BORDER_THIN;
+
+      const d = sheet.getCell(`D${currentRow}`);
+      d.value = data.exemptOk;
+      d.numFmt = '#,##0';
+      d.alignment = { horizontal: 'center' };
+      d.fill = fill;
+      d.border = BORDER_THIN;
+
+      const e = sheet.getCell(`E${currentRow}`);
+      e.value = data.omissions;
+      e.numFmt = '#,##0';
+      e.alignment = { horizontal: 'center' };
+      e.fill = fill;
+      e.border = BORDER_THIN;
+
+      const f = sheet.getCell(`F${currentRow}`);
+      f.value = data.omissionTax;
+      f.numFmt = '$#,##0.00';
+      f.font = {
+        name: 'Calibri',
+        size: 9,
+        bold: true,
+        color: data.omissionTax > 0 ? { argb: COLORS.amberLeakageText } : { argb: COLORS.textDark },
+      };
+      f.alignment = { horizontal: 'right' };
+      f.fill = fill;
+      f.border = BORDER_THIN;
+
+      currentRow++;
+    });
+  }
+
+  // Totals Row for Table 2
+  const t2EndDataRow = currentRow - 1;
+  sheet.getRow(currentRow).height = 22;
+  const t2TotB = sheet.getCell(`B${currentRow}`);
+  t2TotB.value = 'TOTAL EMPLEADOS';
+  t2TotB.font = { name: 'Calibri', size: 9, bold: true };
+  t2TotB.border = BORDER_TOTAL;
+
+  const t2TotC = sheet.getCell(`C${currentRow}`);
+  t2TotC.value = { formula: `SUM(C${t2StartDataRow}:C${t2EndDataRow})` };
+  t2TotC.numFmt = '#,##0';
+  t2TotC.font = { name: 'Calibri', size: 9, bold: true };
+  t2TotC.alignment = { horizontal: 'center' };
+  t2TotC.border = BORDER_TOTAL;
+
+  const t2TotD = sheet.getCell(`D${currentRow}`);
+  t2TotD.value = { formula: `SUM(D${t2StartDataRow}:D${t2EndDataRow})` };
+  t2TotD.numFmt = '#,##0';
+  t2TotD.font = { name: 'Calibri', size: 9, bold: true };
+  t2TotD.alignment = { horizontal: 'center' };
+  t2TotD.border = BORDER_TOTAL;
+
+  const t2TotE = sheet.getCell(`E${currentRow}`);
+  t2TotE.value = { formula: `SUM(E${t2StartDataRow}:E${t2EndDataRow})` };
+  t2TotE.numFmt = '$#,##0.00';
+  t2TotE.font = { name: 'Calibri', size: 9, bold: true };
+  t2TotE.alignment = { horizontal: 'center' };
+  t2TotE.border = BORDER_TOTAL;
+
+  const t2TotF = sheet.getCell(`F${currentRow}`);
+  t2TotF.value = { formula: `SUM(F${t2StartDataRow}:F${t2EndDataRow})` };
+  t2TotF.numFmt = '$#,##0.00';
+  t2TotF.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.accentGreen } };
+  t2TotF.alignment = { horizontal: 'right' };
+  t2TotF.border = BORDER_TOTAL;
+
+  currentRow += 3;
+
+  // ─────────────────────────────────────────────────────────────
+  // TABLA 3: Detalle Cronológico de Compras en EE. UU.
+  // ─────────────────────────────────────────────────────────────
+  sheet.mergeCells(`B${currentRow}:N${currentRow}`);
+  const t3Title = sheet.getCell(`B${currentRow}`);
+  t3Title.value = 'TABLA 3 — DETALLE CRONOLÓGICO DE COMPRAS EN ESTADOS UNIDOS';
+  t3Title.font = { name: 'Calibri', size: 11, bold: true, color: { argb: COLORS.headerBg } };
+  sheet.getRow(currentRow).height = 22;
+  currentRow++;
+
+  const t3Headers = [
+    { label: '#', col: 'B', width: 6, align: 'center' },
+    { label: 'Fecha', col: 'C', width: 13, align: 'center' },
+    { label: 'Empleado', col: 'D', width: 22, align: 'left' },
+    { label: 'Comercio', col: 'E', width: 26, align: 'left' },
+    { label: 'Ciudad', col: 'F', width: 16, align: 'left' },
+    { label: 'Estado (USA)', col: 'G', width: 14, align: 'center' },
+    { label: 'ZIP Code', col: 'H', width: 12, align: 'center' },
+    { label: 'Subtotal USD', col: 'I', width: 16, align: 'right', format: '$#,##0.00' },
+    { label: 'Sales Tax USD', col: 'J', width: 16, align: 'right', format: '$#,##0.00' },
+    { label: 'Propina USD', col: 'K', width: 14, align: 'right', format: '$#,##0.00' },
+    { label: 'Total USD', col: 'L', width: 16, align: 'right', format: '$#,##0.00' },
+    { label: 'Estado Auditoría', col: 'M', width: 24, align: 'center' },
+    { label: 'Comprobante', col: 'N', width: 18, align: 'center' },
+  ];
+
+  sheet.getRow(currentRow).height = 24;
+  t3Headers.forEach((h) => {
+    const c = sheet.getCell(`${h.col}${currentRow}`);
+    c.value = h.label;
+    c.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.white } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.headerBg } };
+    c.border = BORDER_HEADER;
+    c.alignment = { horizontal: h.align as ExcelJS.Alignment['horizontal'], vertical: 'middle' };
+  });
+
+  const t3StartDataRow = currentRow + 1;
+  currentRow++;
+
+  if (usExpenses.length === 0) {
+    sheet.getRow(currentRow).height = 20;
+    sheet.getCell(`B${currentRow}`).value = '—';
+    sheet.getCell(`C${currentRow}`).value = 'No se registran compras en EE. UU. en este reporte.';
+    sheet.mergeCells(`C${currentRow}:N${currentRow}`);
+    sheet.getCell(`C${currentRow}`).font = { name: 'Calibri', size: 9, italic: true };
+    currentRow++;
+  } else {
+    usExpenses.forEach((item, idx) => {
+      sheet.getRow(currentRow).height = 20;
+      const isZebra = idx % 2 === 1;
+      const isLeakage = item.usaTaxStatus === 'FUGA_FISCAL_RECUPERABLE';
+      const fill: ExcelJS.Fill = isLeakage
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.amberLeakageBg } }
+        : isZebra
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.zebraRow } }
+        : { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.white } };
+
+      const cellVals: [string, any, string?, boolean?][] = [
+        ['B', idx + 1, '#,##0'],
+        ['C', item.expenseDate],
+        ['D', item.employeeName],
+        ['E', item.merchantName],
+        ['F', item.city || '—'],
+        ['G', item.stateRegion || '—'],
+        ['H', item.zipCode || '—'],
+        ['I', item.subtotalUsd ?? item.totalUsd, '$#,##0.00'],
+        ['J', item.salesTaxUsd ?? 0, '$#,##0.00'],
+        ['K', item.tipUsd ?? 0, '$#,##0.00'],
+        ['L', item.totalUsd, '$#,##0.00'],
+        ['M', formatUsaTaxStatus(item.usaTaxStatus)],
+        ['N', item.receiptUrl, undefined, true],
+      ];
+
+      cellVals.forEach(([colLetter, val, fmt, isLink]) => {
+        const c = sheet.getCell(`${colLetter}${currentRow}`);
+        if (isLink && val && typeof val === 'string' && val.startsWith('http')) {
+          c.value = { text: 'Ver Comprobante', hyperlink: val };
+          c.font = { name: 'Calibri', size: 9, color: { argb: 'FF2563EB' }, underline: true };
+        } else {
+          c.value = val;
+          c.font = {
+            name: 'Calibri',
+            size: 9,
+            bold: isLeakage && colLetter === 'J',
+            color: isLeakage && colLetter === 'J' ? { argb: COLORS.amberLeakageText } : { argb: COLORS.textDark },
+          };
+        }
+        if (fmt) c.numFmt = fmt;
+        const colDef = t3Headers.find((h) => h.col === colLetter);
+        c.alignment = { horizontal: colDef?.align as ExcelJS.Alignment['horizontal'], vertical: 'middle' };
+        c.fill = fill;
+        c.border = BORDER_THIN;
+      });
+
+      currentRow++;
+    });
+
+    // Totals Row for Table 3
+    const t3EndDataRow = currentRow - 1;
+    sheet.getRow(currentRow).height = 24;
+
+    t3Headers.forEach((h) => {
+      const c = sheet.getCell(`${h.col}${currentRow}`);
+      c.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.textDark } };
+      c.border = BORDER_TOTAL;
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.accentSoftGreen } };
+    });
+
+    sheet.getCell(`B${currentRow}`).value = 'TOTALES';
+    sheet.getCell(`B${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // Subtotal USD
+    const totSub = sheet.getCell(`I${currentRow}`);
+    totSub.value = { formula: `SUM(I${t3StartDataRow}:I${t3EndDataRow})` };
+    totSub.numFmt = '$#,##0.00';
+    totSub.alignment = { horizontal: 'right', vertical: 'middle' };
+
+    // Sales Tax USD
+    const totTax = sheet.getCell(`J${currentRow}`);
+    totTax.value = { formula: `SUM(J${t3StartDataRow}:J${t3EndDataRow})` };
+    totTax.numFmt = '$#,##0.00';
+    totTax.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.amberLeakageText } };
+    totTax.alignment = { horizontal: 'right', vertical: 'middle' };
+
+    // Tip USD
+    const totTip = sheet.getCell(`K${currentRow}`);
+    totTip.value = { formula: `SUM(K${t3StartDataRow}:K${t3EndDataRow})` };
+    totTip.numFmt = '$#,##0.00';
+    totTip.alignment = { horizontal: 'right', vertical: 'middle' };
+
+    // Total USD
+    const totUsd = sheet.getCell(`L${currentRow}`);
+    totUsd.value = { formula: `SUM(L${t3StartDataRow}:L${t3EndDataRow})` };
+    totUsd.numFmt = '$#,##0.00';
+    totUsd.font = { name: 'Calibri', size: 9, bold: true, color: { argb: COLORS.accentGreen } };
+    totUsd.alignment = { horizontal: 'right', vertical: 'middle' };
+  }
+
+  // Adjust column widths for Sheet 3
+  sheet.getColumn('A').width = 4;
+  sheet.getColumn('B').width = 24;
+  sheet.getColumn('C').width = 16;
+  sheet.getColumn('D').width = 22;
+  sheet.getColumn('E').width = 26;
+  sheet.getColumn('F').width = 18;
+  sheet.getColumn('G').width = 14;
+  sheet.getColumn('H').width = 14;
+  sheet.getColumn('I').width = 18;
+  sheet.getColumn('J').width = 18;
+  sheet.getColumn('K').width = 16;
+  sheet.getColumn('L').width = 18;
+  sheet.getColumn('M').width = 24;
+  sheet.getColumn('N').width = 18;
 }

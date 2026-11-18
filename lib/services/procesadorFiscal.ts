@@ -14,6 +14,7 @@
 
 import { obtenerTasaOficialDelDia } from '@/lib/services/tasaCambio';
 import { getExchangeRates, normalizeMoneda } from '@/lib/currency';
+import { normalizeUSStateCode } from '@/lib/services/usaTaxEngine';
 
 /* ─────────────────────────────────────────────────────────
  * TYPES
@@ -38,6 +39,15 @@ export interface GeminiFiscalExtraction {
   total: number;
   /** AI-classified expense category for policy validation */
   categoria_gasto?: string;
+
+  // ── USA & Geographic Fields ──
+  pais_detectado?: 'US' | 'VE' | 'MX' | 'OTRO' | string;
+  estado_region?: string | null;
+  ciudad?: string | null;
+  codigo_postal?: string | null;
+  subtotal_usd?: number | null;
+  sales_tax_usd?: number | null;
+  propina_usd?: number | null;
 }
 
 /**
@@ -56,6 +66,15 @@ export interface ResultadoContable {
   monto_ves: number;
   monto_usd: number;
   requiere_revision_fiscal: boolean;
+
+  // ── USA Tax Breakdown & Geography ──
+  pais_gasto: 'US' | 'VE' | 'MX' | 'OTRO';
+  estado_region: string | null;
+  ciudad: string | null;
+  codigo_postal: string | null;
+  subtotal_usd: number;
+  sales_tax_usd: number;
+  propina_usd: number;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -158,6 +177,37 @@ export async function normalizarGastoFiscal(
   const discrepancia = sumaDesglose > 0 ? Math.abs(total - sumaDesglose) : 0;
   const requiereRevision = discrepancia > toleranciaCalculada;
 
+  // ── Step 3: USA Tax Breakdown & Geography Resolution ──
+  let paisGasto: 'US' | 'VE' | 'MX' | 'OTRO' = 'VE';
+  if (datosGemini.pais_detectado === 'US' || monedaNorm === 'USD') {
+    paisGasto = 'US';
+  } else if (datosGemini.pais_detectado === 'MX' || monedaNorm === 'MXN') {
+    paisGasto = 'MX';
+  } else if (datosGemini.pais_detectado === 'VE' || monedaNorm === 'VES') {
+    paisGasto = 'VE';
+  } else {
+    paisGasto = (datosGemini.pais_detectado as 'US' | 'VE' | 'MX' | 'OTRO') || 'OTRO';
+  }
+
+  const estadoRegion = normalizeUSStateCode(datosGemini.estado_region);
+  const ciudad = datosGemini.ciudad ? datosGemini.ciudad.trim() : null;
+  const codigoPostal = datosGemini.codigo_postal ? datosGemini.codigo_postal.trim() : null;
+
+  let salesTaxUsd = 0;
+  let propinaUsd = 0;
+  let subtotalUsd = 0;
+
+  if (paisGasto === 'US' || monedaNorm === 'USD') {
+    salesTaxUsd = Number(datosGemini.sales_tax_usd || (datosGemini.iva > 0 ? datosGemini.iva : 0));
+    propinaUsd = Number(datosGemini.propina_usd || 0);
+    subtotalUsd = Number(
+      datosGemini.subtotal_usd ||
+      (datosGemini.base_imponible > 0
+        ? datosGemini.base_imponible
+        : Math.max(0, total - salesTaxUsd - propinaUsd))
+    );
+  }
+
   return {
     moneda_original: monedaNorm,
     tasa_cambio: tasaFinal,
@@ -169,6 +219,13 @@ export async function normalizarGastoFiscal(
     monto_ves: montoVes,
     monto_usd: montoUsd,
     requiere_revision_fiscal: requiereRevision,
+    pais_gasto: paisGasto,
+    estado_region: estadoRegion,
+    ciudad,
+    codigo_postal: codigoPostal,
+    subtotal_usd: subtotalUsd,
+    sales_tax_usd: salesTaxUsd,
+    propina_usd: propinaUsd,
   };
 }
 

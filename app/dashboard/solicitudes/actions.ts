@@ -1,7 +1,7 @@
 'use server';
 
 import { supabaseServer } from '@/lib/supabase-server';
-import { enviarMensajeWhatsApp } from '@/app/lib/whatsapp';
+import { enviarMensajeWhatsApp, enviarArchivoWhatsApp } from '@/app/lib/whatsapp';
 import { revalidatePath } from 'next/cache';
 
 export async function aprobarSolicitud(id: string) {
@@ -52,6 +52,24 @@ export async function aprobarSolicitud(id: string) {
 _Los fondos han sido autorizados por la administración y estarán disponibles a la brevedad._`;
 
     await enviarMensajeWhatsApp(telefono, mensajeWA);
+
+    // Proactively send US Tax-Exempt Certificate when approving USD viáticos
+    if (monedaStr.toUpperCase() === 'USD' && sol.empresa_id) {
+      const { data: empData } = await supabaseServer
+        .from('empresas')
+        .select('us_tax_exempt, url_certificado_tax_exempt')
+        .eq('id', sol.empresa_id)
+        .maybeSingle();
+
+      if (empData?.us_tax_exempt && empData?.url_certificado_tax_exempt) {
+        await enviarArchivoWhatsApp(
+          telefono,
+          empData.url_certificado_tax_exempt,
+          '📄 *Certificado Tax-Exempt Oficial*\nTu empresa está exenta de Sales Tax en EE. UU. Muéstralo en caja antes de pagar para evitar el cobro de impuestos.',
+          'Certificado_Tax_Exempt.pdf'
+        );
+      }
+    }
   }
 
   revalidatePath('/dashboard/solicitudes');
