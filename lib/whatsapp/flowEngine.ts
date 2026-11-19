@@ -1886,6 +1886,41 @@ async function persistirGastoDefinitivo(
   const estadoFinal = esSobregiro ? 'REQUIERE_APROBACION_ESPECIAL' : 'PENDIENTE';
   const targetViaticoId = datos.viatico_id || null;
 
+  /**
+   * @name resolveProjectFromViatico
+   * @description [Business Logic]: Retrieves the proyecto_id associated with
+   * the viático (travel allowance request) so the expense is correctly linked
+   * to its parent project for dashboard KPI tracking and financial reporting.
+   * Without this, expenses appear as "Sin proyecto" in the project breakdown.
+   */
+  let targetProyectoId: string | null = null;
+  if (targetViaticoId) {
+    const { data: viaticoRecord } = await supabase
+      .from('solicitudes_viaticos')
+      .select('proyecto_id')
+      .eq('id', targetViaticoId)
+      .maybeSingle();
+
+    targetProyectoId = viaticoRecord?.proyecto_id || null;
+
+    // Fallback: if solicitudes_viaticos has no proyecto_id, try the viaticos table
+    if (!targetProyectoId) {
+      const { data: viaticoFallback } = await supabase
+        .from('viaticos')
+        .select('proyecto_id')
+        .eq('id', targetViaticoId)
+        .maybeSingle();
+
+      targetProyectoId = viaticoFallback?.proyecto_id || null;
+    }
+
+    if (targetProyectoId) {
+      console.log(`✅ Resolved proyecto_id=${targetProyectoId} from viático ${targetViaticoId}`);
+    } else {
+      console.warn(`⚠️ No proyecto_id found for viático ${targetViaticoId}`);
+    }
+  }
+
   const detalleExceso = esSobregiro
     ? {
         tipo: 'SOBREGIRO_VIATICO',
@@ -1915,6 +1950,7 @@ async function persistirGastoDefinitivo(
     empresa_id: empresaId,
     solicitud_id: targetViaticoId,
     viatico_id: targetViaticoId,
+    proyecto_id: targetProyectoId,
     es_reembolso: Boolean(datos.es_reembolso),
     comercio: ocr.nombre_comercio,
     rif_comercio: ocr.rif_comercio || null,

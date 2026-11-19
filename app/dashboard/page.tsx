@@ -1,10 +1,11 @@
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdminSession } from '@/lib/auth/session-context';
-import { TrendingUp, TrendingDown, Wallet, ClipboardCheck, RotateCcw, DollarSign, ArrowUpRight, Coins } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, ClipboardCheck, RotateCcw, DollarSign, ArrowUpRight, Coins, CheckCircle2, Clock, SendHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { getExchangeRates, convertAmount, formatCurrency, normalizeMoneda } from '@/lib/currency';
 import { DashboardInteractiveShell } from '@/components/dashboard/DashboardInteractiveShell';
 import type { FtuxState } from '@/app/actions/ftux.actions';
+import { obtenerKpisReembolsos } from '@/lib/services/reembolsos.service';
 
 const fmt = formatCurrency;
 
@@ -34,6 +35,7 @@ async function getDashboardData(empresaId: string) {
     { data: usuarios },
     { data: empresa },
     rates,
+    reembolsosKpis,
   ] = await Promise.all([
     supabaseServer
       .from('gastos')
@@ -59,6 +61,7 @@ async function getDashboardData(empresaId: string) {
       .eq('id', empresaId)
       .single(),
     getExchangeRates(),
+    obtenerKpisReembolsos(empresaId),
   ]);
 
   const moneda = normalizeMoneda(empresa?.moneda ?? 'USD');
@@ -70,7 +73,6 @@ async function getDashboardData(empresaId: string) {
 
   let totalGastado = 0;
   let mJustificados = 0;
-  let reembolsosPendientes = 0;
 
   const byCurrency: Record<string, number> = {};
   const byProject: Record<string, { nombre: string; total: number }> = {};
@@ -92,11 +94,15 @@ async function getDashboardData(empresaId: string) {
 
     totalGastado += valInBase;
     if (g.solicitud_id) mJustificados += valInBase;
-    if (g.es_reembolso && g.estado === 'PENDIENTE') reembolsosPendientes += valInBase;
 
-    const pid = g.proyecto_id ?? '__sin_proyecto__';
-    if (!byProject[pid]) byProject[pid] = { nombre: proyMap[pid] ?? 'Sin proyecto', total: 0 };
-    byProject[pid].total += valInBase;
+    // Strict project isolation: only corporate expenses with a registered project
+    // are included in the Project breakdown. Personal reimbursements and unassigned
+    // expenses are strictly excluded so the chart solely reflects project budget execution.
+    if (!g.es_reembolso && g.proyecto_id) {
+      const pid = g.proyecto_id;
+      if (!byProject[pid]) byProject[pid] = { nombre: proyMap[pid] ?? 'Proyecto desconocido', total: 0 };
+      byProject[pid].total += valInBase;
+    }
   }
 
   let viaticosAprobados = 0;
@@ -152,11 +158,22 @@ async function getDashboardData(empresaId: string) {
     checklist_dismissed: false,
   };
 
+  const reembolsosPendientesBase =
+    moneda === 'USD'
+      ? reembolsosKpis.pendientesMontoUsd
+      : convert(reembolsosKpis.pendientesMontoUsd, 'USD', moneda);
+
   return {
     moneda,
     empresa: empresa?.nombre ?? 'Mi Empresa',
     ftuxState: (empresa?.ftux_state as FtuxState | null) ?? defaultFtux,
-    kpis: { totalGastado, viaticosAprobados, mJustificados, reembolsosPendientes },
+    kpis: {
+      totalGastado,
+      viaticosAprobados,
+      mJustificados,
+      reembolsosPendientes: reembolsosPendientesBase,
+    },
+    reembolsosKpis,
     recentGastos: allGastos.filter((g) => !g.es_reembolso).slice(0, 6),
     recentReembolsos,
     projectBreakdown: projectBreakdown.map((p) => ({
@@ -176,6 +193,7 @@ export default async function DashboardPage() {
     empresa,
     ftuxState,
     kpis,
+    reembolsosKpis,
     recentGastos,
     recentReembolsos,
     projectBreakdown,
@@ -453,7 +471,7 @@ export default async function DashboardPage() {
             </div>
             <div className="card-body">
               {projectBreakdown.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Sin datos de proyectos.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Sin datos de proyectos asignados.</p>
               ) : projectBreakdown.map((p) => {
                 const barClass = p.pct >= 80 ? 'warning' : p.pct >= 50 ? '' : 'accent';
                 return (
@@ -471,6 +489,177 @@ export default async function DashboardPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Tarjeta de KPI específica: Resumen de Reembolsos */}
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <RotateCcw size={16} /> Resumen de Reembolsos
+              </h2>
+              <Link href="/dashboard/reembolsos" className="btn btn-ghost btn-sm" id="dashboard-ver-reembolsos-kpi-btn">
+                Ver todos <ArrowUpRight size={13} />
+              </Link>
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {reembolsosKpis.totalCount === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Sin solicitudes de reembolso registradas.</p>
+              ) : (
+                <>
+                  {/* Total acumulado */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                      paddingBottom: '12px',
+                      borderBottom: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                        Volumen Total
+                      </span>
+                      <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                        {fmt(reembolsosKpis.totalMontoUsd, 'USD')}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {reembolsosKpis.totalCount} {reembolsosKpis.totalCount === 1 ? 'comprobante' : 'comprobantes'}
+                    </span>
+                  </div>
+
+                  {/* Estado: Pagados / Transferidos */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(16, 185, 129, 0.08)',
+                      border: '1px solid rgba(16, 185, 129, 0.2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          color: 'var(--rendy-accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <SendHorizontal size={14} strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          Pagados / Transferidos
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {reembolsosKpis.transferidosCount} {reembolsosKpis.transferidosCount === 1 ? 'liquidado' : 'liquidados'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--rendy-accent)' }}>
+                        {fmt(reembolsosKpis.transferidosMontoUsd, 'USD')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Estado: Listos para Transferir */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(99, 102, 241, 0.08)',
+                      border: '1px solid rgba(99, 102, 241, 0.2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          background: 'rgba(99, 102, 241, 0.2)',
+                          color: 'var(--rendy-primary-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <CheckCircle2 size={14} strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          Listos para Transferir
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {reembolsosKpis.procesadosCount} {reembolsosKpis.procesadosCount === 1 ? 'aprobado' : 'aprobados'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--rendy-primary-light)' }}>
+                        {fmt(reembolsosKpis.procesadosMontoUsd, 'USD')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Estado: Pendientes de Revisión */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      border: '1px solid rgba(245, 158, 11, 0.2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          background: 'rgba(245, 158, 11, 0.2)',
+                          color: 'var(--rendy-warning)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Clock size={14} strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          Pendientes de Revisión
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {reembolsosKpis.pendientesCount} por auditar
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--rendy-warning)' }}>
+                        {fmt(reembolsosKpis.pendientesMontoUsd, 'USD')}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
