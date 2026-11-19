@@ -295,6 +295,11 @@ export async function exportAccountingReportAction(
         subtotalUsd: Number(g.subtotal_usd ?? ((g.datos_ocr as Record<string, unknown>)?.subtotal_usd ?? (totalUsd - Number(g.sales_tax_usd || 0) - Number(g.propina_usd || 0)))),
         salesTaxUsd: Number(g.sales_tax_usd ?? ((g.datos_ocr as Record<string, unknown>)?.sales_tax_usd ?? 0)),
         tipUsd: Number(g.propina_usd ?? ((g.datos_ocr as Record<string, unknown>)?.propina_usd ?? 0)),
+        tieneSalesTax: Boolean(
+          (g as Record<string, unknown>).tiene_sales_tax ??
+          ((g.datos_ocr as Record<string, unknown>)?.tiene_sales_tax) ??
+          (Number(g.sales_tax_usd ?? ((g.datos_ocr as Record<string, unknown>)?.sales_tax_usd ?? 0)) > 0)
+        ),
       });
     }
 

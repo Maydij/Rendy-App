@@ -72,6 +72,7 @@ export interface ResultadoContable {
   estado_region: string | null;
   ciudad: string | null;
   codigo_postal: string | null;
+  tiene_sales_tax: boolean;
   subtotal_usd: number;
   sales_tax_usd: number;
   propina_usd: number;
@@ -223,6 +224,7 @@ export async function normalizarGastoFiscal(
     estado_region: estadoRegion,
     ciudad,
     codigo_postal: codigoPostal,
+    tiene_sales_tax: salesTaxUsd > 0,
     subtotal_usd: subtotalUsd,
     sales_tax_usd: salesTaxUsd,
     propina_usd: propinaUsd,

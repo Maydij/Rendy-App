@@ -27,6 +27,8 @@ import {
   actualizarExencionFiscalUsa,
   subirCertificadoTaxExempt,
   eliminarCertificadoTaxExempt,
+  guardarCertificadoFiscalUsa,
+  eliminarCertificadoFiscalUsa,
 } from './actions';
 import { cancelTrialOrSubscriptionAction } from '@/app/actions/subscription.actions';
 import { InviteEmployeeModal } from '@/components/dashboard/InviteEmployeeModal';
@@ -38,6 +40,8 @@ type Empresa = {
   creado_en: string;
   us_tax_exempt?: boolean;
   url_certificado_tax_exempt?: string | null;
+  nombre_certificado_usa?: string | null;
+  url_certificado_usa?: string | null;
 };
 type Usuario = {
   id: string;
@@ -145,28 +149,22 @@ export default function ConfiguracionClient({
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // USA Tax-Exempt Certificate State
-  const [usTaxExempt, setUsTaxExempt] = useState(Boolean(empresa?.us_tax_exempt));
-  const [urlCertificado, setUrlCertificado] = useState<string | null>(empresa?.url_certificado_tax_exempt || null);
+  // USA Fiscal Certificate State (Optional)
+  const [nombreCertificado, setNombreCertificado] = useState<string>(
+    ((empresa as Record<string, unknown>)?.nombre_certificado_usa as string) || ''
+  );
+  const [urlCertificado, setUrlCertificado] = useState<string | null>(
+    ((empresa as Record<string, unknown>)?.url_certificado_usa as string | null) ||
+    empresa?.url_certificado_tax_exempt ||
+    null
+  );
   const [isUploadingCert, setIsUploadingCert] = useState(false);
+  const [isSavingCertName, setIsSavingCertName] = useState(false);
 
   function toast(msg: string) {
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 3500);
   }
-
-  const handleToggleTaxExempt = (enabled: boolean) => {
-    setUsTaxExempt(enabled);
-    startTransition(async () => {
-      const res = await actualizarExencionFiscalUsa(enabled);
-      if (res?.error) {
-        setUsTaxExempt(!enabled);
-        toast(`❌ ${res.error}`);
-      } else {
-        toast(enabled ? '✅ Exención Fiscal USA activada.' : 'ℹ️ Exención Fiscal USA desactivada.');
-      }
-    });
-  };
 
   const handleUploadCertificate = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,16 +172,18 @@ export default function ConfiguracionClient({
 
     const formData = new FormData();
     formData.append('file', file);
+    if (nombreCertificado.trim()) {
+      formData.append('nombre', nombreCertificado.trim());
+    }
 
     setIsUploadingCert(true);
     try {
-      const res = await subirCertificadoTaxExempt(formData);
+      const res = await guardarCertificadoFiscalUsa(formData);
       if (res?.error) {
         toast(`❌ ${res.error}`);
-      } else if (res?.url) {
-        setUrlCertificado(res.url);
-        setUsTaxExempt(true);
-        toast('✅ Certificado Tax-Exempt subido exitosamente.');
+      } else {
+        if (res?.url) setUrlCertificado(res.url);
+        toast('✅ Certificado fiscal cargado exitosamente.');
       }
     } catch {
       toast('❌ Error inesperado al subir el certificado.');
@@ -193,14 +193,36 @@ export default function ConfiguracionClient({
     }
   };
 
+  const handleSaveCertificateName = () => {
+    const formData = new FormData();
+    formData.append('nombre', nombreCertificado.trim());
+
+    setIsSavingCertName(true);
+    startTransition(async () => {
+      try {
+        const res = await guardarCertificadoFiscalUsa(formData);
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          toast('✅ Nombre del certificado actualizado.');
+        }
+      } catch {
+        toast('❌ Error al actualizar el nombre del certificado.');
+      } finally {
+        setIsSavingCertName(false);
+      }
+    });
+  };
+
   const handleDeleteCertificate = () => {
     startTransition(async () => {
-      const res = await eliminarCertificadoTaxExempt();
+      const res = await eliminarCertificadoFiscalUsa();
       if (res?.error) {
         toast(`❌ ${res.error}`);
       } else {
         setUrlCertificado(null);
-        toast('🗑️ Certificado Tax-Exempt eliminado.');
+        setNombreCertificado('');
+        toast('🗑️ Certificado fiscal eliminado.');
       }
     });
   };
@@ -210,7 +232,7 @@ export default function ConfiguracionClient({
     { id: 'proyectos' as const, label: 'Proyectos', icon: FolderKanban, count: proyectos.length },
     { id: 'metodos' as const, label: 'Métodos de Pago', icon: CreditCard, count: metodos.length },
     { id: 'suscripcion' as const, label: 'Suscripción y Plan', icon: ShieldCheck, count: 1 },
-    { id: 'fiscal' as const, label: 'Exención Fiscal USA', icon: FileText, count: usTaxExempt ? 'Activo' : 'Off' },
+    { id: 'fiscal' as const, label: 'Certificado Fiscal USA', icon: FileText, count: urlCertificado ? 'Cargado' : 'Opcional' },
   ];
 
   return (
@@ -817,113 +839,64 @@ export default function ConfiguracionClient({
         </div>
       )}
 
-      {/* ── Exención Fiscal EE. UU. (Tax-Exempt) ── */}
+      {/* ── Certificado Fiscal EE. UU. (Opcional) ── */}
       {activeTab === 'fiscal' && (
         <div className="card">
           <div style={{ padding: '24px' }}>
             <SectionHeader
-              title="Exención Fiscal EE. UU. (Tax-Exempt)"
-              subtitle="Configura el estatus de exención tributaria (Sales Tax) para compras en Estados Unidos y entrega del certificado vía WhatsApp."
+              title="Certificado Fiscal EE. UU. (Opcional)"
+              subtitle="Configura opcionalmente el documento fiscal de tu empresa en EE. UU. (Resale Certificate, Exención 501(c)(3), Formulario W-9, etc.) para que tus colaboradores puedan consultarlo o descargarlo rápidamente desde WhatsApp."
             />
 
-            {/* Toggle Switch Card */}
+            {/* Document Name & Upload Configuration Card */}
             <div
               style={{
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--bg-border)',
                 borderRadius: '12px',
                 padding: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '16px',
                 marginBottom: '20px',
               }}
             >
-              <div style={{ maxWidth: '620px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Empresa exenta de Sales Tax en Estados Unidos (Tax-Exempt)
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      background: usTaxExempt ? 'rgba(0, 168, 107, 0.15)' : 'rgba(100, 116, 139, 0.15)',
-                      color: usTaxExempt ? 'var(--rendy-success, #00A86B)' : 'var(--text-muted)',
-                    }}
+              <div style={{ marginBottom: '18px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Nombre / Tipo de Certificado
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    value={nombreCertificado}
+                    placeholder="ej. Certificado de Reventa (Resale Certificate) o Florida Tax-Exempt"
+                    onChange={(e) => setNombreCertificado(e.target.value)}
+                    className="input-field"
+                    style={{ flex: 1, minWidth: '280px' }}
+                  />
+                  <button
+                    type="button"
+                    disabled={isPending || isSavingCertName}
+                    onClick={handleSaveCertificateName}
+                    className="btn btn-secondary btn-sm"
+                    style={{ whiteSpace: 'nowrap' }}
                   >
-                    {usTaxExempt ? 'ACTIVADO' : 'DESACTIVADO'}
-                  </span>
+                    {isSavingCertName ? 'Guardando...' : 'Guardar Nombre'}
+                  </button>
                 </div>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Al activar esta opción, Rendy auditará cualquier Sales Tax cobrado en EE. UU. como <strong>Fuga Fiscal Recuperable</strong> para reclamar la devolución estatal y habilitará la entrega proactiva del certificado a los empleados.
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', margin: 0 }}>
+                  Este nombre aparecerá como título descriptivo cuando los colaboradores consulten el documento en WhatsApp.
                 </p>
               </div>
 
-              <label
-                style={{
-                  position: 'relative',
-                  display: 'inline-block',
-                  width: '48px',
-                  height: '26px',
-                  cursor: isPending ? 'wait' : 'pointer',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={usTaxExempt}
-                  disabled={isPending}
-                  onChange={(e) => handleToggleTaxExempt(e.target.checked)}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span
-                  style={{
-                    position: 'absolute',
-                    cursor: 'pointer',
-                    inset: 0,
-                    backgroundColor: usTaxExempt ? 'var(--rendy-primary)' : 'var(--bg-overlay)',
-                    borderRadius: '26px',
-                    transition: 'var(--transition-fast)',
-                  }}
-                >
-                  <span
-                    style={{
-                      position: 'absolute',
-                      content: '""',
-                      height: '20px',
-                      width: '20px',
-                      left: usTaxExempt ? '25px' : '3px',
-                      bottom: '3px',
-                      backgroundColor: 'white',
-                      borderRadius: '50%',
-                      transition: 'var(--transition-fast)',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                    }}
-                  />
-                </span>
-              </label>
-            </div>
-
-            {/* Certificate Uploader & Active Document Display */}
-            <div
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--bg-border)',
-                borderRadius: '12px',
-                padding: '20px',
-                marginBottom: '20px',
-              }}
-            >
-              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                Certificado Oficial Tax-Exempt de la Empresa
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                Archivo del Certificado
               </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Sube el documento oficial (PDF, PNG o JPG) emitido por la autoridad fiscal de EE. UU. Este archivo se enviará por WhatsApp a tus colaboradores cuando escriban &quot;Certificado&quot; en caja o cuando se les aprueben viáticos en USD.
-              </p>
 
               {urlCertificado ? (
                 <div
@@ -956,10 +929,10 @@ export default function ConfiguracionClient({
                     </div>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        Certificado Tax-Exempt Vigente
+                        {nombreCertificado || 'Certificado Fiscal EE. UU.'}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        Almacenado de forma segura en Supabase Storage
+                      <div style={{ fontSize: '11px', color: 'var(--rendy-success, #00A86B)' }}>
+                        ✓ Documento disponible para consulta vía WhatsApp
                       </div>
                     </div>
                   </div>
@@ -1015,17 +988,17 @@ export default function ConfiguracionClient({
                 >
                   <UploadCloud size={36} style={{ color: 'var(--text-muted)', marginBottom: '10px' }} />
                   <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    Ningún certificado cargado actualmente
+                    Ningún certificado fiscal cargado (Opcional)
                   </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 16px auto' }}>
-                    Arrastra o selecciona el documento de exención fiscal de tu empresa (PDF, PNG, JPG, máximo 10 MB).
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '460px', margin: '0 auto 16px auto' }}>
+                    Si tu empresa posee un certificado de reventa, exención tributaria o W-9, puedes subirlo aquí (PDF, PNG, JPG, máx 10 MB).
                   </p>
                   <label
                     className="btn btn-primary btn-sm"
                     style={{ cursor: isUploadingCert ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                   >
                     <UploadCloud size={15} />
-                    {isUploadingCert ? 'Subiendo certificado...' : 'Seleccionar Archivo'}
+                    {isUploadingCert ? 'Subiendo documento...' : 'Seleccionar Certificado'}
                     <input
                       type="file"
                       accept=".pdf,image/png,image/jpeg,image/webp"
@@ -1038,7 +1011,7 @@ export default function ConfiguracionClient({
               )}
             </div>
 
-            {/* Informational Guidelines Card */}
+            {/* Informational Architecture Guidelines */}
             <div
               style={{
                 display: 'grid',
@@ -1056,10 +1029,10 @@ export default function ConfiguracionClient({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--rendy-primary-light)' }}>
                   <ShieldCheck size={16} />
-                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Integración Inmediata con WhatsApp</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Consulta Inmediata en WhatsApp</span>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Tus empleados en viaje pueden escribir <strong>&quot;Certificado&quot;</strong> o <strong>&quot;Tax Exempt&quot;</strong> en cualquier momento al bot de WhatsApp de Rendy para recibir el archivo y mostrarlo en caja antes de pagar.
+                  Cargar este certificado es 100% opcional. Si está cargado, tus empleados pueden escribir <strong>&quot;Certificado&quot;</strong>, <strong>&quot;Tax Exempt&quot;</strong> o <strong>&quot;Resale&quot;</strong> en el chat de WhatsApp para recibirlo al instante y presentarlo en caja.
                 </p>
               </div>
 
@@ -1073,10 +1046,10 @@ export default function ConfiguracionClient({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--rendy-success)' }}>
                   <FileText size={16} />
-                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Estados sin Sales Tax Estatal</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Extracción Contable Universal</span>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Los gastos en <strong>Alaska (AK), Delaware (DE), Montana (MT), New Hampshire (NH) y Oregon (OR)</strong> se clasifican automáticamente como libres de impuesto sobre las ventas estatal.
+                  Rendy clasifica automáticamente cada gasto en EE. UU. (Estado, Subtotal, Sales Tax y Propina) y habilita la pestaña <strong>&quot;Desglose Taxes USA&quot;</strong> con fórmulas dinámicas en tus reportes contables Excel, tenga o no certificado la empresa.
                 </p>
               </div>
             </div>

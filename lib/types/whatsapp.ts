@@ -64,6 +64,7 @@ export interface ExtraccionOcrSesion {
   estado_region?: string | null;
   ciudad?: string | null;
   codigo_postal?: string | null;
+  tiene_sales_tax?: boolean;
   estado_tax_usa?: string;
   subtotal_usd?: number;
   sales_tax_usd?: number;
