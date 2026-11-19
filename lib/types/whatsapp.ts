@@ -30,6 +30,8 @@ export type EstadoConversacion =
   | 'ESPERANDO_FOTO_REEMBOLSO'
   // Subflow: Quick Route (Cold photo with multiple active viáticos)
   | 'RESOLVIENDO_DESTINO_FOTO'
+  // Subflow: Dynamic Category Selection
+  | 'ESPERANDO_CATEGORIA'
   // Final Review & Persistence
   | 'ESPERANDO_CONFIRMACION';
 
@@ -112,6 +114,9 @@ export interface DatosTemporalesSesion {
   flujo_origen?: 'RUTA_RAPIDA' | 'RUTA_GUIADA';
   media_id?: string;
   es_pdf?: boolean;
+  categoria_page?: number;
+  excede_limite?: boolean;
+  alerta_limite_diario?: string | null;
   aviso_inactividad_enviado?: boolean;
 }
 

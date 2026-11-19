@@ -413,3 +413,178 @@ export function formatPolicyWarningWhatsApp(detail: ExcessDetail): string {
   ].join('\n');
 }
 
+/* ─────────────────────────────────────────────────────────
+ * DYNAMIC CATEGORY DAILY LIMIT EVALUATOR
+ * ───────────────────────────────────────────────────────── */
+
+export interface EvaluacionLimiteDiario {
+  excede_limite: boolean;
+  limite_diario_usd: number;
+  monto_evaluado_usd: number;
+  acumulado_previo_usd: number;
+  total_con_actual_usd: number;
+  codigo_categoria: string;
+  nombre_categoria: string;
+  alerta_whatsapp: string | null;
+  excess_detail: ExcessDetail | null;
+}
+
+/**
+ * @name evaluarLimiteDiarioCategoria
+ * @description [Business Logic]: Evaluates if a given expense exceeds the daily spending
+ * limit configured for its category in `categorias_gastos`.
+ * - If `limite_diario_usd === 0`: unrestricted spending; returns `{ excede_limite: false }`.
+ * - If `limite_diario_usd > 0`: sums all existing expenses from the same employee on the same
+ *   calendar date in that category (excluding RECHAZADO and BOCETO) + current amount.
+ * - Flags `excede_limite: true` if the daily total exceeds the configured threshold.
+ */
+export async function evaluarLimiteDiarioCategoria({
+  supabase,
+  empresaId,
+  employeeId,
+  codigoCategoria,
+  nombreCategoria,
+  montoUsd,
+  fechaGasto,
+  gastoActualId,
+}: {
+  supabase: SupabaseClient;
+  empresaId: string;
+  employeeId: string;
+  codigoCategoria: string;
+  nombreCategoria?: string;
+  montoUsd: number;
+  fechaGasto?: string;
+  gastoActualId?: string | null;
+}): Promise<EvaluacionLimiteDiario> {
+  const resolvedNombre = nombreCategoria || codigoCategoria;
+  const targetDateStr = fechaGasto ? fechaGasto.split('T')[0] : new Date().toISOString().split('T')[0];
+
+  try {
+    // 1. Fetch category definition and daily limit from categorias_gastos
+    let limiteDiario = 0;
+    let categoryRecordNombre = resolvedNombre;
+
+    const { data: catData, error: catError } = await supabase
+      .from('categorias_gastos')
+      .select('nombre, codigo, limite_diario_usd, activa')
+      .eq('empresa_id', empresaId)
+      .or(`codigo.eq.${codigoCategoria},nombre.ilike.${resolvedNombre}`)
+      .maybeSingle();
+
+    if (!catError && catData) {
+      limiteDiario = Number(catData.limite_diario_usd || 0);
+      categoryRecordNombre = catData.nombre || resolvedNombre;
+    }
+
+    // 2. If daily limit is 0 (unrestricted), no alerts or violations
+    if (limiteDiario <= 0) {
+      return {
+        excede_limite: false,
+        limite_diario_usd: 0,
+        monto_evaluado_usd: Number(montoUsd.toFixed(2)),
+        acumulado_previo_usd: 0,
+        total_con_actual_usd: Number(montoUsd.toFixed(2)),
+        codigo_categoria: codigoCategoria,
+        nombre_categoria: categoryRecordNombre,
+        alerta_whatsapp: null,
+        excess_detail: null,
+      };
+    }
+
+    // 3. Compute accumulated expenses for this employee, category, and date
+    const { start, end } = computeDateRange(targetDateStr, 'DIARIO');
+
+    let query = supabase
+      .from('gastos')
+      .select('id, monto_usd')
+      .eq('usuario_id', employeeId)
+      .neq('estado', 'RECHAZADO')
+      .neq('estado', 'BOCETO')
+      .or(`categoria.eq.${codigoCategoria},categoria.ilike.${categoryRecordNombre}`)
+      .gte('fecha_gasto', targetDateStr)
+      .lte('fecha_gasto', targetDateStr);
+
+    if (gastoActualId) {
+      query = query.neq('id', gastoActualId);
+    }
+
+    let { data: existingExpenses, error: expError } = await query;
+
+    if (expError) {
+      console.warn('⚠️ Error querying daily category accumulated expenses, fallback by created_at:', expError.message);
+      const fallbackQuery = await supabase
+        .from('gastos')
+        .select('id, monto_usd')
+        .eq('usuario_id', employeeId)
+        .neq('estado', 'RECHAZADO')
+        .neq('estado', 'BOCETO')
+        .or(`categoria.eq.${codigoCategoria},categoria.ilike.${categoryRecordNombre}`)
+        .gte('creado_en', start)
+        .lte('creado_en', end);
+
+      if (!fallbackQuery.error && fallbackQuery.data) {
+        existingExpenses = fallbackQuery.data;
+      }
+    }
+
+    const acumuladoPrevio = (existingExpenses ?? []).reduce(
+      (sum, e) => sum + Number(e.monto_usd ?? 0),
+      0
+    );
+
+    const totalConActual = Number((acumuladoPrevio + montoUsd).toFixed(2));
+    const excede = totalConActual > limiteDiario;
+
+    let alertaWhatsApp: string | null = null;
+    let excessDetail: ExcessDetail | null = null;
+
+    if (excede) {
+      const formatUsd = (n: number) =>
+        n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      alertaWhatsApp = [
+        `⚠️ *Alerta de Límite Diario Excedido:*`,
+        `Este gasto supera tu tope diario asignado de *$${formatUsd(limiteDiario)} USD* en *${categoryRecordNombre}*.`,
+        `• Gasto actual: *$${formatUsd(montoUsd)} USD*`,
+        `• Total acumulado hoy: *$${formatUsd(totalConActual)} USD*`,
+        `_El comprobante pasará a Aprobación Especial de un administrador._`,
+      ].join('\n');
+
+      excessDetail = {
+        limite_monto_usd: limiteDiario,
+        monto_evaluado_usd: totalConActual,
+        acumulado_previo_usd: Number(acumuladoPrevio.toFixed(2)),
+        periodo: 'DIARIO',
+        categoria: categoryRecordNombre,
+        diferencia_excedida_usd: Number((totalConActual - limiteDiario).toFixed(2)),
+      };
+    }
+
+    return {
+      excede_limite: excede,
+      limite_diario_usd: limiteDiario,
+      monto_evaluado_usd: Number(montoUsd.toFixed(2)),
+      acumulado_previo_usd: Number(acumuladoPrevio.toFixed(2)),
+      total_con_actual_usd: totalConActual,
+      codigo_categoria: codigoCategoria,
+      nombre_categoria: categoryRecordNombre,
+      alerta_whatsapp: alertaWhatsApp,
+      excess_detail: excessDetail,
+    };
+  } catch (err) {
+    console.error('❌ Error evaluating category daily limit:', err);
+    return {
+      excede_limite: false,
+      limite_diario_usd: 0,
+      monto_evaluado_usd: Number(montoUsd.toFixed(2)),
+      acumulado_previo_usd: 0,
+      total_con_actual_usd: Number(montoUsd.toFixed(2)),
+      codigo_categoria: codigoCategoria,
+      nombre_categoria: resolvedNombre,
+      alerta_whatsapp: null,
+      excess_detail: null,
+    };
+  }
+}
+

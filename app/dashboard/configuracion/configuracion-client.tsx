@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import {
   Settings,
   Users,
@@ -16,6 +16,7 @@ import {
   UploadCloud,
   ExternalLink,
   FileCheck,
+  Tag,
 } from 'lucide-react';
 import {
   crearProyecto,
@@ -29,9 +30,14 @@ import {
   eliminarCertificadoTaxExempt,
   guardarCertificadoFiscalUsa,
   eliminarCertificadoFiscalUsa,
+  crearCategoriaPersonalizada,
+  actualizarLimiteDiarioCategoria,
+  toggleCategoriaActiva,
+  eliminarCategoriaPersonalizada,
 } from './actions';
 import { cancelTrialOrSubscriptionAction } from '@/app/actions/subscription.actions';
 import { InviteEmployeeModal } from '@/components/dashboard/InviteEmployeeModal';
+import type { CategoriaGasto } from '@/lib/types/categoria';
 
 type Empresa = {
   id: string;
@@ -123,6 +129,412 @@ function RolBadge({ rol }: { rol: string }) {
   );
 }
 
+function CategoryLimitInput({
+  initialLimit,
+  onSave,
+  disabled,
+}: {
+  initialLimit: number;
+  onSave: (val: number) => void;
+  disabled?: boolean;
+}) {
+  const [val, setVal] = useState(initialLimit.toString());
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    setVal(initialLimit.toString());
+  }, [initialLimit]);
+
+  const commitChange = () => {
+    setIsEditing(false);
+    const parsed = Math.max(0, parseFloat(val) || 0);
+    if (parsed !== initialLimit) {
+      onSave(parsed);
+    }
+  };
+
+  const num = parseFloat(val) || 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: '150px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>$</span>
+        <input
+          type="number"
+          step="any"
+          min="0"
+          value={val}
+          disabled={disabled}
+          onFocus={() => setIsEditing(true)}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={commitChange}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          className="input-field"
+          style={{
+            width: '90px',
+            padding: '4px 8px',
+            fontSize: '13px',
+            textAlign: 'right',
+            fontWeight: 600,
+            borderRadius: '6px',
+            borderColor: isEditing ? 'var(--rendy-primary)' : 'var(--bg-border)',
+          }}
+        />
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>USD/día</span>
+      </div>
+      <span
+        style={{
+          fontSize: '10px',
+          fontWeight: 600,
+          marginTop: '3px',
+          color: num > 0 ? '#00e599' : 'var(--text-muted)',
+        }}
+      >
+        {num > 0 ? `Tope: $${num.toFixed(2)} / día` : 'Sin límite diario'}
+      </span>
+    </div>
+  );
+}
+
+function CategoryRowItem({
+  categoria,
+  onUpdateLimit,
+  onToggleActive,
+  onDelete,
+  disabled,
+}: {
+  categoria: CategoriaGasto;
+  onUpdateLimit: (val: number) => void;
+  onToggleActive: (activa: boolean) => void;
+  onDelete?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 16px',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--bg-border)',
+        borderRadius: '10px',
+        gap: '16px',
+        flexWrap: 'wrap',
+        opacity: categoria.activa ? 1 : 0.6,
+        transition: 'var(--transition-fast)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px', flex: 1 }}>
+        <span style={{ fontSize: '20px', lineHeight: 1 }}>{categoria.icono || '🏷️'}</span>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {categoria.nombre}
+            </span>
+            {categoria.es_sistema ? (
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: '6px',
+                  background: 'rgba(100, 116, 139, 0.15)',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                Oficial Rendy
+              </span>
+            ) : (
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: '6px',
+                  background: 'rgba(0, 168, 107, 0.15)',
+                  color: 'var(--rendy-success, #00A86B)',
+                }}
+              >
+                Personalizada
+              </span>
+            )}
+          </div>
+          {categoria.descripcion && (
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {categoria.descripcion}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+        {/* Inline Daily Limit Input */}
+        <CategoryLimitInput
+          initialLimit={categoria.limite_diario_usd}
+          onSave={onUpdateLimit}
+          disabled={disabled || !categoria.activa}
+        />
+
+        {/* Switch Activa */}
+        <label
+          style={{
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            cursor: disabled ? 'wait' : 'pointer',
+            gap: '8px',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={categoria.activa}
+            disabled={disabled}
+            onChange={(e) => onToggleActive(e.target.checked)}
+            style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+          />
+          <span
+            style={{
+              width: '38px',
+              height: '20px',
+              backgroundColor: categoria.activa ? 'var(--rendy-primary)' : 'var(--bg-overlay)',
+              borderRadius: '20px',
+              transition: 'var(--transition-fast)',
+              position: 'relative',
+              display: 'inline-block',
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: categoria.activa ? '20px' : '2px',
+                width: '16px',
+                height: '16px',
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                transition: 'var(--transition-fast)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }}
+            />
+          </span>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: categoria.activa ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            {categoria.activa ? 'Activa' : 'Pausada'}
+          </span>
+        </label>
+
+        {/* Delete Button (Only custom categories) */}
+        {!categoria.es_sistema && onDelete && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onDelete}
+            className="btn btn-icon btn-danger btn-sm"
+            title="Eliminar categoría personalizada"
+            style={{ padding: '6px' }}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModalNuevaCategoria({
+  isOpen,
+  onClose,
+  onSubmit,
+  isSubmitting,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { nombre: string; descripcion: string; icono: string; limiteDiarioUsd: number }) => void;
+  isSubmitting: boolean;
+}) {
+  const [nombre, setNombre] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [icono, setIcono] = useState('🏷️');
+  const [limiteDiario, setLimiteDiario] = useState('0');
+
+  if (!isOpen) return null;
+
+  const EMOJIS = ['🏷️', '📦', '🛠️', '💻', '🩺', '🎓', '⚖️', '📑', '🚚', '💡', '📱', '🎟️', '🛒', '☕', '🏢'];
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '16px',
+      }}
+    >
+      <div
+        className="card"
+        style={{
+          width: '100%',
+          maxWidth: '460px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--bg-border)',
+          borderRadius: '14px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '18px 20px',
+            borderBottom: '1px solid var(--bg-border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+            Nueva Categoría Personalizada
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '4px 8px' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit({
+              nombre,
+              descripcion,
+              icono,
+              limiteDiarioUsd: parseFloat(limiteDiario) || 0,
+            });
+          }}
+          style={{ padding: '20px' }}
+        >
+          {/* Selector de Icono / Emoji */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+              Icono / Emoji
+            </label>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {EMOJIS.map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  onClick={() => setIcono(em)}
+                  style={{
+                    fontSize: '18px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: icono === em ? 'var(--rendy-primary)' : 'var(--bg-border)',
+                    background: icono === em ? 'rgba(0, 168, 107, 0.15)' : 'var(--bg-surface)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Nombre de la Categoría */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              Nombre de la Categoría *
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={30}
+              placeholder="ej. Envíos y Currier, Licencias Software"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="input-field"
+              style={{ width: '100%' }}
+            />
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
+              Recomendado máx. 20 caracteres para visualización óptima en WhatsApp.
+            </div>
+          </div>
+
+          {/* Descripción */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              Descripción (Opcional)
+            </label>
+            <input
+              type="text"
+              maxLength={80}
+              placeholder="ej. Paquetería local, despachos y encomiendas"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="input-field"
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          {/* Límite Diario en USD */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              Límite Diario en USD (Opcional)
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>$</span>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={limiteDiario}
+                onChange={(e) => setLimiteDiario(e.target.value)}
+                className="input-field"
+                style={{ width: '130px', fontWeight: 600 }}
+              />
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>USD / día</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
+              Deja en 0 para permitir gastos en esta categoría sin límite diario ni alertas.
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="btn btn-secondary btn-sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !nombre.trim()}
+              className="btn btn-primary btn-sm"
+            >
+              {isSubmitting ? 'Guardando...' : 'Crear Categoría'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function ConfiguracionClient({
   empresa,
   usuarios,
@@ -130,6 +542,7 @@ export default function ConfiguracionClient({
   metodos: initMetodos,
   subscription,
   pendingInvitations,
+  categorias: initCategorias = [],
 }: {
   empresa: Empresa | null;
   usuarios: Usuario[];
@@ -137,12 +550,16 @@ export default function ConfiguracionClient({
   metodos: Metodo[];
   subscription: SubscriptionInfo | null;
   pendingInvitations: PendingInvitation[];
+  categorias?: CategoriaGasto[];
 }) {
-  const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos' | 'suscripcion' | 'fiscal'>(
+  const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos' | 'suscripcion' | 'fiscal' | 'categorias'>(
     'usuarios'
   );
   const [proyectos, setProyectos] = useState(initProyectos);
   const [metodos, setMetodos] = useState(initMetodos);
+  const [categorias, setCategorias] = useState<CategoriaGasto[]>(initCategorias);
+  const [isNewCategoryModalOpen, setIsNewCategoryModalOpen] = useState(false);
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
   const [newProyecto, setNewProyecto] = useState('');
   const [newMetodo, setNewMetodo] = useState('');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -165,6 +582,100 @@ export default function ConfiguracionClient({
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 3500);
   }
+
+  const handleUpdateDailyLimit = (catId: string, limitVal: number) => {
+    startTransition(async () => {
+      try {
+        const res = await actualizarLimiteDiarioCategoria({
+          categoriaId: catId,
+          limiteDiarioUsd: limitVal,
+        });
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setCategorias((prev) =>
+            prev.map((c) => (c.id === catId ? { ...c, limite_diario_usd: limitVal } : c))
+          );
+          toast(
+            limitVal > 0
+              ? `✅ Límite diario actualizado a $${limitVal.toFixed(2)} USD`
+              : '✅ Categoría configurada sin límite diario'
+          );
+        }
+      } catch {
+        toast('❌ Error al actualizar el límite diario');
+      }
+    });
+  };
+
+  const handleToggleCategoria = (catId: string, currentActiva: boolean) => {
+    const nextActiva = !currentActiva;
+    startTransition(async () => {
+      try {
+        const res = await toggleCategoriaActiva({
+          categoriaId: catId,
+          activa: nextActiva,
+        });
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setCategorias((prev) =>
+            prev.map((c) => (c.id === catId ? { ...c, activa: nextActiva } : c))
+          );
+          toast(nextActiva ? '✅ Categoría activada' : '⏸️ Categoría desactivada');
+        }
+      } catch {
+        toast('❌ Error al cambiar el estado de la categoría');
+      }
+    });
+  };
+
+  const handleDeleteCategoria = (catId: string, nombre: string) => {
+    if (!confirm(`¿Estás seguro de eliminar la categoría personalizada "${nombre}"?`)) {
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const res = await eliminarCategoriaPersonalizada({ categoriaId: catId });
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setCategorias((prev) => prev.filter((c) => c.id !== catId));
+          toast(`🗑️ Categoría "${nombre}" eliminada.`);
+        }
+      } catch {
+        toast('❌ Error al eliminar la categoría');
+      }
+    });
+  };
+
+  const handleCreateCategoria = async (input: {
+    nombre: string;
+    descripcion?: string;
+    icono?: string;
+    limite_diario_usd?: number;
+  }) => {
+    setIsSubmittingCategory(true);
+    try {
+      const res = await crearCategoriaPersonalizada({
+        nombre: input.nombre,
+        descripcion: input.descripcion,
+        icono: input.icono,
+        limiteDiarioUsd: input.limite_diario_usd,
+      });
+      if (res?.error) {
+        toast(`❌ ${res.error}`);
+      } else if (res?.data) {
+        setCategorias((prev) => [...prev, res.data as CategoriaGasto]);
+        setIsNewCategoryModalOpen(false);
+        toast(`✅ Categoría "${res.data.nombre}" creada con éxito.`);
+      }
+    } catch {
+      toast('❌ Error al crear la categoría');
+    } finally {
+      setIsSubmittingCategory(false);
+    }
+  };
 
   const handleUploadCertificate = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -229,6 +740,7 @@ export default function ConfiguracionClient({
 
   const TABS = [
     { id: 'usuarios' as const, label: 'Usuarios', icon: Users, count: usuarios.length },
+    { id: 'categorias' as const, label: 'Categorías y Límites', icon: Tag, count: categorias.length },
     { id: 'proyectos' as const, label: 'Proyectos', icon: FolderKanban, count: proyectos.length },
     { id: 'metodos' as const, label: 'Métodos de Pago', icon: CreditCard, count: metodos.length },
     { id: 'suscripcion' as const, label: 'Suscripción y Plan', icon: ShieldCheck, count: 1 },
@@ -548,6 +1060,129 @@ export default function ConfiguracionClient({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Categorías y Límites Diarios ── */}
+      {activeTab === 'categorias' && (
+        <div className="card" style={{ padding: '24px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                Catálogo de Categorías y Límites Diarios
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                Configura las categorías de gastos y establece topes diarios en USD por categoría para tus colaboradores.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsNewCategoryModalOpen(true)}
+              className="btn btn-primary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              + Nueva Categoría
+            </button>
+          </div>
+
+          {/* Bloque 1: Categorías Personalizadas */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                Categorías Personalizadas
+              </h3>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  color: '#38bdf8',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                }}
+              >
+                {categorias.filter((c) => !c.es_sistema).length}
+              </span>
+            </div>
+
+            {categorias.filter((c) => !c.es_sistema).length === 0 ? (
+              <div
+                style={{
+                  padding: '24px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px dashed var(--bg-border)',
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                }}
+              >
+                No has creado categorías personalizadas aún. Haz clic en <strong>&quot;+ Nueva Categoría&quot;</strong> para añadir categorías específicas de tu negocio.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {categorias
+                  .filter((c) => !c.es_sistema)
+                  .map((cat) => (
+                    <CategoryRowItem
+                      key={cat.id}
+                      categoria={cat}
+                      onUpdateLimit={(val) => handleUpdateDailyLimit(cat.id, val)}
+                      onToggleActive={() => handleToggleCategoria(cat.id, cat.activa)}
+                      onDelete={() => handleDeleteCategoria(cat.id, cat.nombre)}
+                      disabled={isPending}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bloque 2: Categorías Oficiales por Defecto */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                Categorías Oficiales por Defecto
+              </h3>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: 'rgba(0, 229, 153, 0.15)',
+                  color: '#00e599',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                }}
+              >
+                {categorias.filter((c) => c.es_sistema).length}
+              </span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              Las 8 categorías universales de Rendy. Puedes ajustar su límite diario o desactivarlas si tu empresa no las utiliza.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {categorias
+                .filter((c) => c.es_sistema)
+                .map((cat) => (
+                  <CategoryRowItem
+                    key={cat.id}
+                    categoria={cat}
+                    onUpdateLimit={(val) => handleUpdateDailyLimit(cat.id, val)}
+                    onToggleActive={() => handleToggleCategoria(cat.id, cat.activa)}
+                    disabled={isPending}
+                  />
+                ))}
+            </div>
           </div>
         </div>
       )}
@@ -1056,6 +1691,14 @@ export default function ConfiguracionClient({
           </div>
         </div>
       )}
+
+      {/* Modal de Creación de Categoría Personalizada */}
+      <ModalNuevaCategoria
+        isOpen={isNewCategoryModalOpen}
+        onClose={() => setIsNewCategoryModalOpen(false)}
+        onSubmit={handleCreateCategoria}
+        isSubmitting={isSubmittingCategory}
+      />
 
       {/* Modal de Alta e Invitación de Empleados */}
       <InviteEmployeeModal

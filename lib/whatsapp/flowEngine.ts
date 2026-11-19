@@ -57,7 +57,9 @@ import {
   normalizeCategory,
   validateExpensePolicy,
   formatPolicyWarningWhatsApp,
+  evaluarLimiteDiarioCategoria,
   type PolicyEvaluation,
+  type EvaluacionLimiteDiario,
 } from '@/lib/services/politicasGastos';
 import { normalizeMoneda } from '@/lib/currency';
 import type {
@@ -688,6 +690,48 @@ export async function routerMensajeWhatsApp({
       }
     }
 
+    // D.2. Subflujo: Selección de Categoría por Texto (match parcial contra nombres de categorías activas)
+    if (sesion.estado === 'ESPERANDO_CATEGORIA' && sesion.datos_temporales?.extraccion_ocr) {
+      const { data: catActivas } = await supabase
+        .from('categorias_gastos')
+        .select('codigo, nombre')
+        .eq('empresa_id', empresaId)
+        .eq('activa', true);
+
+      if (catActivas && catActivas.length > 0) {
+        const matchedCat = catActivas.find(
+          (c) =>
+            c.nombre.toLowerCase() === textoLimpio ||
+            c.codigo.toLowerCase() === textoLimpio ||
+            c.nombre.toLowerCase().includes(textoLimpio) ||
+            textoLimpio.includes(c.nombre.toLowerCase())
+        );
+
+        if (matchedCat) {
+          return await routerMensajeWhatsApp({
+            supabase,
+            telefono,
+            tipoMensaje: 'interactive',
+            interactiveReplyId: `CAT_SEL_${matchedCat.codigo}`,
+            interactiveReplyTitle: matchedCat.nombre,
+          });
+        }
+      }
+
+      // No match found — re-send the category list
+      await enviarMensajeWhatsApp(
+        telefono,
+        '🏷️ No reconocí esa categoría. Por favor selecciona una de la lista:'
+      );
+      await enviarSelectorCategoriasWhatsApp(
+        supabase,
+        telefono,
+        empresaId,
+        sesion.datos_temporales.categoria_page || 1
+      );
+      return { status: 'categoria_texto_no_reconocido' };
+    }
+
     // E. Subflujo: Confirmación de Gasto por Texto ("SI", "CONFIRMAR", "OK")
     if (sesion.estado === 'ESPERANDO_CONFIRMACION') {
       const afirmaciones = ['si', 'sí', 'confirmar', 'confirmo', 'guardar', 'ok', 'dale', 'listo'];
@@ -781,6 +825,9 @@ export async function routerMensajeWhatsApp({
           break;
         case 'RESOLVIENDO_DESTINO_FOTO':
           recordatorio = 'Por favor selecciona a cuál de tus viáticos o si es reembolso personal asignar la factura.';
+          break;
+        case 'ESPERANDO_CATEGORIA':
+          recordatorio = 'Por favor selecciona la *categoría* de gasto de la lista interactiva.';
           break;
         case 'ESPERANDO_CONFIRMACION':
           recordatorio = 'Por favor presiona *Confirmar* para guardar el comprobante o escribe cualquier corrección.';
@@ -1108,16 +1155,13 @@ export async function routerMensajeWhatsApp({
         await actualizarSesion(
           supabase,
           telefono,
-          'ESPERANDO_CONFIRMACION',
+          'ESPERANDO_CATEGORIA',
           sesion.datos_temporales,
           empleadoId
         );
 
-        await enviarConfirmacionGastoInteractiva(telefono, extraccion, {
-          tipo: 'REEMBOLSO_DIRECTO',
-          policyResult,
-        });
-        return { status: 'resolucion_reembolso' };
+        await enviarSelectorCategoriasWhatsApp(supabase, telefono, empresaId);
+        return { status: 'resolucion_reembolso_esperando_categoria' };
       }
 
       if (interactiveReplyId.startsWith('DESTINO_VIATICO_')) {
@@ -1149,18 +1193,88 @@ export async function routerMensajeWhatsApp({
         await actualizarSesion(
           supabase,
           telefono,
+          'ESPERANDO_CATEGORIA',
+          sesion.datos_temporales,
+          empleadoId
+        );
+
+        await enviarSelectorCategoriasWhatsApp(supabase, telefono, empresaId);
+        return { status: 'resolucion_viatico_esperando_categoria' };
+      }
+    }
+
+    // ─── 11b. SELECCIÓN DE CATEGORÍA DINÁMICA ───
+    if (sesion.estado === 'ESPERANDO_CATEGORIA' && sesion.datos_temporales?.extraccion_ocr) {
+      const extraccion = sesion.datos_temporales.extraccion_ocr;
+
+      // Category selected: `CAT_SEL_${codigo}`
+      if (interactiveReplyId.startsWith('CAT_SEL_')) {
+        const codigoCategoria = interactiveReplyId.replace('CAT_SEL_', '');
+        const nombreCategoria = interactiveReplyTitle
+          ? interactiveReplyTitle.replace(/^[^\w]+\s*/, '').trim()
+          : codigoCategoria;
+
+        extraccion.categoria = nombreCategoria || codigoCategoria;
+
+        // Evaluate daily spending limit for the selected category
+        const evalLimite = await evaluarLimiteDiarioCategoria({
+          supabase,
+          empresaId,
+          employeeId: empleadoId,
+          codigoCategoria,
+          nombreCategoria,
+          montoUsd: extraccion.monto_usd,
+          fechaGasto: extraccion.fecha_emision,
+        });
+
+        // Store daily limit results in session
+        sesion.datos_temporales.excede_limite =
+          sesion.datos_temporales.excede_limite || evalLimite.excede_limite;
+        sesion.datos_temporales.alerta_limite_diario = evalLimite.alerta_whatsapp;
+
+        if (evalLimite.excede_limite && evalLimite.excess_detail) {
+          sesion.datos_temporales.excess_detail =
+            sesion.datos_temporales.excess_detail || evalLimite.excess_detail;
+        }
+
+        sesion.datos_temporales.extraccion_ocr = extraccion;
+
+        await actualizarSesion(
+          supabase,
+          telefono,
           'ESPERANDO_CONFIRMACION',
           sesion.datos_temporales,
           empleadoId
         );
 
+        const confirmType = sesion.datos_temporales.es_reembolso
+          ? 'REEMBOLSO_DIRECTO'
+          : 'VIATICO_ASIGNADO';
+
         await enviarConfirmacionGastoInteractiva(telefono, extraccion, {
-          tipo: 'VIATICO_ASIGNADO',
-          evaluacion,
-          nombreProyecto: nombreProyFinal,
-          policyResult,
+          tipo: confirmType,
+          nombreProyecto: sesion.datos_temporales.evaluacion_saldo?.nombre_proyecto,
+          evaluacion: sesion.datos_temporales.evaluacion_saldo as EvaluacionSobregiro | undefined,
+          policyResult: sesion.datos_temporales.excess_detail
+            ? ({
+                exceedsLimit: true,
+                suggestedStatus: 'REQUIERE_APROBACION_ESPECIAL',
+                excessDetail: sesion.datos_temporales.excess_detail,
+              } as PolicyEvaluation)
+            : undefined,
+          dailyLimitAlert: evalLimite.alerta_whatsapp,
         });
-        return { status: 'resolucion_viatico' };
+
+        return { status: 'categoria_seleccionada' };
+      }
+
+      // Pagination: `CAT_PAGE_${page}`
+      if (interactiveReplyId.startsWith('CAT_PAGE_')) {
+        const page = parseInt(interactiveReplyId.replace('CAT_PAGE_', ''), 10) || 1;
+        sesion.datos_temporales.categoria_page = page;
+        await actualizarSesion(supabase, telefono, 'ESPERANDO_CATEGORIA', sesion.datos_temporales, empleadoId);
+        await enviarSelectorCategoriasWhatsApp(supabase, telefono, empresaId, page);
+        return { status: 'categoria_paginacion' };
       }
     }
 
@@ -1200,6 +1314,8 @@ export async function routerMensajeWhatsApp({
       mensajeAyuda = '📌 Por favor presiona *Confirmar* para enviar tu solicitud o *Volver al Menú* para cancelar.';
     } else if (sesion.estado === 'RESOLVIENDO_DESTINO_FOTO') {
       mensajeAyuda = '📁 Por favor selecciona a cuál de tus viáticos o reembolso asignar la factura recibida.';
+    } else if (sesion.estado === 'ESPERANDO_CATEGORIA') {
+      mensajeAyuda = '🏷️ Por favor selecciona la *categoría* de gasto de la lista interactiva.';
     } else if (sesion.estado === 'ESPERANDO_CONFIRMACION') {
       mensajeAyuda = '📄 Por favor presiona *Confirmar* para guardar el comprobante o *Volver al Menú* para cancelarlo.';
     }
@@ -1518,7 +1634,7 @@ async function manejarIngestaComprobanteEnFrio({
   });
   const numActivos = viaticosActivos.length;
 
-  // CASO 1: 0 Viáticos Activos -> Reembolso Personal Directo
+  // CASO 1: 0 Viáticos Activos -> Reembolso Personal Directo -> Seleccionar Categoría
   if (numActivos === 0) {
     const policyResult = await validateExpensePolicy({
       supabase,
@@ -1538,12 +1654,9 @@ async function manejarIngestaComprobanteEnFrio({
       es_pdf: esPdf,
     };
 
-    await actualizarSesion(supabase, telefono, 'ESPERANDO_CONFIRMACION', datosSesion, empleadoId);
-    await enviarConfirmacionGastoInteractiva(telefono, extraccionNormalizada, {
-      tipo: 'REEMBOLSO_DIRECTO',
-      policyResult,
-    });
-    return { status: 'caso_cero_viaticos_reembolso' };
+    await actualizarSesion(supabase, telefono, 'ESPERANDO_CATEGORIA', datosSesion, empleadoId);
+    await enviarSelectorCategoriasWhatsApp(supabase, telefono, empresaId);
+    return { status: 'caso_cero_viaticos_esperando_categoria' };
   }
 
   // CASO 2: Exactamente 1 Viático Activo -> Preguntar: ¿Rendir Viático o Pedir Reembolso?
@@ -1759,14 +1872,9 @@ async function manejarComprobanteEnRutaGuiada({
       es_pdf: esPdf,
     };
 
-    await actualizarSesion(supabase, telefono, 'ESPERANDO_CONFIRMACION', datosSesion, empleadoId);
-    await enviarConfirmacionGastoInteractiva(telefono, extraccionNormalizada, {
-      tipo: 'VIATICO_ASIGNADO',
-      nombreProyecto: evaluacion.nombre_proyecto,
-      evaluacion,
-      policyResult,
-    });
-    return { status: 'recibo_viatico_guiado_procesado' };
+    await actualizarSesion(supabase, telefono, 'ESPERANDO_CATEGORIA', datosSesion, empleadoId);
+    await enviarSelectorCategoriasWhatsApp(supabase, telefono, empresaId);
+    return { status: 'recibo_viatico_guiado_esperando_categoria' };
   } else {
     const datosSesion: DatosTemporalesSesion = {
       es_reembolso: true,
@@ -1778,12 +1886,9 @@ async function manejarComprobanteEnRutaGuiada({
       es_pdf: esPdf,
     };
 
-    await actualizarSesion(supabase, telefono, 'ESPERANDO_CONFIRMACION', datosSesion, empleadoId);
-    await enviarConfirmacionGastoInteractiva(telefono, extraccionNormalizada, {
-      tipo: 'REEMBOLSO_DIRECTO',
-      policyResult,
-    });
-    return { status: 'recibo_reembolso_guiado_procesado' };
+    await actualizarSesion(supabase, telefono, 'ESPERANDO_CATEGORIA', datosSesion, empleadoId);
+    await enviarSelectorCategoriasWhatsApp(supabase, telefono, empresaId);
+    return { status: 'recibo_reembolso_guiado_esperando_categoria' };
   }
 }
 
@@ -1898,7 +2003,8 @@ async function persistirGastoDefinitivo(
   const ocr = datos.extraccion_ocr;
   const evaluacion = datos.evaluacion_saldo;
   const esSobregiro = evaluacion?.excede_limite || false;
-  const estadoFinal = esSobregiro ? 'REQUIERE_APROBACION_ESPECIAL' : 'PENDIENTE';
+  const excedeLimiteDiario = Boolean(datos.excede_limite);
+  const estadoFinal = (esSobregiro || excedeLimiteDiario) ? 'REQUIERE_APROBACION_ESPECIAL' : 'PENDIENTE';
   const targetViaticoId = datos.viatico_id || null;
 
   /**
@@ -1988,7 +2094,7 @@ async function persistirGastoDefinitivo(
     url_comprobante: urlComprobante,
     hash_duplicado: ocr.hash_duplicado || null,
     hash_comprobante: ocr.hash_comprobante || null,
-    excede_limite: esSobregiro,
+    excede_limite: esSobregiro || excedeLimiteDiario,
     detalle_exceso: detalleExceso,
     estado: estadoFinal,
     requiere_revision_fiscal: Boolean(ocr.requiere_revision_fiscal),
@@ -2082,6 +2188,77 @@ async function persistirGastoDefinitivo(
 export { enviarMenuPrincipalListMessage };
 
 /**
+ * @name enviarSelectorCategoriasWhatsApp
+ * @description [Business Logic]: Sends a WhatsApp interactive list message displaying
+ * the active expense categories for the employee's company.
+ * - Paginates in slices of 9 (reserving the 10th row for "Ver más" if needed).
+ * - Row titles are capped at 24 characters per WhatsApp API constraints.
+ * - Each row ID follows the pattern `CAT_SEL_${codigo}` for category selection
+ *   or `CAT_PAGE_${page}` for pagination navigation.
+ */
+async function enviarSelectorCategoriasWhatsApp(
+  supabase: SupabaseClient,
+  telefono: string,
+  empresaId: string,
+  page = 1
+): Promise<void> {
+  const PAGE_SIZE = 9;
+
+  const { data: categorias, error } = await supabase
+    .from('categorias_gastos')
+    .select('codigo, nombre, icono')
+    .eq('empresa_id', empresaId)
+    .eq('activa', true)
+    .order('orden', { ascending: true })
+    .order('nombre', { ascending: true });
+
+  if (error || !categorias || categorias.length === 0) {
+    // Fallback: provide a basic hardcoded list so the flow never breaks
+    await enviarBotonesWhatsApp(
+      telefono,
+      '🏷️ No se encontraron categorías configuradas. Tu gasto se registrará como *Otros*.',
+      [{ id: 'CAT_SEL_OTROS', title: '📌 Continuar como Otros' }]
+    );
+    return;
+  }
+
+  const totalPages = Math.ceil(categorias.length / PAGE_SIZE);
+  const safePage = Math.max(1, Math.min(page, totalPages));
+  const offset = (safePage - 1) * PAGE_SIZE;
+  const slice = categorias.slice(offset, offset + PAGE_SIZE);
+
+  const filas: WhatsAppRow[] = slice.map((cat) => ({
+    id: `CAT_SEL_${cat.codigo}`,
+    title: `${cat.icono || '🏷️'} ${cat.nombre}`.slice(0, 24),
+    description: cat.nombre,
+  }));
+
+  // Add pagination row if there are more categories beyond this page
+  if (safePage < totalPages) {
+    filas.push({
+      id: `CAT_PAGE_${safePage + 1}`,
+      title: '➡️ Ver más categorías',
+      description: `Página ${safePage + 1} de ${totalPages}`,
+    });
+  }
+
+  const headerText =
+    safePage === 1
+      ? '🏷️ *Selecciona la Categoría del Gasto:*\n\nElige la categoría que mejor describe este comprobante:'
+      : `🏷️ *Categorías (Página ${safePage}/${totalPages}):*\n\nSelecciona la categoría que corresponde:`;
+
+  await enviarListaWhatsApp(
+    telefono,
+    headerText,
+    'Ver Categorías',
+    '🏷️ Categoría del Gasto',
+    filas,
+    'Rendy • Control de Gastos',
+    'Categorías Disponibles'
+  );
+}
+
+/**
  * @name enviarSelectorDestinoGasto
  * @description Sends the interactive list selector when a cold photo arrives and employee has 2+ active viáticos.
  */
@@ -2141,9 +2318,15 @@ async function enviarConfirmacionGastoInteractiva(
     nombreProyecto?: string;
     evaluacion?: EvaluacionSobregiro;
     policyResult?: PolicyEvaluation;
+    dailyLimitAlert?: string | null;
   }
 ) {
   let cuerpo = `🏢 *Comercio:* ${ocr.nombre_comercio}\n`;
+
+  // Category line
+  if (ocr.categoria) {
+    cuerpo += `🏷️ *Categoría:* ${ocr.categoria}\n`;
+  }
   if (ocr.moneda === 'VES') {
     cuerpo += `💵 *Total Factura:* ${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa ${ocr.tasa_cambio})\n`;
   } else if (ocr.moneda === 'USD') {
@@ -2200,6 +2383,11 @@ async function enviarConfirmacionGastoInteractiva(
   // Include policy limits warning if triggered
   if (contexto.policyResult?.exceedsLimit && contexto.policyResult.excessDetail) {
     cuerpo += formatPolicyWarningWhatsApp(contexto.policyResult.excessDetail);
+  }
+
+  // Include daily category limit warning if triggered
+  if (contexto.dailyLimitAlert) {
+    cuerpo += `\n${contexto.dailyLimitAlert}`;
   }
 
   // Fiscal details footnote

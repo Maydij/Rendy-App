@@ -324,3 +324,43 @@ export async function eliminarCertificadoFiscalUsa() {
   revalidatePath('/dashboard/configuracion');
   return { error: null };
 }
+
+import {
+  obtenerCategoriasEmpresa as _obtenerCategoriasEmpresa,
+  crearCategoriaPersonalizada as _crearCategoriaPersonalizada,
+  actualizarLimiteDiarioCategoria as _actualizarLimiteDiarioCategoria,
+  toggleCategoriaActiva as _toggleCategoriaActiva,
+  eliminarCategoriaPersonalizada as _eliminarCategoriaPersonalizada,
+} from '@/app/actions/categorias.actions';
+
+// Re-export category actions for unified organizational dashboard usage
+export async function obtenerCategoriasEmpresa(empresaId: string) {
+  return await _obtenerCategoriasEmpresa(empresaId);
+}
+
+export async function crearCategoriaPersonalizada(input: {
+  nombre: string;
+  descripcion?: string;
+  icono?: string;
+  limiteDiarioUsd?: number;
+}) {
+  return await _crearCategoriaPersonalizada(input);
+}
+
+export async function actualizarLimiteDiarioCategoria(input: {
+  categoriaId: string;
+  limiteDiarioUsd: number;
+}) {
+  return await _actualizarLimiteDiarioCategoria(input);
+}
+
+export async function toggleCategoriaActiva(input: {
+  categoriaId: string;
+  activa: boolean;
+}) {
+  return await _toggleCategoriaActiva(input);
+}
+
+export async function eliminarCategoriaPersonalizada(input: { categoriaId: string }) {
+  return await _eliminarCategoriaPersonalizada(input);
+}
