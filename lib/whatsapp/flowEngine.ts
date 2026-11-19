@@ -169,30 +169,34 @@ export async function routerMensajeWhatsApp({
   const textoLimpio = cuerpoTexto?.trim().toLowerCase() || '';
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 3.1. On-Demand Keyword: Tax-Exempt Certificate Dispatch ("Certificado" / "Tax Exempt")
+  // 3.1. On-Demand Keyword: Tax-Exempt / Fiscal Certificate Dispatch
   // ───────────────────────────────────────────────────────────────────────────
-  const TAX_EXEMPT_KEYWORDS = ['certificado', 'tax exempt', 'tax-exempt', 'exencion', 'exención'];
+  const TAX_EXEMPT_KEYWORDS = ['certificado', 'tax exempt', 'tax-exempt', 'exencion', 'exención', 'resale', 'reventa'];
   if (tipoMensaje === 'text' && TAX_EXEMPT_KEYWORDS.some((kw) => textoLimpio.includes(kw))) {
     const { data: empresaData } = await supabase
       .from('empresas')
-      .select('url_certificado_tax_exempt, us_tax_exempt')
+      .select('*')
       .eq('id', empresaId)
       .maybeSingle();
 
-    if (empresaData?.url_certificado_tax_exempt) {
+    const emp = empresaData as Record<string, unknown> | null;
+    const certUrl = (emp?.url_certificado_usa as string | undefined) || (emp?.url_certificado_tax_exempt as string | undefined);
+    const certNombre = (emp?.nombre_certificado_usa as string | undefined) || 'Certificado Fiscal EE. UU.';
+
+    if (certUrl) {
       await enviarArchivoWhatsApp(
         telefono,
-        empresaData.url_certificado_tax_exempt,
-        '📄 *Certificado Oficial Tax-Exempt*\nMuéstralo en caja antes de procesar el pago para evitar el cobro de Sales Tax.',
-        'Certificado_Tax_Exempt.pdf'
+        certUrl,
+        `📄 *${certNombre}*\nDocumento fiscal de la empresa para compras en EE. UU.`,
+        'Certificado_Fiscal_USA.pdf'
       );
     } else {
       await enviarMensajeWhatsApp(
         telefono,
-        '⚠️ Tu empresa aún no ha cargado el Certificado Tax-Exempt en la plataforma web.'
+        'ℹ️ Tu empresa no tiene un certificado fiscal de EE. UU. cargado en el sistema.'
       );
     }
-    return { status: 'certificado_tax_exempt_despachado' };
+    return { status: 'certificado_usa_despachado' };
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -1505,7 +1509,8 @@ async function manejarIngestaComprobanteEnFrio({
     subtotal_usd: fiscalResult.subtotal_usd,
     sales_tax_usd: fiscalResult.sales_tax_usd,
     propina_usd: fiscalResult.propina_usd,
-    alerta_tax_usa: auditoriaUSA.alerta_whatsapp,
+    tiene_sales_tax: fiscalResult.tiene_sales_tax,
+    alerta_tax_usa: null,
   };
 
   const viaticosActivos = await obtenerViaticosActivosEmpleado(supabase, empleadoId, {
@@ -1727,7 +1732,8 @@ async function manejarComprobanteEnRutaGuiada({
     subtotal_usd: fiscalResult.subtotal_usd,
     sales_tax_usd: fiscalResult.sales_tax_usd,
     propina_usd: fiscalResult.propina_usd,
-    alerta_tax_usa: auditoriaUSA.alerta_whatsapp,
+    tiene_sales_tax: fiscalResult.tiene_sales_tax,
+    alerta_tax_usa: null,
   };
 
   const policyResult = await validateExpensePolicy({
@@ -1834,6 +1840,15 @@ async function manejarCorreccionTextoComprobante({
     igtf_ves: fiscalResult.igtf_ves,
     monto_ves: fiscalResult.monto_ves,
     monto_usd: fiscalResult.monto_usd,
+    pais_gasto: fiscalResult.pais_gasto,
+    estado_region: fiscalResult.estado_region,
+    ciudad: fiscalResult.ciudad,
+    codigo_postal: fiscalResult.codigo_postal,
+    subtotal_usd: fiscalResult.subtotal_usd,
+    sales_tax_usd: fiscalResult.sales_tax_usd,
+    propina_usd: fiscalResult.propina_usd,
+    tiene_sales_tax: fiscalResult.tiene_sales_tax,
+    alerta_tax_usa: null,
   };
 
   let evaluacionActualizada: EvaluacionSobregiro | undefined;
@@ -1945,7 +1960,8 @@ async function persistirGastoDefinitivo(
   }
 
   // Insert expense linking BOTH solicitud_id and viatico_id for complete cross-platform traceability
-  const { error: errInsert } = await supabase.from('gastos').insert({
+  const tieneSalesTax = Number(ocr.sales_tax_usd || 0) > 0;
+  const insertPayload: Record<string, unknown> = {
     usuario_id: empleadoId,
     empresa_id: empresaId,
     solicitud_id: targetViaticoId,
@@ -1984,8 +2000,10 @@ async function persistirGastoDefinitivo(
     subtotal_usd: ocr.subtotal_usd || 0,
     sales_tax_usd: ocr.sales_tax_usd || 0,
     propina_usd: ocr.propina_usd || 0,
+    tiene_sales_tax: tieneSalesTax,
     datos_ocr: {
       ...ocr,
+      tiene_sales_tax: tieneSalesTax,
       comercio: ocr.nombre_comercio,
       total: montoOriginal,
       monto_total: montoOriginal,
@@ -2005,7 +2023,14 @@ async function persistirGastoDefinitivo(
       sales_tax_usd: ocr.sales_tax_usd,
       propina_usd: ocr.propina_usd,
     } as unknown as Record<string, unknown>,
-  });
+  };
+
+  let { error: errInsert } = await supabase.from('gastos').insert(insertPayload);
+  if (errInsert && (errInsert.message?.includes('tiene_sales_tax') || errInsert.code === '42703')) {
+    delete insertPayload.tiene_sales_tax;
+    const retry = await supabase.from('gastos').insert(insertPayload);
+    errInsert = retry.error;
+  }
 
   if (errInsert) {
     console.error('❌ Error saving expense in database:', errInsert);
@@ -2148,10 +2173,13 @@ async function enviarConfirmacionGastoInteractiva(
     const sub =
       ocr.subtotal_usd ??
       Math.max(0, ocr.monto_usd - (ocr.sales_tax_usd || 0) - (ocr.propina_usd || 0));
-    cuerpo += `• Subtotal: $${sub.toFixed(2)} | Sales Tax: $${(ocr.sales_tax_usd || 0).toFixed(2)} | Propina: $${(ocr.propina_usd || 0).toFixed(2)}\n`;
-
-    if (ocr.estado_tax_usa === 'FUGA_FISCAL_RECUPERABLE' && ocr.alerta_tax_usa) {
-      cuerpo += `\n${ocr.alerta_tax_usa}\n`;
+    const hasTax = (ocr.sales_tax_usd ?? 0) > 0 || Boolean(ocr.tiene_sales_tax);
+    const taxLabel = hasTax
+      ? `$${(ocr.sales_tax_usd || 0).toFixed(2)} USD (Con Tax)`
+      : `$0.00 USD (Sin Tax)`;
+    cuerpo += `• Subtotal: $${sub.toFixed(2)} USD\n• Sales Tax: ${taxLabel}\n`;
+    if ((ocr.propina_usd || 0) > 0) {
+      cuerpo += `• Propina: $${ocr.propina_usd!.toFixed(2)} USD\n`;
     }
   }
 

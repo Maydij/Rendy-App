@@ -53,20 +53,24 @@ _Los fondos han sido autorizados por la administración y estarán disponibles a
 
     await enviarMensajeWhatsApp(telefono, mensajeWA);
 
-    // Proactively send US Tax-Exempt Certificate when approving USD viáticos
+    // Proactively send US Fiscal / Tax-Exempt Certificate when approving USD viáticos (if configured)
     if (monedaStr.toUpperCase() === 'USD' && sol.empresa_id) {
-      const { data: empData } = await supabaseServer
+      const { data: empDataRaw } = await supabaseServer
         .from('empresas')
-        .select('us_tax_exempt, url_certificado_tax_exempt')
+        .select('*')
         .eq('id', sol.empresa_id)
         .maybeSingle();
 
-      if (empData?.us_tax_exempt && empData?.url_certificado_tax_exempt) {
+      const empData = empDataRaw as Record<string, unknown> | null;
+      const certUrl = (empData?.url_certificado_usa as string | undefined) || (empData?.url_certificado_tax_exempt as string | undefined);
+      const certNombre = (empData?.nombre_certificado_usa as string | undefined) || 'Certificado Fiscal EE. UU.';
+
+      if (certUrl) {
         await enviarArchivoWhatsApp(
           telefono,
-          empData.url_certificado_tax_exempt,
-          '📄 *Certificado Tax-Exempt Oficial*\nTu empresa está exenta de Sales Tax en EE. UU. Muéstralo en caja antes de pagar para evitar el cobro de impuestos.',
-          'Certificado_Tax_Exempt.pdf'
+          certUrl,
+          `📄 *${certNombre}*\nDocumento fiscal de la empresa para compras en EE. UU. Puedes presentarlo en caja si la compra califica para tratamiento fiscal especial o exención.`,
+          'Certificado_Fiscal_USA.pdf'
         );
       }
     }

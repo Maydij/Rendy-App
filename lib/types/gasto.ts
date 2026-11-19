@@ -49,6 +49,7 @@ export type Gasto = {
   estado_region?: string | null;
   ciudad?: string | null;
   codigo_postal?: string | null;
+  tiene_sales_tax?: boolean | null;
   estado_tax_usa?: string | null;
   subtotal_usd?: number | null;
   sales_tax_usd?: number | null;
