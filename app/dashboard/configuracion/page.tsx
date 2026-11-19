@@ -1,5 +1,6 @@
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdminSession } from '@/lib/auth/session-context';
+import { obtenerCategoriasEmpresa } from '@/app/actions/categorias.actions';
 import ConfiguracionClient from './configuracion-client';
 
 async function getConfigData(empresaId: string) {
@@ -10,6 +11,7 @@ async function getConfigData(empresaId: string) {
     { data: metodos },
     { data: subscription },
     { data: pendingInvitations },
+    categorias,
   ] = await Promise.all([
     supabaseServer.from('empresas').select('*').eq('id', empresaId).single(),
     supabaseServer.from('usuarios').select('*').eq('empresa_id', empresaId).order('creado_en'),
@@ -22,6 +24,7 @@ async function getConfigData(empresaId: string) {
       .eq('empresa_id', empresaId)
       .eq('status', 'PENDING')
       .order('created_at', { ascending: false }),
+    obtenerCategoriasEmpresa(empresaId),
   ]);
 
   return {
@@ -31,6 +34,7 @@ async function getConfigData(empresaId: string) {
     metodos: metodos ?? [],
     subscription: subscription ?? null,
     pendingInvitations: pendingInvitations ?? [],
+    categorias: categorias ?? [],
   };
 }
 
