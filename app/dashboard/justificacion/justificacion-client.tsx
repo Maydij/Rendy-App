@@ -48,6 +48,22 @@ export type GastoJustificacion = {
   rif_comercio?: string | null;
   numero_factura?: string | null;
   requiere_revision_fiscal?: boolean | null;
+
+  // ── Multi-Jurisdiction Adaptive E-Receipt Fields ──
+  pais_gasto?: string | null;
+  estado_region?: string | null;
+  ciudad?: string | null;
+  codigo_postal?: string | null;
+  tiene_sales_tax?: boolean | null;
+  subtotal_usd?: number | null;
+  sales_tax_usd?: number | null;
+  propina_usd?: number | null;
+  nombre_impuesto_local?: string | null;
+  tasa_impuesto_aplicada?: number | null;
+  impuesto_local_monto?: number | null;
+  subtotal_local?: number | null;
+  folio_fiscal_uuid?: string | null;
+  es_deducible_fiscal?: boolean | null;
 };
 
 export type JustificacionItem = {
@@ -788,6 +804,20 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                                       rif_comercio: gasto.rif_comercio,
                                       numero_factura: gasto.numero_factura,
                                       requiere_revision_fiscal: gasto.requiere_revision_fiscal,
+                                      pais_gasto: gasto.pais_gasto,
+                                      estado_region: gasto.estado_region,
+                                      ciudad: gasto.ciudad,
+                                      codigo_postal: gasto.codigo_postal,
+                                      tiene_sales_tax: gasto.tiene_sales_tax,
+                                      subtotal_usd: gasto.subtotal_usd,
+                                      sales_tax_usd: gasto.sales_tax_usd,
+                                      propina_usd: gasto.propina_usd,
+                                      nombre_impuesto_local: gasto.nombre_impuesto_local,
+                                      tasa_impuesto_aplicada: gasto.tasa_impuesto_aplicada,
+                                      impuesto_local_monto: gasto.impuesto_local_monto,
+                                      subtotal_local: gasto.subtotal_local,
+                                      folio_fiscal_uuid: gasto.folio_fiscal_uuid,
+                                      es_deducible_fiscal: gasto.es_deducible_fiscal,
                                     })
                                   }
                                   style={{

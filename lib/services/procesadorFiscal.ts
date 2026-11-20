@@ -48,6 +48,13 @@ export interface GeminiFiscalExtraction {
   subtotal_usd?: number | null;
   sales_tax_usd?: number | null;
   propina_usd?: number | null;
+
+  // ── Universal Multi-Jurisdiction Tax Fields ──
+  nombre_impuesto_local?: string | null;
+  tasa_impuesto_aplicada?: number | null;
+  impuesto_local_monto?: number | null;
+  subtotal_local?: number | null;
+  folio_fiscal_uuid?: string | null;
 }
 
 /**
@@ -76,6 +83,13 @@ export interface ResultadoContable {
   subtotal_usd: number;
   sales_tax_usd: number;
   propina_usd: number;
+
+  // ── Universal Multi-Jurisdiction Tax Fields ──
+  nombre_impuesto_local: string | null;
+  tasa_impuesto_aplicada: number;
+  impuesto_local_monto: number;
+  subtotal_local: number;
+  folio_fiscal_uuid: string | null;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -178,7 +192,7 @@ export async function normalizarGastoFiscal(
   const discrepancia = sumaDesglose > 0 ? Math.abs(total - sumaDesglose) : 0;
   const requiereRevision = discrepancia > toleranciaCalculada;
 
-  // ── Step 3: USA Tax Breakdown & Geography Resolution ──
+  // ── Step 3: Multi-Jurisdiction Tax Breakdown & Geography Resolution ──
   let paisGasto: 'US' | 'VE' | 'MX' | 'OTRO' = 'VE';
   if (datosGemini.pais_detectado === 'US' || monedaNorm === 'USD') {
     paisGasto = 'US';
@@ -197,8 +211,13 @@ export async function normalizarGastoFiscal(
   let salesTaxUsd = 0;
   let propinaUsd = 0;
   let subtotalUsd = 0;
+  let nombreImpuestoLocal: string | null = null;
+  let tasaImpuestoAplicada = 0;
+  let impuestoLocalMonto = 0;
+  let subtotalLocal = 0;
+  let folioFiscalUuid: string | null = datosGemini.folio_fiscal_uuid || null;
 
-  if (paisGasto === 'US' || monedaNorm === 'USD') {
+  if (paisGasto === 'US') {
     salesTaxUsd = Number(datosGemini.sales_tax_usd || (datosGemini.iva > 0 ? datosGemini.iva : 0));
     propinaUsd = Number(datosGemini.propina_usd || 0);
     subtotalUsd = Number(
@@ -207,6 +226,49 @@ export async function normalizarGastoFiscal(
         ? datosGemini.base_imponible
         : Math.max(0, total - salesTaxUsd - propinaUsd))
     );
+    nombreImpuestoLocal = 'Sales Tax';
+    tasaImpuestoAplicada = 0;
+    impuestoLocalMonto = salesTaxUsd;
+    subtotalLocal = subtotalUsd;
+    folioFiscalUuid = datosGemini.numero_factura || null;
+  } else if (paisGasto === 'MX') {
+    nombreImpuestoLocal = datosGemini.nombre_impuesto_local || 'IVA Trasladado';
+    impuestoLocalMonto = Number(datosGemini.impuesto_local_monto ?? (datosGemini.iva > 0 ? datosGemini.iva : 0));
+    subtotalLocal = Number(
+      datosGemini.subtotal_local ??
+      (datosGemini.base_imponible > 0
+        ? datosGemini.base_imponible
+        : Math.max(0, total - impuestoLocalMonto - (datosGemini.propina_usd || 0)))
+    );
+    tasaImpuestoAplicada = Number(
+      datosGemini.tasa_impuesto_aplicada ??
+      (subtotalLocal > 0 && impuestoLocalMonto > 0
+        ? Math.round((impuestoLocalMonto / subtotalLocal) * 100)
+        : 16)
+    );
+    propinaUsd = Number(datosGemini.propina_usd || 0);
+    subtotalUsd = Number((subtotalLocal / (tasaFinal || 1)).toFixed(2));
+    folioFiscalUuid = datosGemini.folio_fiscal_uuid || datosGemini.numero_factura || null;
+  } else if (paisGasto === 'VE') {
+    nombreImpuestoLocal = 'IVA';
+    tasaImpuestoAplicada = 16.0;
+    impuestoLocalMonto = ivaVes;
+    subtotalLocal = baseVes;
+    folioFiscalUuid = datosGemini.numero_factura || null;
+  } else {
+    // OTRO
+    nombreImpuestoLocal = datosGemini.nombre_impuesto_local || 'Impuesto Local';
+    impuestoLocalMonto = Number(datosGemini.impuesto_local_monto ?? (datosGemini.iva > 0 ? datosGemini.iva : 0));
+    subtotalLocal = Number(
+      datosGemini.subtotal_local ??
+      (datosGemini.base_imponible > 0
+        ? datosGemini.base_imponible
+        : Math.max(0, total - impuestoLocalMonto - (datosGemini.propina_usd || 0)))
+    );
+    tasaImpuestoAplicada = Number(datosGemini.tasa_impuesto_aplicada ?? 0);
+    propinaUsd = Number(datosGemini.propina_usd || 0);
+    subtotalUsd = Number((subtotalLocal / (tasaFinal || 1)).toFixed(2));
+    folioFiscalUuid = datosGemini.folio_fiscal_uuid || datosGemini.numero_factura || null;
   }
 
   return {
@@ -228,6 +290,11 @@ export async function normalizarGastoFiscal(
     subtotal_usd: subtotalUsd,
     sales_tax_usd: salesTaxUsd,
     propina_usd: propinaUsd,
+    nombre_impuesto_local: nombreImpuestoLocal,
+    tasa_impuesto_aplicada: tasaImpuestoAplicada,
+    impuesto_local_monto: impuestoLocalMonto,
+    subtotal_local: subtotalLocal,
+    folio_fiscal_uuid: folioFiscalUuid,
   };
 }
 
@@ -238,8 +305,8 @@ export async function normalizarGastoFiscal(
 /**
  * @name formatearConfirmacionFiscalWhatsApp
  * @description [WhatsApp UX]: Builds the fiscal confirmation message sent to the
- * employee via WhatsApp after processing an invoice. Shows the primary amount,
- * exchange rate source, and full tax breakdown in VES for accounting transparency.
+ * employee via WhatsApp after processing an invoice. Adapts strictly by jurisdiction:
+ * US (no RIF, isolated Sales Tax & Tip), VE (SENIAT breakdown), MX (RFC/SAT), OTRO.
  */
 export function formatearConfirmacionFiscalWhatsApp(
   datosGemini: GeminiFiscalExtraction,
@@ -277,18 +344,48 @@ export function formatearConfirmacionFiscalWhatsApp(
     `📄 *Comprobante Procesado*`,
     ``,
     `🏢 *Comercio:* ${datosGemini.nombre_comercio || 'No detectado'}`,
-    `🔢 *RIF / Tax ID:* ${datosGemini.rif_comercio || 'N/A'} | *Factura:* #${datosGemini.numero_factura || 'N/A'}`,
+  ];
+
+  if (resultado.pais_gasto === 'US') {
+    if (datosGemini.numero_factura) {
+      lineas.push(`📄 *Factura / Doc:* #${datosGemini.numero_factura}`);
+    }
+    const ubicacion = [resultado.ciudad, resultado.estado_region, resultado.codigo_postal ? `ZIP ${resultado.codigo_postal}` : null].filter(Boolean).join(', ');
+    if (ubicacion) {
+      lineas.push(`📍 *Ubicación:* ${ubicacion}`);
+    }
+  } else if (resultado.pais_gasto === 'MX') {
+    lineas.push(`🔢 *RFC:* ${datosGemini.rif_comercio || 'N/A'} | *Folio:* #${datosGemini.numero_factura || 'N/A'}`);
+  } else if (resultado.pais_gasto === 'VE') {
+    lineas.push(`🔢 *RIF:* ${datosGemini.rif_comercio || 'N/A'} | *Factura:* #${datosGemini.numero_factura || 'N/A'}`);
+  } else {
+    if (datosGemini.numero_factura) {
+      lineas.push(`📄 *Doc #:* ${datosGemini.numero_factura}`);
+    }
+  }
+
+  lineas.push(
     `📅 *Fecha:* ${datosGemini.fecha_emision || 'No detectada'}`,
     ``,
-    `💵 *Total:* ${montoPrincipal}`,
-  ];
+    `💵 *Total:* ${montoPrincipal}`
+  );
 
   if (tasaLabel) {
     lineas.push(tasaLabel);
   }
 
-  // Tax breakdown: show VES breakdown ONLY if currency is VES
-  if (resultado.moneda_original === 'VES') {
+  // Tax breakdown: Strictly jurisdiction-specific
+  if (resultado.pais_gasto === 'US') {
+    lineas.push(
+      ``,
+      `📊 *Desglose (USD):*`,
+      `• Subtotal: $${formatNum(resultado.subtotal_usd)} USD`,
+      `• Sales Tax: $${formatNum(resultado.sales_tax_usd)} USD (${resultado.tiene_sales_tax ? 'Con Tax' : 'Sin Tax'})`
+    );
+    if (resultado.propina_usd > 0) {
+      lineas.push(`• Propina: $${formatNum(resultado.propina_usd)} USD`);
+    }
+  } else if (resultado.moneda_original === 'VES') {
     lineas.push(
       ``,
       `📊 *Desglose Contable (VES):*`,
@@ -297,16 +394,17 @@ export function formatearConfirmacionFiscalWhatsApp(
       `• Exento: ${formatNum(resultado.exento_ves)} Bs`,
       `• IGTF: ${formatNum(resultado.igtf_ves)} Bs`
     );
-  } else if (datosGemini.base_imponible > 0 || datosGemini.iva > 0) {
-    // For non-VES (MXN, USD, COP, EUR, etc.): show tax breakdown in the original currency, NEVER in VES
+  } else if (resultado.pais_gasto === 'MX' || resultado.subtotal_local > 0 || resultado.impuesto_local_monto > 0) {
+    const taxName = resultado.nombre_impuesto_local || 'Impuestos';
+    const rateStr = resultado.tasa_impuesto_aplicada > 0 ? ` (${resultado.tasa_impuesto_aplicada}%)` : '';
     lineas.push(
       ``,
       `📊 *Desglose de Impuestos (${resultado.moneda_original}):*`,
-      `• Base Imponible: ${formatNum(datosGemini.base_imponible)} ${resultado.moneda_original}`,
-      `• Impuestos (IVA/Tax): ${formatNum(datosGemini.iva)} ${resultado.moneda_original}`
+      `• Subtotal: ${formatNum(resultado.subtotal_local)} ${resultado.moneda_original}`,
+      `• ${taxName}${rateStr}: ${formatNum(resultado.impuesto_local_monto)} ${resultado.moneda_original}`
     );
-    if (datosGemini.exento > 0) {
-      lineas.push(`• Exento: ${formatNum(datosGemini.exento)} ${resultado.moneda_original}`);
+    if (resultado.propina_usd > 0) {
+      lineas.push(`• Propina: ${formatNum(resultado.propina_usd)} ${resultado.moneda_original}`);
     }
   }
 

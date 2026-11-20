@@ -1601,6 +1601,11 @@ async function manejarIngestaComprobanteEnFrio({
     sales_tax_usd: fiscalResult.sales_tax_usd,
     propina_usd: fiscalResult.propina_usd,
     tiene_sales_tax: fiscalResult.tiene_sales_tax,
+    nombre_impuesto_local: fiscalResult.nombre_impuesto_local,
+    tasa_impuesto_aplicada: fiscalResult.tasa_impuesto_aplicada,
+    impuesto_local_monto: fiscalResult.impuesto_local_monto,
+    subtotal_local: fiscalResult.subtotal_local,
+    folio_fiscal_uuid: fiscalResult.folio_fiscal_uuid,
     alerta_tax_usa: null,
   };
 
@@ -1813,6 +1818,11 @@ async function manejarComprobanteEnRutaGuiada({
     sales_tax_usd: fiscalResult.sales_tax_usd,
     propina_usd: fiscalResult.propina_usd,
     tiene_sales_tax: fiscalResult.tiene_sales_tax,
+    nombre_impuesto_local: fiscalResult.nombre_impuesto_local,
+    tasa_impuesto_aplicada: fiscalResult.tasa_impuesto_aplicada,
+    impuesto_local_monto: fiscalResult.impuesto_local_monto,
+    subtotal_local: fiscalResult.subtotal_local,
+    folio_fiscal_uuid: fiscalResult.folio_fiscal_uuid,
     alerta_tax_usa: null,
   };
 
@@ -1912,6 +1922,11 @@ async function manejarCorreccionTextoComprobante({
     sales_tax_usd: fiscalResult.sales_tax_usd,
     propina_usd: fiscalResult.propina_usd,
     tiene_sales_tax: fiscalResult.tiene_sales_tax,
+    nombre_impuesto_local: fiscalResult.nombre_impuesto_local,
+    tasa_impuesto_aplicada: fiscalResult.tasa_impuesto_aplicada,
+    impuesto_local_monto: fiscalResult.impuesto_local_monto,
+    subtotal_local: fiscalResult.subtotal_local,
+    folio_fiscal_uuid: fiscalResult.folio_fiscal_uuid,
     alerta_tax_usa: null,
   };
 
@@ -2066,6 +2081,11 @@ async function persistirGastoDefinitivo(
     sales_tax_usd: ocr.sales_tax_usd || 0,
     propina_usd: ocr.propina_usd || 0,
     tiene_sales_tax: tieneSalesTax,
+    nombre_impuesto_local: ocr.nombre_impuesto_local || null,
+    tasa_impuesto_aplicada: ocr.tasa_impuesto_aplicada || 0,
+    impuesto_local_monto: ocr.impuesto_local_monto || 0,
+    subtotal_local: ocr.subtotal_local || 0,
+    folio_fiscal_uuid: ocr.folio_fiscal_uuid || null,
     datos_ocr: {
       ...ocr,
       tiene_sales_tax: tieneSalesTax,
@@ -2087,6 +2107,11 @@ async function persistirGastoDefinitivo(
       subtotal_usd: ocr.subtotal_usd,
       sales_tax_usd: ocr.sales_tax_usd,
       propina_usd: ocr.propina_usd,
+      nombre_impuesto_local: ocr.nombre_impuesto_local,
+      tasa_impuesto_aplicada: ocr.tasa_impuesto_aplicada,
+      impuesto_local_monto: ocr.impuesto_local_monto,
+      subtotal_local: ocr.subtotal_local,
+      folio_fiscal_uuid: ocr.folio_fiscal_uuid,
     } as unknown as Record<string, unknown>,
   };
 
@@ -2342,9 +2367,23 @@ async function enviarConfirmacionGastoInteractiva(
     cuerpo += `\n${contexto.dailyLimitAlert}\n`;
   }
 
-  // Fiscal details footnote
-  if (ocr.rif_comercio || ocr.numero_factura) {
-    cuerpo += `\n\n📄 _RIF: ${ocr.rif_comercio || 'N/A'} • Factura: ${ocr.numero_factura || 'N/A'}_`;
+  // Fiscal details footnote (adapted strictly by jurisdiction)
+  if (ocr.pais_gasto === 'US') {
+    if (ocr.numero_factura) {
+      cuerpo += `\n\n📄 _Factura / Doc: #${ocr.numero_factura}_`;
+    }
+  } else if (ocr.pais_gasto === 'MX') {
+    if (ocr.rif_comercio || ocr.numero_factura) {
+      cuerpo += `\n\n📄 _RFC: ${ocr.rif_comercio || 'N/A'} • Folio: ${ocr.numero_factura || 'N/A'}_`;
+    }
+  } else if (ocr.pais_gasto === 'VE') {
+    if (ocr.rif_comercio || ocr.numero_factura) {
+      cuerpo += `\n\n📄 _RIF: ${ocr.rif_comercio || 'N/A'} • Factura: ${ocr.numero_factura || 'N/A'}_`;
+    }
+  } else {
+    if (ocr.numero_factura) {
+      cuerpo += `\n\n📄 _Doc #: ${ocr.numero_factura}_`;
+    }
   }
 
   await enviarBotonesWhatsApp(

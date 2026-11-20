@@ -72,6 +72,13 @@ export interface ExtraccionOcrSesion {
   sales_tax_usd?: number;
   propina_usd?: number;
   alerta_tax_usa?: string | null;
+
+  // ── Universal Multi-Jurisdiction Tax Fields ──
+  nombre_impuesto_local?: string | null;
+  tasa_impuesto_aplicada?: number | null;
+  impuesto_local_monto?: number | null;
+  subtotal_local?: number | null;
+  folio_fiscal_uuid?: string | null;
 }
 
 /**

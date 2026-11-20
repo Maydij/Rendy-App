@@ -11,6 +11,9 @@
  * Sprint 2 additions: Fiscal tax breakdown fields (base_imponible_ves, iva_ves,
  * exento_ves, igtf_ves) and dual-currency consolidation (monto_ves, monto_usd)
  * enable SENIAT-compliant accounting and bimonetary auditing.
+ *
+ * Multi-Jurisdiction Adaptive E-Receipts: Universal columns for US Sales Tax,
+ * Mexico SAT (CFDI), and international currencies (VAT, IGV, etc.).
  */
 export type Gasto = {
   id: string;
@@ -40,9 +43,12 @@ export type Gasto = {
   igtf_ves?: number | null;
   monto_ves?: number | null;
   monto_usd?: number | null;
+  monto_total?: number | null;
   rif_comercio?: string | null;
   numero_factura?: string | null;
+  numero_control?: string | null;
   requiere_revision_fiscal?: boolean | null;
+  es_deducible_fiscal?: boolean | null;
 
   // ── USA Sales Tax & Geography ──
   pais_gasto?: 'US' | 'VE' | 'MX' | 'OTRO' | string | null;
@@ -54,4 +60,11 @@ export type Gasto = {
   subtotal_usd?: number | null;
   sales_tax_usd?: number | null;
   propina_usd?: number | null;
+
+  // ── Universal Multi-Jurisdiction Tax Fields (MX, International) ──
+  nombre_impuesto_local?: string | null;
+  tasa_impuesto_aplicada?: number | null;
+  impuesto_local_monto?: number | null;
+  subtotal_local?: number | null;
+  folio_fiscal_uuid?: string | null;
 };

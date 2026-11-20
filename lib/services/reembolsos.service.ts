@@ -59,6 +59,21 @@ export interface ReembolsoItem {
   datos_ocr: Record<string, unknown> | null;
   requiere_revision_fiscal: boolean;
   usuario: ReembolsoUsuario;
+
+  // ── Multi-Jurisdiction Adaptive E-Receipt Fields ──
+  pais_gasto?: string | null;
+  estado_region?: string | null;
+  ciudad?: string | null;
+  codigo_postal?: string | null;
+  tiene_sales_tax?: boolean | null;
+  subtotal_usd?: number | null;
+  sales_tax_usd?: number | null;
+  propina_usd?: number | null;
+  nombre_impuesto_local?: string | null;
+  tasa_impuesto_aplicada?: number | null;
+  impuesto_local_monto?: number | null;
+  subtotal_local?: number | null;
+  folio_fiscal_uuid?: string | null;
 }
 
 export interface ReembolsosPaginadosResponse {
@@ -136,6 +151,19 @@ export async function obtenerReembolsosPaginados(
       datos_ocr,
       requiere_revision_fiscal,
       creado_en,
+      pais_gasto,
+      estado_region,
+      ciudad,
+      codigo_postal,
+      tiene_sales_tax,
+      subtotal_usd,
+      sales_tax_usd,
+      propina_usd,
+      nombre_impuesto_local,
+      tasa_impuesto_aplicada,
+      impuesto_local_monto,
+      subtotal_local,
+      folio_fiscal_uuid,
       usuarios!usuario_id (
         id,
         nombre,
@@ -217,6 +245,19 @@ export async function obtenerReembolsosPaginados(
     datos_ocr: Record<string, unknown> | null;
     requiere_revision_fiscal: boolean | null;
     creado_en: string | null;
+    pais_gasto: string | null;
+    estado_region: string | null;
+    ciudad: string | null;
+    codigo_postal: string | null;
+    tiene_sales_tax: boolean | null;
+    subtotal_usd: number | null;
+    sales_tax_usd: number | null;
+    propina_usd: number | null;
+    nombre_impuesto_local: string | null;
+    tasa_impuesto_aplicada: number | null;
+    impuesto_local_monto: number | null;
+    subtotal_local: number | null;
+    folio_fiscal_uuid: string | null;
     usuarios: {
       id: string;
       nombre: string;
@@ -289,6 +330,19 @@ export async function obtenerReembolsosPaginados(
       transferido_por: r.transferido_por || null,
       datos_ocr: r.datos_ocr || null,
       requiere_revision_fiscal: Boolean(r.requiere_revision_fiscal),
+      pais_gasto: r.pais_gasto || null,
+      estado_region: r.estado_region || null,
+      ciudad: r.ciudad || null,
+      codigo_postal: r.codigo_postal || null,
+      tiene_sales_tax: r.tiene_sales_tax != null ? Boolean(r.tiene_sales_tax) : null,
+      subtotal_usd: r.subtotal_usd != null ? Number(r.subtotal_usd) : null,
+      sales_tax_usd: r.sales_tax_usd != null ? Number(r.sales_tax_usd) : null,
+      propina_usd: r.propina_usd != null ? Number(r.propina_usd) : null,
+      nombre_impuesto_local: r.nombre_impuesto_local || null,
+      tasa_impuesto_aplicada: r.tasa_impuesto_aplicada != null ? Number(r.tasa_impuesto_aplicada) : null,
+      impuesto_local_monto: r.impuesto_local_monto != null ? Number(r.impuesto_local_monto) : null,
+      subtotal_local: r.subtotal_local != null ? Number(r.subtotal_local) : null,
+      folio_fiscal_uuid: r.folio_fiscal_uuid || null,
       usuario: {
         id: r.usuarios?.id || r.usuario_id || 'unknown',
         nombre: r.usuarios?.nombre || 'Usuario Desconocido',
