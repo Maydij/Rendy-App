@@ -33,7 +33,15 @@ REGLAS DE EXTRACCIÓN FISCAL:
    - Si el comprobante es de Colombia (NIT, pesos colombianos), es "COP".
    - Si es en euros (€), es "EUR".
 8. Tasa Impresa: Si el ticket imprime explícitamente una tasa de cambio (ej. "Tasa BCV: 68.50" o "Tipo de cambio: 18.50"), extrae ese número decimal. Si no la menciona, devuelve null.
-9. Categoría de Gasto: Clasifica el gasto según su naturaleza en una de las siguientes categorías estándar: ALIMENTACION (restaurantes, comida, bebidas, supermercados), TRANSPORTE (gasolina, taxi, estacionamiento, peajes, boletos aéreos/terrestres, alquiler de vehículos), HOSPEDAJE (hoteles, posadas, alojamiento), REPRESENTACION (eventos, regalos corporativos, entretenimiento de clientes), OTROS (cualquier otra cosa no clasificable en las anteriores).
+9. Categoría de Gasto: Sugiere la categoría del gasto según su naturaleza exclusivamente entre las 8 oficiales de Rendy:
+   - FOOD_BEVERAGE: Comidas, restaurantes, alimentos y bebidas.
+   - PARKING_TOLLS_TAXI: Estacionamientos, peajes, taxis y Uber.
+   - HOTEL: Hoteles, posadas y alojamiento.
+   - GAS_FUEL: Combustible, gasolina y diésel.
+   - AIRFARE_TRAIN: Boletos aéreos, trenes y pasajes.
+   - CAR_RENTAL: Alquiler de vehículos y transporte.
+   - MATERIALES: Insumos, ferretería, repuestos, herramientas y materiales operativos (Home Depot, ferreterías, etc.).
+   - MISCELLANEOUS: Gastos varios y misceláneos que no encajen en las anteriores.
 10. Ubicación Geográfica del Gasto (Especial atención a recibos de Estados Unidos):
     - Determina el país del emisor o donde ocurrió la compra: "US" para Estados Unidos, "VE" para Venezuela, "MX" para México, u "OTRO" para el resto.
     - Si el comprobante es de Estados Unidos (o moneda USD con dirección o comercio estadounidense):
@@ -73,8 +81,17 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
     categoria_gasto: {
       type: SchemaType.STRING,
       format: 'enum',
-      description: 'Expense category: ALIMENTACION, TRANSPORTE, HOSPEDAJE, REPRESENTACION, or OTROS',
-      enum: ['ALIMENTACION', 'TRANSPORTE', 'HOSPEDAJE', 'REPRESENTACION', 'OTROS'],
+      description: 'Suggested expense category code from Rendy official catalog',
+      enum: [
+        'FOOD_BEVERAGE',
+        'PARKING_TOLLS_TAXI',
+        'HOTEL',
+        'GAS_FUEL',
+        'AIRFARE_TRAIN',
+        'CAR_RENTAL',
+        'MATERIALES',
+        'MISCELLANEOUS',
+      ],
     },
     pais_detectado: {
       type: SchemaType.STRING,
