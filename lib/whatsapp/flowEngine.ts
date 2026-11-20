@@ -2116,8 +2116,19 @@ async function persistirGastoDefinitivo(
   };
 
   let { error: errInsert } = await supabase.from('gastos').insert(insertPayload);
-  if (errInsert && (errInsert.message?.includes('tiene_sales_tax') || errInsert.code === '42703')) {
+  if (
+    errInsert &&
+    (errInsert.message?.includes('tiene_sales_tax') ||
+      errInsert.message?.includes('nombre_impuesto_local') ||
+      errInsert.message?.includes('tasa_impuesto_aplicada') ||
+      errInsert.code === '42703')
+  ) {
     delete insertPayload.tiene_sales_tax;
+    delete insertPayload.nombre_impuesto_local;
+    delete insertPayload.tasa_impuesto_aplicada;
+    delete insertPayload.impuesto_local_monto;
+    delete insertPayload.subtotal_local;
+    delete insertPayload.folio_fiscal_uuid;
     const retry = await supabase.from('gastos').insert(insertPayload);
     errInsert = retry.error;
   }
