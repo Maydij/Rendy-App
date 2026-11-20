@@ -159,11 +159,6 @@ export async function obtenerReembolsosPaginados(
       subtotal_usd,
       sales_tax_usd,
       propina_usd,
-      nombre_impuesto_local,
-      tasa_impuesto_aplicada,
-      impuesto_local_monto,
-      subtotal_local,
-      folio_fiscal_uuid,
       usuarios!usuario_id (
         id,
         nombre,
@@ -253,11 +248,11 @@ export async function obtenerReembolsosPaginados(
     subtotal_usd: number | null;
     sales_tax_usd: number | null;
     propina_usd: number | null;
-    nombre_impuesto_local: string | null;
-    tasa_impuesto_aplicada: number | null;
-    impuesto_local_monto: number | null;
-    subtotal_local: number | null;
-    folio_fiscal_uuid: string | null;
+    nombre_impuesto_local?: string | null;
+    tasa_impuesto_aplicada?: number | null;
+    impuesto_local_monto?: number | null;
+    subtotal_local?: number | null;
+    folio_fiscal_uuid?: string | null;
     usuarios: {
       id: string;
       nombre: string;
@@ -338,11 +333,32 @@ export async function obtenerReembolsosPaginados(
       subtotal_usd: r.subtotal_usd != null ? Number(r.subtotal_usd) : null,
       sales_tax_usd: r.sales_tax_usd != null ? Number(r.sales_tax_usd) : null,
       propina_usd: r.propina_usd != null ? Number(r.propina_usd) : null,
-      nombre_impuesto_local: r.nombre_impuesto_local || null,
-      tasa_impuesto_aplicada: r.tasa_impuesto_aplicada != null ? Number(r.tasa_impuesto_aplicada) : null,
-      impuesto_local_monto: r.impuesto_local_monto != null ? Number(r.impuesto_local_monto) : null,
-      subtotal_local: r.subtotal_local != null ? Number(r.subtotal_local) : null,
-      folio_fiscal_uuid: r.folio_fiscal_uuid || null,
+      nombre_impuesto_local:
+        r.nombre_impuesto_local ||
+        ((r.datos_ocr as Record<string, unknown>)?.nombre_impuesto_local as string | null) ||
+        null,
+      tasa_impuesto_aplicada:
+        r.tasa_impuesto_aplicada != null
+          ? Number(r.tasa_impuesto_aplicada)
+          : (r.datos_ocr as Record<string, unknown>)?.tasa_impuesto_aplicada != null
+          ? Number((r.datos_ocr as Record<string, unknown>).tasa_impuesto_aplicada)
+          : null,
+      impuesto_local_monto:
+        r.impuesto_local_monto != null
+          ? Number(r.impuesto_local_monto)
+          : (r.datos_ocr as Record<string, unknown>)?.impuesto_local_monto != null
+          ? Number((r.datos_ocr as Record<string, unknown>).impuesto_local_monto)
+          : null,
+      subtotal_local:
+        r.subtotal_local != null
+          ? Number(r.subtotal_local)
+          : (r.datos_ocr as Record<string, unknown>)?.subtotal_local != null
+          ? Number((r.datos_ocr as Record<string, unknown>).subtotal_local)
+          : null,
+      folio_fiscal_uuid:
+        r.folio_fiscal_uuid ||
+        ((r.datos_ocr as Record<string, unknown>)?.folio_fiscal_uuid as string | null) ||
+        null,
       usuario: {
         id: r.usuarios?.id || r.usuario_id || 'unknown',
         nombre: r.usuarios?.nombre || 'Usuario Desconocido',
