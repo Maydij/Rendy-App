@@ -55,12 +55,10 @@ import {
 } from '@/lib/services/viaticosEngine';
 import {
   normalizeCategory,
-  validateExpensePolicy,
-  formatPolicyWarningWhatsApp,
   evaluarLimiteDiarioCategoria,
-  type PolicyEvaluation,
   type EvaluacionLimiteDiario,
 } from '@/lib/services/politicasGastos';
+import { DEFAULT_OFFICIAL_CATEGORIES } from '@/lib/types/categoria';
 import { normalizeMoneda } from '@/lib/currency';
 import type {
   EstadoConversacion,
@@ -1139,18 +1137,10 @@ export async function routerMensajeWhatsApp({
       const extraccion = sesion.datos_temporales.extraccion_ocr;
 
       if (interactiveReplyId === 'DESTINO_REEMBOLSO') {
-        const policyResult = await validateExpensePolicy({
-          supabase,
-          employeeId: empleadoId,
-          category: extraccion.categoria || 'Otros',
-          amountUsd: extraccion.monto_usd,
-          expenseDate: extraccion.fecha_emision,
-        });
-
         sesion.datos_temporales.es_reembolso = true;
         sesion.datos_temporales.viatico_id = null;
         sesion.datos_temporales.evaluacion_saldo = undefined;
-        sesion.datos_temporales.excess_detail = policyResult.excessDetail;
+        sesion.datos_temporales.excess_detail = null;
 
         await actualizarSesion(
           supabase,
@@ -1168,14 +1158,6 @@ export async function routerMensajeWhatsApp({
         const viaticoId = interactiveReplyId.replace('DESTINO_VIATICO_', '');
         const evaluacion = await calcularSaldoViatico(supabase, viaticoId, extraccion.monto_usd);
 
-        const policyResult = await validateExpensePolicy({
-          supabase,
-          employeeId: empleadoId,
-          category: extraccion.categoria || 'Otros',
-          amountUsd: extraccion.monto_usd,
-          expenseDate: extraccion.fecha_emision,
-        });
-
         const nombreProyFinal =
           evaluacion.nombre_proyecto ||
           (interactiveReplyTitle && !interactiveReplyTitle.includes('Rendir Viático')
@@ -1188,7 +1170,7 @@ export async function routerMensajeWhatsApp({
           ...evaluacion,
           nombre_proyecto: nombreProyFinal,
         };
-        sesion.datos_temporales.excess_detail = policyResult.excessDetail;
+        sesion.datos_temporales.excess_detail = null;
 
         await actualizarSesion(
           supabase,
@@ -1255,13 +1237,6 @@ export async function routerMensajeWhatsApp({
           tipo: confirmType,
           nombreProyecto: sesion.datos_temporales.evaluacion_saldo?.nombre_proyecto,
           evaluacion: sesion.datos_temporales.evaluacion_saldo as EvaluacionSobregiro | undefined,
-          policyResult: sesion.datos_temporales.excess_detail
-            ? ({
-                exceedsLimit: true,
-                suggestedStatus: 'REQUIERE_APROBACION_ESPECIAL',
-                excessDetail: sesion.datos_temporales.excess_detail,
-              } as PolicyEvaluation)
-            : undefined,
           dailyLimitAlert: evalLimite.alerta_whatsapp,
         });
 
@@ -1595,7 +1570,7 @@ async function manejarIngestaComprobanteEnFrio({
     return { status: 'duplicado_archivo_bloqueado' };
   }
 
-  const categoriaNormalizada = normalizeCategory(raw.categoria_gasto || 'OTROS');
+  const categoriaNormalizada = normalizeCategory(raw.categoria_gasto || 'MISCELLANEOUS');
 
   const extraccionNormalizada: ExtraccionOcrSesion = {
     nombre_comercio: raw.nombre_comercio || 'No detectado',
@@ -1636,19 +1611,11 @@ async function manejarIngestaComprobanteEnFrio({
 
   // CASO 1: 0 Viáticos Activos -> Reembolso Personal Directo -> Seleccionar Categoría
   if (numActivos === 0) {
-    const policyResult = await validateExpensePolicy({
-      supabase,
-      employeeId: empleadoId,
-      category: categoriaNormalizada,
-      amountUsd: fiscalResult.monto_usd,
-      expenseDate: extraccionNormalizada.fecha_emision,
-    });
-
     const datosSesion: DatosTemporalesSesion = {
       es_reembolso: true,
       viatico_id: null,
       extraccion_ocr: extraccionNormalizada,
-      excess_detail: policyResult.excessDetail,
+      excess_detail: null,
       flujo_origen: 'RUTA_RAPIDA',
       media_id: mediaId,
       es_pdf: esPdf,
@@ -1816,7 +1783,7 @@ async function manejarComprobanteEnRutaGuiada({
     return { status: 'duplicado_guiado_bloqueado' };
   }
 
-  const categoriaNormalizada = normalizeCategory(raw.categoria_gasto || 'OTROS');
+  const categoriaNormalizada = normalizeCategory(raw.categoria_gasto || 'MISCELLANEOUS');
 
   const extraccionNormalizada: ExtraccionOcrSesion = {
     nombre_comercio: raw.nombre_comercio || 'No detectado',
@@ -1849,14 +1816,6 @@ async function manejarComprobanteEnRutaGuiada({
     alerta_tax_usa: null,
   };
 
-  const policyResult = await validateExpensePolicy({
-    supabase,
-    employeeId: empleadoId,
-    category: categoriaNormalizada,
-    amountUsd: fiscalResult.monto_usd,
-    expenseDate: extraccionNormalizada.fecha_emision,
-  });
-
   if (sesion.estado === 'ESPERANDO_FOTO_VIATICO' && sesion.datos_temporales?.viatico_id) {
     const viaticoId = sesion.datos_temporales.viatico_id;
     const evaluacion = await calcularSaldoViatico(supabase, viaticoId, fiscalResult.monto_usd);
@@ -1866,7 +1825,7 @@ async function manejarComprobanteEnRutaGuiada({
       viatico_id: viaticoId,
       extraccion_ocr: extraccionNormalizada,
       evaluacion_saldo: evaluacion,
-      excess_detail: policyResult.excessDetail,
+      excess_detail: null,
       flujo_origen: 'RUTA_GUIADA',
       media_id: mediaId,
       es_pdf: esPdf,
@@ -1880,7 +1839,7 @@ async function manejarComprobanteEnRutaGuiada({
       es_reembolso: true,
       viatico_id: null,
       extraccion_ocr: extraccionNormalizada,
-      excess_detail: policyResult.excessDetail,
+      excess_detail: null,
       flujo_origen: 'RUTA_GUIADA',
       media_id: mediaId,
       es_pdf: esPdf,
@@ -2078,7 +2037,7 @@ async function persistirGastoDefinitivo(
     rif_comercio: ocr.rif_comercio || null,
     numero_factura: ocr.numero_factura || null,
     fecha_gasto: ocr.fecha_emision,
-    categoria: ocr.categoria || 'Otros',
+    categoria: ocr.categoria || 'Miscellaneous',
     monto: montoOriginal,
     moneda: ocr.moneda,
     moneda_original: ocr.moneda,
@@ -2212,20 +2171,19 @@ async function enviarSelectorCategoriasWhatsApp(
     .order('orden', { ascending: true })
     .order('nombre', { ascending: true });
 
-  if (error || !categorias || categorias.length === 0) {
-    // Fallback: provide a basic hardcoded list so the flow never breaks
-    await enviarBotonesWhatsApp(
-      telefono,
-      '🏷️ No se encontraron categorías configuradas. Tu gasto se registrará como *Otros*.',
-      [{ id: 'CAT_SEL_OTROS', title: '📌 Continuar como Otros' }]
-    );
-    return;
+  let listaCategorias = categorias;
+  if (error || !listaCategorias || listaCategorias.length === 0) {
+    listaCategorias = DEFAULT_OFFICIAL_CATEGORIES.map((cat) => ({
+      codigo: cat.codigo,
+      nombre: cat.nombre,
+      icono: cat.icono,
+    }));
   }
 
-  const totalPages = Math.ceil(categorias.length / PAGE_SIZE);
+  const totalPages = Math.ceil(listaCategorias.length / PAGE_SIZE);
   const safePage = Math.max(1, Math.min(page, totalPages));
   const offset = (safePage - 1) * PAGE_SIZE;
-  const slice = categorias.slice(offset, offset + PAGE_SIZE);
+  const slice = listaCategorias.slice(offset, offset + PAGE_SIZE);
 
   const filas: WhatsAppRow[] = slice.map((cat) => ({
     id: `CAT_SEL_${cat.codigo}`,
@@ -2317,7 +2275,6 @@ async function enviarConfirmacionGastoInteractiva(
     tipo: 'VIATICO_ASIGNADO' | 'REEMBOLSO_DIRECTO';
     nombreProyecto?: string;
     evaluacion?: EvaluacionSobregiro;
-    policyResult?: PolicyEvaluation;
     dailyLimitAlert?: string | null;
   }
 ) {
@@ -2380,14 +2337,9 @@ async function enviarConfirmacionGastoInteractiva(
     cuerpo += `💸 *Tipo:* Reembolso Personal (Fondos Propios)\n`;
   }
 
-  // Include policy limits warning if triggered
-  if (contexto.policyResult?.exceedsLimit && contexto.policyResult.excessDetail) {
-    cuerpo += formatPolicyWarningWhatsApp(contexto.policyResult.excessDetail);
-  }
-
-  // Include daily category limit warning if triggered
+  // Include daily category spending limit warning if triggered by organization policy
   if (contexto.dailyLimitAlert) {
-    cuerpo += `\n${contexto.dailyLimitAlert}`;
+    cuerpo += `\n${contexto.dailyLimitAlert}\n`;
   }
 
   // Fiscal details footnote

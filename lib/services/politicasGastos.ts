@@ -78,15 +78,17 @@ const NO_LIMIT_RESULT: PolicyEvaluation = {
 };
 
 /**
- * Valid standard expense categories. Used to normalize AI-extracted categories
- * to the canonical set stored in `limites_gastos`.
+ * Valid standard expense category codes aligned with Rendy's official catalog.
  */
-export const STANDARD_CATEGORIES: readonly ExpenseCategory[] = [
-  'ALIMENTACION',
-  'TRANSPORTE',
-  'HOSPEDAJE',
-  'REPRESENTACION',
-  'OTROS',
+export const STANDARD_CATEGORIES: readonly string[] = [
+  'FOOD_BEVERAGE',
+  'PARKING_TOLLS_TAXI',
+  'HOTEL',
+  'GAS_FUEL',
+  'AIRFARE_TRAIN',
+  'CAR_RENTAL',
+  'MATERIALES',
+  'MISCELLANEOUS',
 ] as const;
 
 /* ─────────────────────────────────────────────────────────
@@ -96,69 +98,89 @@ export const STANDARD_CATEGORIES: readonly ExpenseCategory[] = [
 /**
  * @name normalizeCategory
  * @description [Business Logic]: Maps free-form category labels (from Gemini AI
- * extraction or legacy CATEGORIAS_GASTO) to the standard fiscal categories
- * used by the policy engine. Falls back to 'OTROS' for unmapped values.
+ * extraction or legacy values) to Rendy's official categories.
+ * Falls back to 'Miscellaneous' for unmapped values.
  */
-export function normalizeCategory(rawCategory: string): ExpenseCategory {
+export function normalizeCategory(rawCategory: string): string {
   const normalized = rawCategory
     .toUpperCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Strip diacritics (á→a, ó→o, etc.)
     .trim();
 
-  const categoryMap: Record<string, ExpenseCategory> = {
-    ALIMENTACION: 'ALIMENTACION',
-    'FOOD/BEVERAGE': 'ALIMENTACION',
-    COMIDA: 'ALIMENTACION',
-    ALIMENTOS: 'ALIMENTACION',
-    TRANSPORTE: 'TRANSPORTE',
-    GASOLINA: 'TRANSPORTE',
-    'GAS (FUEL)': 'TRANSPORTE',
-    'TRANSPORTE/GASOLINA': 'TRANSPORTE',
-    TAXI: 'TRANSPORTE',
-    'PARKING & TOLLS/TAXI': 'TRANSPORTE',
-    'AIRFARE/TRAIN': 'TRANSPORTE',
-    'CAR RENTAL': 'TRANSPORTE',
-    HOSPEDAJE: 'HOSPEDAJE',
-    HOTEL: 'HOSPEDAJE',
-    ALOJAMIENTO: 'HOSPEDAJE',
-    REPRESENTACION: 'REPRESENTACION',
-    MATERIALES: 'OTROS',
-    VARIOS: 'OTROS',
-    MISCELLANEOUS: 'OTROS',
-    OTROS: 'OTROS',
+  const categoryMap: Record<string, string> = {
+    FOOD_BEVERAGE: 'Food/Beverage',
+    'FOOD/BEVERAGE': 'Food/Beverage',
+    ALIMENTACION: 'Food/Beverage',
+    COMIDA: 'Food/Beverage',
+    ALIMENTOS: 'Food/Beverage',
+    RESTAURANTE: 'Food/Beverage',
+    BEBIDAS: 'Food/Beverage',
+
+    PARKING_TOLLS_TAXI: 'Parking & Tolls/Taxi',
+    'PARKING & TOLLS/TAXI': 'Parking & Tolls/Taxi',
+    TRANSPORTE: 'Parking & Tolls/Taxi',
+    ESTACIONAMIENTO: 'Parking & Tolls/Taxi',
+    PARKING: 'Parking & Tolls/Taxi',
+    PEAJE: 'Parking & Tolls/Taxi',
+    PEAJES: 'Parking & Tolls/Taxi',
+    TOLLS: 'Parking & Tolls/Taxi',
+    TAXI: 'Parking & Tolls/Taxi',
+    UBER: 'Parking & Tolls/Taxi',
+
+    HOTEL: 'Hotel',
+    HOSPEDAJE: 'Hotel',
+    ALOJAMIENTO: 'Hotel',
+    POSADA: 'Hotel',
+
+    GAS_FUEL: 'Gas (Fuel)',
+    'GAS (FUEL)': 'Gas (Fuel)',
+    GASOLINA: 'Gas (Fuel)',
+    COMBUSTIBLE: 'Gas (Fuel)',
+    DIESEL: 'Gas (Fuel)',
+
+    AIRFARE_TRAIN: 'Airfare/train',
+    'AIRFARE/TRAIN': 'Airfare/train',
+    VUELO: 'Airfare/train',
+    BOLETO: 'Airfare/train',
+    AVION: 'Airfare/train',
+    TREN: 'Airfare/train',
+
+    CAR_RENTAL: 'Car Rental',
+    'CAR RENTAL': 'Car Rental',
+    ALQUILER_VEHICULO: 'Car Rental',
+
+    MATERIALES: 'Materiales',
+    INSUMOS: 'Materiales',
+    FERRETERIA: 'Materiales',
+    REPUESTOS: 'Materiales',
+    HERRAMIENTAS: 'Materiales',
+
+    MISCELLANEOUS: 'Miscellaneous',
+    VARIOS: 'Miscellaneous',
+    OTROS: 'Miscellaneous',
+    REPRESENTACION: 'Miscellaneous',
   };
 
-  return categoryMap[normalized] ?? 'OTROS';
+  return categoryMap[normalized] || 'Miscellaneous';
 }
 
 /* ─────────────────────────────────────────────────────────
- * CORE: POLICY VALIDATION ENGINE
+ * CORE: POLICY VALIDATION ENGINE (LEGACY STUB)
  * ───────────────────────────────────────────────────────── */
 
 /**
  * @name validateExpensePolicy
- * @description [Business Logic]: Evaluates a single expense against the spending
- * limits configured for the employee's category. Implements hierarchical resolution:
- *
- *   Priority 1: Employee-specific limit (empleado_id = employeeId)
- *   Priority 2: Global company limit (empleado_id IS NULL)
- *
- * For POR_TRANSACCION: Compares the single expense amount against the cap.
- * For DIARIO: Sums all non-rejected expenses in the same category for the day.
- * For MENSUAL: Sums all non-rejected expenses in the same category for the month.
- *
- * Returns a PolicyEvaluation that the caller uses to:
- *   - Set `excede_limite` and `detalle_exceso` on the expense record
- *   - Override the `estado` to 'REQUIERE_APROBACION_ESPECIAL' if needed
- *   - Append the policy warning to the WhatsApp confirmation message
+ * @description [Deprecated]: Legacy policy validation against `limites_gastos`.
+ * All spending policies and daily limits are now governed exclusively by
+ * `categorias_gastos` and evaluated via `evaluarLimiteDiarioCategoria`.
  */
 export async function validateExpensePolicy({
-  supabase,
-  employeeId,
-  category,
-  amountUsd,
-  expenseDate = new Date().toISOString(),
+  supabase: _supabase,
+  employeeId: _employeeId,
+  category: _category,
+  amountUsd: _amountUsd,
+  expenseDate: _expenseDate = new Date().toISOString(),
 }: {
   supabase: SupabaseClient;
   employeeId: string;
@@ -166,67 +188,8 @@ export async function validateExpensePolicy({
   amountUsd: number;
   expenseDate?: string;
 }): Promise<PolicyEvaluation> {
-  try {
-    const normalizedCategory = normalizeCategory(category);
-
-    // ── Step 1: Fetch applicable policies (employee-specific first, then global) ──
-    const { data: limits, error } = await supabase
-      .from('limites_gastos')
-      .select('id, empleado_id, categoria, limite_monto_usd, periodo, activo')
-      .eq('categoria', normalizedCategory)
-      .eq('activo', true)
-      .or(`empleado_id.eq.${employeeId},empleado_id.is.null`)
-      .order('empleado_id', { ascending: false, nullsFirst: false });
-
-    if (error) {
-      console.error('❌ Error fetching spending limits:', error);
-      return NO_LIMIT_RESULT;
-    }
-
-    // The first result is the most specific (employee-level > global)
-    const activePolicy = (limits as SpendingLimitRow[] | null)?.[0];
-
-    if (!activePolicy) {
-      return NO_LIMIT_RESULT;
-    }
-
-    const capUsd = Number(activePolicy.limite_monto_usd);
-    const period = activePolicy.periodo as LimitPeriod;
-
-    // ── Step 2: Evaluate based on period type ──
-    if (period === 'POR_TRANSACCION') {
-      return evaluatePerTransaction(amountUsd, capUsd, normalizedCategory);
-    }
-
-    if (period === 'DIARIO') {
-      return evaluateAccumulated(
-        supabase,
-        employeeId,
-        normalizedCategory,
-        amountUsd,
-        capUsd,
-        'DIARIO',
-        expenseDate
-      );
-    }
-
-    if (period === 'MENSUAL') {
-      return evaluateAccumulated(
-        supabase,
-        employeeId,
-        normalizedCategory,
-        amountUsd,
-        capUsd,
-        'MENSUAL',
-        expenseDate
-      );
-    }
-
-    return NO_LIMIT_RESULT;
-  } catch (err) {
-    console.error('❌ Unexpected error in policy validation:', err);
-    return NO_LIMIT_RESULT;
-  }
+  // Always return no limit violation from legacy engine; limits are now strictly per-category in categorias_gastos
+  return NO_LIMIT_RESULT;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -383,33 +346,12 @@ export function formatPolicyWarningWhatsApp(detail: ExcessDetail): string {
       maximumFractionDigits: 2,
     });
 
-  const periodLabels: Record<LimitPeriod, string> = {
-    POR_TRANSACCION: 'por transacción',
-    DIARIO: 'diario',
-    MENSUAL: 'mensual',
-  };
-
-  const categoryLabels: Record<string, string> = {
-    ALIMENTACION: 'Alimentación',
-    TRANSPORTE: 'Transporte',
-    HOSPEDAJE: 'Hospedaje',
-    REPRESENTACION: 'Representación',
-    OTROS: 'Otros',
-  };
-
-  const periodLabel = periodLabels[detail.periodo] ?? detail.periodo;
-  const categoryLabel = categoryLabels[detail.categoria] ?? detail.categoria;
-
-  const acumuladoLine =
-    detail.periodo !== 'POR_TRANSACCION' && detail.acumulado_previo_usd > 0
-      ? ` (Acumulado: $${formatUsd(detail.monto_evaluado_usd)} USD)`
-      : '';
-
   return [
     ``,
-    `⚠️ *Nota de Política de Gastos:*`,
-    `Este consumo excede tu límite ${periodLabel} asignado de $${formatUsd(detail.limite_monto_usd)} USD en ${categoryLabel}${acumuladoLine}.`,
-    `_El gasto quedará sujeto a Aprobación Especial de tu supervisor._`,
+    `⚠️ *Alerta de Límite Diario Excedido:*`,
+    `Este gasto supera tu tope diario asignado de $${formatUsd(detail.limite_monto_usd)} USD en ${detail.categoria}.`,
+    `• Total acumulado hoy: $${formatUsd(detail.monto_evaluado_usd)} USD`,
+    `_El comprobante pasará a Aprobación Especial de un administrador._`,
   ].join('\n');
 }
 
@@ -465,14 +407,28 @@ export async function evaluarLimiteDiarioCategoria({
     let limiteDiario = 0;
     let categoryRecordNombre = resolvedNombre;
 
-    const { data: catData, error: catError } = await supabase
+    // Query primarily by unique code
+    let { data: catData } = await supabase
       .from('categorias_gastos')
       .select('nombre, codigo, limite_diario_usd, activa')
       .eq('empresa_id', empresaId)
-      .or(`codigo.eq.${codigoCategoria},nombre.ilike.${resolvedNombre}`)
+      .eq('codigo', codigoCategoria)
       .maybeSingle();
 
-    if (!catError && catData) {
+    // Fallback: search by exact or case-insensitive name
+    if (!catData && resolvedNombre) {
+      const { data: fallbackByName } = await supabase
+        .from('categorias_gastos')
+        .select('nombre, codigo, limite_diario_usd, activa')
+        .eq('empresa_id', empresaId)
+        .ilike('nombre', resolvedNombre)
+        .maybeSingle();
+      if (fallbackByName) {
+        catData = fallbackByName;
+      }
+    }
+
+    if (catData) {
       limiteDiario = Number(catData.limite_diario_usd || 0);
       categoryRecordNombre = catData.nombre || resolvedNombre;
     }
