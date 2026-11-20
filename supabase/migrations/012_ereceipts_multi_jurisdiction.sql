@@ -19,5 +19,14 @@ ALTER TABLE gastos
   ADD COLUMN IF NOT EXISTS folio_fiscal_uuid VARCHAR(100),
   ADD COLUMN IF NOT EXISTS es_deducible_fiscal BOOLEAN DEFAULT TRUE;
 
+-- Backfill pais_gasto for expenses with non-VES currencies that defaulted to 'VE'
+UPDATE gastos
+SET pais_gasto = 'MX'
+WHERE moneda = 'MXN' AND (pais_gasto = 'VE' OR pais_gasto IS NULL);
+
+UPDATE gastos
+SET pais_gasto = 'OTRO'
+WHERE moneda NOT IN ('USD', 'VES', 'MXN') AND (pais_gasto = 'VE' OR pais_gasto IS NULL);
+
 -- Recarga inmediata de la caché de PostgREST
 NOTIFY pgrst, 'reload schema';

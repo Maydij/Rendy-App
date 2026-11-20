@@ -46,6 +46,11 @@ export type Database = {
     moneda?: string;
     estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
     motivo_rechazo: string | null;
+    url_comprobante_transferencia?: string | null;
+    referencia_transferencia?: string | null;
+    fecha_transferencia?: string | null;
+    transferido_por?: string | null;
+    notas_desembolso?: string | null;
     creado_en: string;
   };
   viaticos: {
@@ -58,6 +63,11 @@ export type Database = {
     estado: 'PENDIENTE_APROBACION' | 'ACTIVO' | 'CERRADO' | 'RECHAZADO';
     fecha_inicio: string;
     fecha_cierre: string | null;
+    url_comprobante_transferencia?: string | null;
+    referencia_transferencia?: string | null;
+    fecha_transferencia?: string | null;
+    transferido_por?: string | null;
+    notas_desembolso?: string | null;
     creado_en: string;
     actualizado_en: string;
   };
