@@ -28,7 +28,7 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
 
     supabaseServer
       .from('gastos')
-      .select('id, solicitud_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, url_comprobante, concepto, datos_ocr, estado, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal')
+      .select('id, solicitud_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, url_comprobante, concepto, datos_ocr, estado, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal, pais_gasto, estado_region, ciudad, codigo_postal, tiene_sales_tax, subtotal_usd, sales_tax_usd, propina_usd, nombre_impuesto_local, tasa_impuesto_aplicada, impuesto_local_monto, subtotal_local, folio_fiscal_uuid, es_deducible_fiscal')
       .eq('empresa_id', EMPRESA_ID)
       .not('solicitud_id', 'is', null)
       .order('creado_en', { ascending: false }),
@@ -81,6 +81,20 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
       rif_comercio: g.rif_comercio ?? null,
       numero_factura: g.numero_factura ?? null,
       requiere_revision_fiscal: g.requiere_revision_fiscal ?? false,
+      pais_gasto: g.pais_gasto ?? null,
+      estado_region: g.estado_region ?? null,
+      ciudad: g.ciudad ?? null,
+      codigo_postal: g.codigo_postal ?? null,
+      tiene_sales_tax: g.tiene_sales_tax != null ? Boolean(g.tiene_sales_tax) : null,
+      subtotal_usd: g.subtotal_usd != null ? Number(g.subtotal_usd) : null,
+      sales_tax_usd: g.sales_tax_usd != null ? Number(g.sales_tax_usd) : null,
+      propina_usd: g.propina_usd != null ? Number(g.propina_usd) : null,
+      nombre_impuesto_local: g.nombre_impuesto_local ?? null,
+      tasa_impuesto_aplicada: g.tasa_impuesto_aplicada != null ? Number(g.tasa_impuesto_aplicada) : null,
+      impuesto_local_monto: g.impuesto_local_monto != null ? Number(g.impuesto_local_monto) : null,
+      subtotal_local: g.subtotal_local != null ? Number(g.subtotal_local) : null,
+      folio_fiscal_uuid: g.folio_fiscal_uuid ?? null,
+      es_deducible_fiscal: g.es_deducible_fiscal != null ? Boolean(g.es_deducible_fiscal) : true,
     };
 
     if (!gastosPorSol[g.solicitud_id]) {

@@ -247,6 +247,19 @@ export function ReembolsosTable({
       rif_comercio: r.rif_comercio,
       numero_factura: r.numero_factura,
       requiere_revision_fiscal: r.requiere_revision_fiscal,
+      pais_gasto: r.pais_gasto,
+      estado_region: r.estado_region,
+      ciudad: r.ciudad,
+      codigo_postal: r.codigo_postal,
+      tiene_sales_tax: r.tiene_sales_tax,
+      subtotal_usd: r.subtotal_usd,
+      sales_tax_usd: r.sales_tax_usd,
+      propina_usd: r.propina_usd,
+      nombre_impuesto_local: r.nombre_impuesto_local,
+      tasa_impuesto_aplicada: r.tasa_impuesto_aplicada,
+      impuesto_local_monto: r.impuesto_local_monto,
+      subtotal_local: r.subtotal_local,
+      folio_fiscal_uuid: r.folio_fiscal_uuid,
     };
     setSelectedGasto(gastoAdapted);
   };

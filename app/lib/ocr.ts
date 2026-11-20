@@ -53,6 +53,12 @@ REGLAS DE EXTRACCIÓN FISCAL:
     * sales_tax_usd: ÚNICAMENTE el impuesto estatal o local sobre las ventas ("Sales Tax", "State Tax", "Local Tax", "Tax"). Si no se cobró impuesto, devuelve 0.00.
     * propina_usd: Monto de propina voluntaria ("Tip", "Gratuity", "Service Charge"). NUNCA sumarlo dentro de sales_tax_usd.
     * total: Total final pagado (Subtotal + Sales Tax + Propina).
+12. Desglose para México y Otros Países Internacionales:
+    * subtotal_local: Subtotal en la moneda original antes de impuestos.
+    * nombre_impuesto_local: Nombre textual del impuesto en el ticket ("IVA", "IVA Trasladado", "VAT", "IGV", etc.).
+    * tasa_impuesto_aplicada: Tasa porcentual numérica impresa (ej. 16.0, 8.0, 21.0) o 0.0 si no aplica.
+    * impuesto_local_monto: Monto monetario exacto del impuesto en la moneda original.
+    * folio_fiscal_uuid: Folio fiscal / UUID CFDI del SAT en México o código de autorización internacional.
 
 Devuelve estrictamente un objeto JSON con la estructura solicitada, sin rodeos ni Markdown adicional.`;
 
@@ -123,6 +129,28 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
     propina_usd: {
       type: SchemaType.NUMBER,
       description: 'Tip or gratuity in USD (never mix with sales_tax_usd)',
+    },
+    subtotal_local: {
+      type: SchemaType.NUMBER,
+      description: 'Subtotal in local currency before taxes (0 if not applicable)',
+    },
+    nombre_impuesto_local: {
+      type: SchemaType.STRING,
+      description: 'Local tax name e.g. Sales Tax, IVA, VAT, IGV',
+      nullable: true,
+    },
+    tasa_impuesto_aplicada: {
+      type: SchemaType.NUMBER,
+      description: 'Tax rate percentage printed on ticket (e.g. 16.00, 8.00, 21.00, 0)',
+    },
+    impuesto_local_monto: {
+      type: SchemaType.NUMBER,
+      description: 'Exact tax amount in local currency',
+    },
+    folio_fiscal_uuid: {
+      type: SchemaType.STRING,
+      description: 'CFDI UUID or authorization voucher code',
+      nullable: true,
     },
   },
   required: [
@@ -205,6 +233,17 @@ export async function procesarFacturaConIA(
     }
     if (parsed.propina_usd === undefined || parsed.propina_usd === null) {
       parsed.propina_usd = 0;
+    }
+
+    // Normalize Universal Multi-Jurisdiction tax fields
+    if (parsed.subtotal_local === undefined || parsed.subtotal_local === null) {
+      parsed.subtotal_local = parsed.base_imponible > 0 ? parsed.base_imponible : (parsed.subtotal_usd || parsed.total);
+    }
+    if (parsed.impuesto_local_monto === undefined || parsed.impuesto_local_monto === null) {
+      parsed.impuesto_local_monto = parsed.iva > 0 ? parsed.iva : (parsed.sales_tax_usd || 0);
+    }
+    if (parsed.tasa_impuesto_aplicada === undefined || parsed.tasa_impuesto_aplicada === null) {
+      parsed.tasa_impuesto_aplicada = 0;
     }
 
     return parsed;
@@ -456,6 +495,17 @@ export async function procesarFacturaPDFConIA(
     }
     if (parsed.propina_usd === undefined || parsed.propina_usd === null) {
       parsed.propina_usd = 0;
+    }
+
+    // Normalize Universal Multi-Jurisdiction tax fields
+    if (parsed.subtotal_local === undefined || parsed.subtotal_local === null) {
+      parsed.subtotal_local = parsed.base_imponible > 0 ? parsed.base_imponible : (parsed.subtotal_usd || parsed.total);
+    }
+    if (parsed.impuesto_local_monto === undefined || parsed.impuesto_local_monto === null) {
+      parsed.impuesto_local_monto = parsed.iva > 0 ? parsed.iva : (parsed.sales_tax_usd || 0);
+    }
+    if (parsed.tasa_impuesto_aplicada === undefined || parsed.tasa_impuesto_aplicada === null) {
+      parsed.tasa_impuesto_aplicada = 0;
     }
 
     return parsed;

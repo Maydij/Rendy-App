@@ -6,6 +6,7 @@ import {
   ExternalLink,
   FileText,
   Image as ImageIcon,
+  Printer,
   ShieldCheck,
   X,
 } from 'lucide-react';
@@ -17,10 +18,53 @@ import type { Gasto } from '@/lib/types/gasto';
    ───────────────────────────────────────────────────────────── */
 
 interface DigitalInvoiceProps {
-  /** The expense record to render as a digital receipt. */
+  /** The expense record to render as an adaptive digital receipt. */
   gasto: Gasto;
   /** Callback to close the modal (sets parent state to null). */
   onClose: () => void;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Jurisdiction Helper
+   ───────────────────────────────────────────────────────────── */
+
+/**
+ * @name resolveJurisdiction
+ * @description [Business Logic]: Determines the fiscal jurisdiction ('US' | 'VE' | 'MX' | 'OTRO')
+ * for the expense. Reads persisted `pais_gasto` with intelligent fallback for legacy records.
+ */
+function resolveJurisdiction(gasto: Gasto): 'US' | 'VE' | 'MX' | 'OTRO' {
+  if (gasto.pais_gasto === 'US' || gasto.pais_gasto === 'VE' || gasto.pais_gasto === 'MX' || gasto.pais_gasto === 'OTRO') {
+    return gasto.pais_gasto;
+  }
+
+  // Smart fallback resolution for legacy records without explicit `pais_gasto`
+  if (
+    Number(gasto.sales_tax_usd || 0) > 0 ||
+    Boolean(gasto.tiene_sales_tax) ||
+    (gasto.estado_region && /^[A-Z]{2}$/.test(gasto.estado_region.trim())) ||
+    (gasto.moneda === 'USD' && !gasto.rif_comercio?.match(/^[JVEGPjvegp]/i))
+  ) {
+    return 'US';
+  }
+
+  if (
+    gasto.moneda === 'MXN' ||
+    Boolean(gasto.rif_comercio?.match(/^[A-Za-z]{3,4}\d{6}/))
+  ) {
+    return 'MX';
+  }
+
+  if (
+    gasto.moneda === 'VES' ||
+    Boolean(gasto.rif_comercio?.match(/^[JVEGPjvegp]/i)) ||
+    Number(gasto.base_imponible_ves || 0) > 0 ||
+    Number(gasto.iva_ves || 0) > 0
+  ) {
+    return 'VE';
+  }
+
+  return 'OTRO';
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -29,42 +73,53 @@ interface DigitalInvoiceProps {
 
 /**
  * @name DigitalInvoice
- * @description [UI Component]: Full-screen modal that renders a stylised
- * e-Receipt (digital invoice) for any expense across the platform.
- * Accepts a single `Gasto` object so the receipt data is always
- * consistent regardless of which module triggers it (Gastos,
- * Reembolsos, or Justificación).
- *
- * Includes two tabs:
- * 1. **Factura Digital** — Paper-style receipt with OCR-verified data.
- * 2. **Foto Original** — Raw receipt image from Supabase Storage.
+ * @description [UI Component]: Full-screen modal that renders a polymorphic,
+ * country-adaptive digital receipt (e-Receipt) for any expense across the platform.
+ * Supports USA (Sales Tax & State), Venezuela (SENIAT), Mexico (SAT/CFDI), and
+ * International currencies without forcing hardcoded 16% IVA formulas.
  */
 const DigitalInvoice = ({ gasto, onClose }: DigitalInvoiceProps) => {
   const [activeTab, setActiveTab] = useState<'digital' | 'imagen'>('digital');
 
   const handleClose = useCallback(() => onClose(), [onClose]);
-
   useEscapeClose(handleClose);
 
-  const imageUrl = gasto.url_comprobante ?? (gasto.datos_ocr as { url_comprobante?: string })?.url_comprobante ?? null;
-  const hasExchangeRate = gasto.tasa_cambio != null && gasto.tasa_cambio !== 1;
+  const imageUrl =
+    gasto.url_comprobante ??
+    (gasto.datos_ocr as { url_comprobante?: string })?.url_comprobante ??
+    null;
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(5, 7, 15, 0.85)',
-        backdropFilter: 'blur(10px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 200,
-        padding: '16px',
-        animation: 'fadeIn 0.2s ease',
-      }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn"
       onClick={handleClose}
     >
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-digital-receipt,
+          #printable-digital-receipt * {
+            visibility: visible;
+          }
+          #printable-digital-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            filter: none !important;
+            box-shadow: none !important;
+          }
+        }
+      `}</style>
+
       <div
         style={{
           background: 'var(--bg-surface)',
@@ -81,7 +136,7 @@ const DigitalInvoice = ({ gasto, onClose }: DigitalInvoiceProps) => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Header with Tab Selector ── */}
+        {/* ── Header with Tab Selector & Actions ── */}
         <div
           style={{
             padding: '14px 20px',
@@ -158,6 +213,15 @@ const DigitalInvoice = ({ gasto, onClose }: DigitalInvoiceProps) => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="btn btn-ghost btn-sm"
+              style={{ padding: '6px 10px', fontSize: '11px' }}
+              title="Imprimir o guardar como PDF"
+            >
+              <Printer size={13} />
+            </button>
             {imageUrl && (
               <a
                 href={imageUrl}
@@ -201,7 +265,7 @@ const DigitalInvoice = ({ gasto, onClose }: DigitalInvoiceProps) => {
           }}
         >
           {activeTab === 'digital' ? (
-            <ReceiptBody gasto={gasto} hasExchangeRate={hasExchangeRate} />
+            <ReceiptBody gasto={gasto} />
           ) : (
             <ReceiptImage imageUrl={imageUrl} comercio={gasto.comercio} />
           )}
@@ -244,35 +308,42 @@ const DigitalInvoice = ({ gasto, onClose }: DigitalInvoiceProps) => {
 
 /**
  * @name ReceiptBody
- * @description Renders the paper-style digital receipt with all
- * financial details, conversion banner, and decorative barcode.
+ * @description Renders the paper-style digital receipt with polymorphic
+ * layout adapting to the expense's fiscal jurisdiction (US, VE, MX, OTRO).
  */
-function ReceiptBody({
-  gasto,
-  hasExchangeRate,
-}: {
-  gasto: Gasto;
-  hasExchangeRate: boolean;
-}) {
-  const formatMonto = (n: number) =>
-    n.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+function ReceiptBody({ gasto }: { gasto: Gasto }) {
+  const jurisdiccion = resolveJurisdiction(gasto);
 
-  /**
-   * @description Determines whether this expense has real fiscal breakdown data
-   * (not just the default 0.00 values from the DB migration). A valid fiscal
-   * breakdown requires at least one non-zero component OR a non-null moneda_original.
-   */
-  const hasFiscalBreakdown =
-    gasto.moneda_original != null &&
-    (
-      Number(gasto.base_imponible_ves || 0) > 0 ||
-      Number(gasto.iva_ves || 0) > 0 ||
-      Number(gasto.exento_ves || 0) > 0 ||
-      Number(gasto.igtf_ves || 0) > 0
-    );
+  const formatVes = (n: number) =>
+    n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatDec = (n: number) =>
+    Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const hasExchangeRate = gasto.tasa_cambio != null && gasto.tasa_cambio > 0 && gasto.tasa_cambio !== 1;
+  const monedaOriginal = gasto.moneda_original || gasto.moneda;
+
+  // ── USA Computed Amounts ──
+  const salesTaxUsd = Number(gasto.sales_tax_usd || 0);
+  const propinaUsd = Number(gasto.propina_usd || 0);
+  const totalUsd = Number(gasto.monto_usd || (gasto.moneda === 'USD' ? gasto.monto : 0));
+  const subtotalUsd = Number(
+    gasto.subtotal_usd ||
+    (totalUsd > 0 ? Math.max(0, totalUsd - salesTaxUsd - propinaUsd) : 0)
+  );
+  const tieneSalesTax = salesTaxUsd > 0 || Boolean(gasto.tiene_sales_tax);
+
+  // ── USA Location String ──
+  const ubicacionUsa = [
+    gasto.ciudad,
+    gasto.estado_region,
+    gasto.codigo_postal ? `ZIP ${gasto.codigo_postal}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <div
+      id="printable-digital-receipt"
       style={{
         background: '#fcfaf6',
         color: '#1a1a1a',
@@ -293,15 +364,15 @@ function ReceiptBody({
         <path d="M0,0 L5,12 L10,0 L15,12 L20,0 L25,12 L30,0 L35,12 L40,0 L45,12 L50,0 L55,12 L60,0 L65,12 L70,0 L75,12 L80,0 L85,12 L90,0 L95,12 L100,0 L105,12 L110,0 L115,12 L120,0 L125,12 L130,0 L135,12 L140,0 L145,12 L150,0 L155,12 L160,0 L165,12 L170,0 L175,12 L180,0 L185,12 L190,0 L195,12 L200,0 L205,12 L210,0 L215,12 L220,0 L225,12 L230,0 L235,12 L240,0 L245,12 L250,0 L255,12 L260,0 L265,12 L270,0 L275,12 L280,0 L285,12 L290,0 L295,12 L300,0 Z" />
       </svg>
 
-      <div style={{ padding: '26px 28px 20px' }}>
-        {/* Badge */}
+      <div style={{ padding: '24px 26px 20px' }}>
+        {/* ── Section A: Adaptive Header Badge & Status Pill ── */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             textAlign: 'center',
-            marginBottom: '20px',
+            marginBottom: '18px',
           }}
         >
           <div
@@ -310,29 +381,194 @@ function ReceiptBody({
               alignItems: 'center',
               gap: '6px',
               color: '#0284c7',
-              fontSize: '14px',
+              fontSize: '13px',
               fontWeight: 800,
               letterSpacing: '0.04em',
               textTransform: 'uppercase',
             }}
           >
-            <ShieldCheck size={20} strokeWidth={2.4} />
+            <ShieldCheck size={18} strokeWidth={2.4} />
             GUARANTEED ERECEIPT
           </div>
+
+          {/* Dynamic Jurisdiction Badge & Status Pill */}
           <div
             style={{
-              fontSize: '11px',
-              color: '#64748b',
-              fontWeight: 600,
-              marginTop: '3px',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              marginTop: '6px',
             }}
           >
-            OCR Verificado Rendy IA • Tasa Fiscal Congelada
+            {jurisdiccion === 'US' && (
+              <>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#334155',
+                    background: '#e2e8f0',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  🇺🇸 USA • {gasto.estado_region || 'USA'} {gasto.codigo_postal || ''}
+                </span>
+                {tieneSalesTax ? (
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      color: '#92400e',
+                      background: '#fef3c7',
+                      border: '1px solid #fde68a',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    CON TAX
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      color: '#065f46',
+                      background: '#d1fae5',
+                      border: '1px solid #a7f3d0',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    SIN TAX ($0.00)
+                  </span>
+                )}
+              </>
+            )}
+
+            {jurisdiccion === 'VE' && (
+              <>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#334155',
+                    background: '#e2e8f0',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  🇻🇪 Venezuela • SENIAT
+                </span>
+                {gasto.es_deducible_fiscal !== false ? (
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      color: '#065f46',
+                      background: '#d1fae5',
+                      border: '1px solid #a7f3d0',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    Factura Fiscal
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      color: '#92400e',
+                      background: '#fef3c7',
+                      border: '1px solid #fde68a',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    Nota de Entrega (No Deducible)
+                  </span>
+                )}
+              </>
+            )}
+
+            {jurisdiccion === 'MX' && (
+              <>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#334155',
+                    background: '#e2e8f0',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  🇲🇽 México • SAT
+                </span>
+                <span
+                  style={{
+                    fontSize: '10.5px',
+                    fontWeight: 800,
+                    color: '#1e40af',
+                    background: '#dbeafe',
+                    border: '1px solid #bfdbfe',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  RFC: {gasto.rif_comercio || 'N/A'}
+                </span>
+              </>
+            )}
+
+            {jurisdiccion === 'OTRO' && (
+              <>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#334155',
+                    background: '#e2e8f0',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  🌍 Internacional • {monedaOriginal}
+                </span>
+                <span
+                  style={{
+                    fontSize: '10.5px',
+                    fontWeight: 800,
+                    color: '#5b21b6',
+                    background: '#ede9fe',
+                    border: '1px solid #ddd6fe',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  {monedaOriginal}
+                </span>
+              </>
+            )}
+          </div>
+
+          <div
+            style={{
+              fontSize: '10.5px',
+              color: '#64748b',
+              fontWeight: 500,
+              marginTop: '4px',
+            }}
+          >
+            OCR Verificado Rendy IA • Desglose Fiscal Objetivo
           </div>
         </div>
 
-        {/* Main Amount */}
-        <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+        {/* ── Main Amount Display ── */}
+        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
           <div
             style={{
               fontSize: '11px',
@@ -342,12 +578,11 @@ function ReceiptBody({
               letterSpacing: '0.05em',
             }}
           >
-            Amount •{' '}
-            {gasto.metodo_pago?.includes('Tarjeta') ? 'Card' : 'Viático'}
+            Amount • {gasto.metodo_pago?.includes('Tarjeta') ? 'Card' : 'Viático / Reembolso'}
           </div>
           <div
             style={{
-              fontSize: '32px',
+              fontSize: '30px',
               fontWeight: 900,
               color: '#0f172a',
               display: 'flex',
@@ -357,67 +592,71 @@ function ReceiptBody({
               marginTop: '2px',
             }}
           >
-            <span>
-              {gasto.moneda === 'USD' ? '$' : ''}
-              {formatMonto(gasto.monto)} {gasto.moneda}
-            </span>
+            {jurisdiccion === 'US' ? (
+              <span>${formatDec(totalUsd || gasto.monto)} USD</span>
+            ) : jurisdiccion === 'VE' ? (
+              <span>Bs. {formatVes(gasto.monto_ves || gasto.monto)} VES</span>
+            ) : (
+              <span>{formatDec(gasto.monto)} {monedaOriginal}</span>
+            )}
             <span
               style={{
                 width: '9px',
                 height: '9px',
                 borderRadius: '50%',
-                background: hasExchangeRate ? '#10b981' : '#f59e0b',
+                background: hasExchangeRate || jurisdiccion === 'US' ? '#10b981' : '#f59e0b',
               }}
             />
           </div>
         </div>
 
-        {/* Exchange Rate / Policy Banner */}
+        {/* ── Exchange Rate / Policy Banner ── */}
         <div
           style={{
             background: '#fef3c7',
             border: '1px solid #fde68a',
             borderRadius: '10px',
-            padding: '10px 12px',
-            marginBottom: '20px',
+            padding: '9px 12px',
+            marginBottom: '18px',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            fontSize: '11.5px',
+            fontSize: '11px',
             color: '#92400e',
             lineHeight: 1.4,
           }}
         >
-          <AlertTriangle
-            size={16}
-            style={{ flexShrink: 0, color: '#d97706' }}
-          />
+          <AlertTriangle size={15} style={{ flexShrink: 0, color: '#d97706' }} />
           <div>
-            {hasExchangeRate ? (
+            {jurisdiccion === 'US' ? (
               <>
-                <strong>Conversión Congelada:</strong> Tasa oficial{' '}
-                {gasto.tasa_cambio} → Deducible{' '}
+                <strong>Jurisdicción USA:</strong> Comprobante procesado en USD bajo tributación estatal/local.
+              </>
+            ) : jurisdiccion === 'VE' && hasExchangeRate ? (
+              <>
+                <strong>Conversión Congelada:</strong> Tasa oficial Bs. {gasto.tasa_cambio} → Deducible{' '}
                 <strong>
-                  {gasto.monto_convertido?.toLocaleString('es-VE', {
-                    minimumFractionDigits: 2,
-                  })}{' '}
-                  {gasto.moneda_viatico || 'USD'}
+                  ${Number(gasto.monto_usd || gasto.monto_convertido || 0).toFixed(2)} USD
                 </strong>
+              </>
+            ) : monedaOriginal !== 'USD' && hasExchangeRate ? (
+              <>
+                <strong>Tipo de Cambio:</strong> 1 USD = {gasto.tasa_cambio} {monedaOriginal} → Ref.{' '}
+                <strong>${Number(gasto.monto_usd || 0).toFixed(2)} USD</strong>
               </>
             ) : (
               <>
-                <strong>Gasto Registrado:</strong> Comprobante procesado en
-                divisa original sin necesidad de puente cambiario.
+                <strong>Gasto Registrado:</strong> Comprobante procesado en divisa original sin puente cambiario.
               </>
             )}
           </div>
         </div>
 
-        {/* Merchant & Fiscal Data */}
-        <div style={{ marginBottom: '18px' }}>
+        {/* ── Section B: Merchant & Fiscal Identification Block (Strictly by Country) ── */}
+        <div style={{ marginBottom: '16px' }}>
           <div
             style={{
-              fontSize: '18px',
+              fontSize: '17px',
               fontWeight: 800,
               color: '#0f172a',
               lineHeight: 1.2,
@@ -426,9 +665,10 @@ function ReceiptBody({
           >
             {gasto.comercio}
           </div>
+
           <div
             style={{
-              fontSize: '12px',
+              fontSize: '11.5px',
               color: '#475569',
               marginTop: '6px',
               display: 'flex',
@@ -445,223 +685,323 @@ function ReceiptBody({
                   })
                 : '12:00'}
             </div>
+
             {gasto.categoria && (
               <div>
                 Category: <strong>{gasto.categoria}</strong>
               </div>
             )}
+
             {gasto.metodo_pago && <div>Método: {gasto.metodo_pago}</div>}
+
             {gasto.empleado && (
               <div>
                 Empleado: <strong>{gasto.empleado}</strong>
               </div>
             )}
-            {gasto.id && (
-              <div
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '11px',
-                  color: '#64748b',
-                }}
-              >
-                Folio UUID: {gasto.id.slice(0, 18).toUpperCase()}
-              </div>
+
+            {/* US Fiscal Identification: Location + Receipt # (NO RIF, NO N° Control) */}
+            {jurisdiccion === 'US' && (
+              <>
+                {ubicacionUsa && (
+                  <div>
+                    📍 Ubicación: <strong>{ubicacionUsa}</strong>
+                  </div>
+                )}
+                {Boolean(gasto.numero_factura) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    Receipt / Doc #: #{gasto.numero_factura}
+                  </div>
+                )}
+              </>
             )}
-            {Boolean(gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>)?.rif) && (
-              <div
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '11px',
-                  color: '#64748b',
-                }}
-              >
-                RIF: {gasto.rif_comercio || String((gasto.datos_ocr as Record<string, unknown>).rif)}
-              </div>
+
+            {/* Venezuela Fiscal Identification: RIF, N° Factura, N° Control, Tasa BCV */}
+            {jurisdiccion === 'VE' && (
+              <>
+                {Boolean(gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>)?.rif) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    RIF: {gasto.rif_comercio || String((gasto.datos_ocr as Record<string, unknown>).rif)}
+                  </div>
+                )}
+                {Boolean(gasto.numero_factura) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    Factura Nº: #{gasto.numero_factura}
+                  </div>
+                )}
+                {Boolean(gasto.numero_control) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    N° Control SENIAT: {gasto.numero_control}
+                  </div>
+                )}
+                {Boolean(gasto.tasa_cambio) && (
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Tasa Oficial BCV: Bs. {gasto.tasa_cambio}
+                  </div>
+                )}
+              </>
             )}
-            {Boolean(gasto.numero_factura) && (
-              <div
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '11px',
-                  color: '#64748b',
-                }}
-              >
-                Factura Nº: #{gasto.numero_factura}
-              </div>
+
+            {/* Mexico Fiscal Identification: RFC, Folio / UUID CFDI */}
+            {jurisdiccion === 'MX' && (
+              <>
+                {Boolean(gasto.rif_comercio) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    RFC Emisor: {gasto.rif_comercio}
+                  </div>
+                )}
+                {Boolean(gasto.folio_fiscal_uuid || gasto.numero_factura) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    Folio Fiscal / UUID: {gasto.folio_fiscal_uuid || gasto.numero_factura}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Other International Countries */}
+            {jurisdiccion === 'OTRO' && (
+              <>
+                {Boolean(gasto.folio_fiscal_uuid || gasto.numero_factura) && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
+                    Doc / Ref #: {gasto.folio_fiscal_uuid || gasto.numero_factura}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
 
-        <div style={{ borderBottom: '1px dashed #cbd5e1', marginBottom: '16px' }} />
+        <div style={{ borderBottom: '1px dashed #cbd5e1', marginBottom: '14px' }} />
 
-        {/* Line Items */}
-        <div style={{ fontSize: '12.5px', marginBottom: '16px' }}>
+        {/* ── Line Items ── */}
+        <div style={{ fontSize: '12px', marginBottom: '14px' }}>
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '8px',
             }}
           >
             <span style={{ color: '#0f172a', fontWeight: 600 }}>
               1x {gasto.concepto || gasto.categoria || 'Consumo Registrado'}
             </span>
             <span style={{ fontWeight: 700, color: '#0f172a' }}>
-              {formatMonto(gasto.monto)} {gasto.moneda}
+              {jurisdiccion === 'US'
+                ? `$${formatDec(totalUsd || gasto.monto)} USD`
+                : jurisdiccion === 'VE'
+                ? `Bs. ${formatVes(gasto.monto_ves || gasto.monto)}`
+                : `${formatDec(gasto.monto)} ${monedaOriginal}`}
             </span>
           </div>
         </div>
 
-        {/* Totals */}
-        <div style={{ borderBottom: '1px dashed #cbd5e1', marginBottom: '16px' }} />
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            fontSize: '12.5px',
-          }}
-        >
-          {hasFiscalBreakdown ? (
-            <>
-              <div
+        <div style={{ borderBottom: '1px dashed #cbd5e1', marginBottom: '14px' }} />
+
+        {/* ── Section C: Totals Breakdown (Strictly Conditional by Jurisdiction) ── */}
+        {jurisdiccion === 'US' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Subtotal (Base)</span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                ${formatDec(subtotalUsd)} USD
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Sales Tax ({gasto.estado_region || 'USA'})</span>
+              <span
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  color: '#475569',
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  color: salesTaxUsd > 0 ? '#b45309' : '#047857',
                 }}
               >
-                <span>Base Imponible (VES)</span>
-                <span>{formatMonto(gasto.base_imponible_ves ?? 0)} Bs</span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  color: '#475569',
-                }}
-              >
-                <span>IVA Trasladado 16% (VES)</span>
-                <span>{formatMonto(gasto.iva_ves || 0)} Bs</span>
-              </div>
-              {Number(gasto.exento_ves) > 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    color: '#475569',
-                  }}
-                >
-                  <span>Monto Exento (VES)</span>
-                  <span>{formatMonto(gasto.exento_ves || 0)} Bs</span>
-                </div>
-              )}
-              {Number(gasto.igtf_ves) > 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    color: '#475569',
-                  }}
-                >
-                  <span>IGTF 3% (VES)</span>
-                  <span>{formatMonto(gasto.igtf_ves || 0)} Bs</span>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  color: '#475569',
-                }}
-              >
-                <span>Subtotal</span>
-                <span>
-                  {formatMonto(gasto.monto * 0.84)} {gasto.moneda}
+                ${formatDec(salesTaxUsd)} USD
+              </span>
+            </div>
+            {propinaUsd > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                <span>Propina / Tip (No gravable)</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                  ${formatDec(propinaUsd)} USD
                 </span>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  color: '#475569',
-                }}
-              >
-                <span>IVA Trasladado (16%)</span>
-                <span>
-                  {formatMonto(gasto.monto * 0.16)} {gasto.moneda}
-                </span>
-              </div>
-            </>
-          )}
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: '16px',
-              fontWeight: 900,
-              color: '#0f172a',
-              marginTop: '6px',
-              paddingTop: '8px',
-              borderTop: '2px solid #0f172a',
-            }}
-          >
-            <span>Total Facturado</span>
-            <span>
-              {formatMonto(gasto.monto)} {gasto.moneda}
-            </span>
-          </div>
-
-          {/* Consolidación Dual VES / USD si aplica */}
-          {Boolean(gasto.monto_usd && gasto.monto_ves && gasto.moneda_original) && (
+            )}
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#64748b',
-                marginTop: '4px',
+                fontSize: '15px',
+                fontWeight: 900,
+                color: '#0f172a',
+                marginTop: '6px',
+                paddingTop: '8px',
+                borderTop: '2px solid #0f172a',
               }}
             >
-              <span>Consolidación Dual:</span>
-              <span>
-                {formatMonto(gasto.monto_ves!)} Bs ≈ ${formatMonto(gasto.monto_usd!)} USD
+              <span>Total Pagado</span>
+              <span style={{ fontFamily: 'monospace', color: '#0284c7' }}>
+                ${formatDec(totalUsd || gasto.monto)} USD
               </span>
             </div>
-          )}
+          </div>
+        )}
 
-          {gasto.requiere_revision_fiscal && (
+        {jurisdiccion === 'VE' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Base Imponible</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                Bs. {formatVes(Number(gasto.base_imponible_ves || 0))}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Monto Exento</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                Bs. {formatVes(Number(gasto.exento_ves || 0))}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>IVA (16%)</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                Bs. {formatVes(Number(gasto.iva_ves || 0))}
+              </span>
+            </div>
+            {Number(gasto.igtf_ves || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>IGTF (3%)</span>
+                <span style={{ fontFamily: 'monospace' }}>
+                  Bs. {formatVes(Number(gasto.igtf_ves))}
+                </span>
+              </div>
+            )}
             <div
               style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '15px',
+                fontWeight: 900,
+                color: '#0f172a',
                 marginTop: '6px',
-                padding: '6px 8px',
-                borderRadius: '6px',
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                fontSize: '11px',
-                color: '#991b1b',
-                fontWeight: 600,
+                paddingTop: '8px',
+                borderTop: '2px solid #0f172a',
               }}
             >
-              ⚠️ Discrepancia detectada en desglose fiscal (&gt;0.05). Requiere revisión contable.
+              <span>Total Factura (VES)</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                Bs. {formatVes(Number(gasto.monto_ves || gasto.monto || 0))}
+              </span>
             </div>
-          )}
-        </div>
+            {Number(gasto.monto_usd || 0) > 0 && Number(gasto.tasa_cambio || 0) > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: '#64748b',
+                  marginTop: '4px',
+                }}
+              >
+                <span>Equivalente USD (Tasa Bs. {Number(gasto.tasa_cambio).toFixed(2)})</span>
+                <span style={{ fontFamily: 'monospace', color: '#047857', fontWeight: 700 }}>
+                  ${formatDec(Number(gasto.monto_usd))} USD
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Decorative Barcode */}
-        <div style={{ marginTop: '26px', textAlign: 'center' }}>
+        {(jurisdiccion === 'MX' || jurisdiccion === 'OTRO') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Subtotal</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                {formatDec(
+                  Number(
+                    gasto.subtotal_local ??
+                    Math.max(0, gasto.monto - (gasto.impuesto_local_monto || 0) - (gasto.propina_usd || 0))
+                  )
+                )}{' '}
+                {monedaOriginal}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>
+                {gasto.nombre_impuesto_local || (jurisdiccion === 'MX' ? 'IVA Trasladado' : 'Impuestos')}
+                {Number(gasto.tasa_impuesto_aplicada || 0) > 0 ? ` (${gasto.tasa_impuesto_aplicada}%)` : ''}
+              </span>
+              <span style={{ fontFamily: 'monospace' }}>
+                {formatDec(Number(gasto.impuesto_local_monto || 0))} {monedaOriginal}
+              </span>
+            </div>
+            {Number(gasto.propina_usd || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                <span>Propina</span>
+                <span style={{ fontFamily: 'monospace' }}>
+                  {formatDec(Number(gasto.propina_usd))} {monedaOriginal}
+                </span>
+              </div>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '15px',
+                fontWeight: 900,
+                color: '#0f172a',
+                marginTop: '6px',
+                paddingTop: '8px',
+                borderTop: '2px solid #0f172a',
+              }}
+            >
+              <span>Total ({monedaOriginal})</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                {formatDec(Number(gasto.monto || 0))} {monedaOriginal}
+              </span>
+            </div>
+            {monedaOriginal !== 'USD' && Number(gasto.monto_usd || 0) > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: '#64748b',
+                  marginTop: '4px',
+                }}
+              >
+                <span>Equivalente Referencial USD</span>
+                <span style={{ fontFamily: 'monospace', color: '#047857', fontWeight: 700 }}>
+                  ${formatDec(Number(gasto.monto_usd))} USD
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {gasto.requiere_revision_fiscal && (
+          <div
+            style={{
+              marginTop: '10px',
+              padding: '6px 8px',
+              borderRadius: '6px',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              fontSize: '10.5px',
+              color: '#991b1b',
+              fontWeight: 600,
+            }}
+          >
+            ⚠️ Discrepancia detectada en desglose fiscal. Requiere revisión contable.
+          </div>
+        )}
+
+        {/* ── Decorative Barcode & Footer Branding ── */}
+        <div style={{ marginTop: '22px', textAlign: 'center' }}>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '2px',
-              height: '36px',
+              height: '32px',
               opacity: 0.85,
             }}
           >
@@ -681,14 +1021,14 @@ function ReceiptBody({
           </div>
           <div
             style={{
-              fontSize: '9.5px',
+              fontSize: '9px',
               fontWeight: 700,
               color: '#64748b',
               letterSpacing: '0.12em',
-              marginTop: '6px',
+              marginTop: '5px',
             }}
           >
-            SWORK RENDY CORE V4.2
+            SWORC RENDY GLOBAL E-RECEIPT ENGINE
           </div>
         </div>
       </div>
