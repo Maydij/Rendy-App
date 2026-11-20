@@ -2072,7 +2072,15 @@ async function persistirGastoDefinitivo(
     detalle_exceso: detalleExceso,
     estado: estadoFinal,
     requiere_revision_fiscal: Boolean(ocr.requiere_revision_fiscal),
-    pais_gasto: ocr.pais_gasto || (ocr.moneda === 'USD' ? 'US' : 'VE'),
+    pais_gasto:
+      ocr.pais_gasto ||
+      (ocr.moneda === 'MXN'
+        ? 'MX'
+        : ocr.moneda === 'USD'
+        ? 'US'
+        : ocr.moneda === 'VES'
+        ? 'VE'
+        : 'OTRO'),
     estado_region: ocr.estado_region || null,
     ciudad: ocr.ciudad || null,
     codigo_postal: ocr.codigo_postal || null,

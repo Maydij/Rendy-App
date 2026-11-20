@@ -32,35 +32,69 @@ interface DigitalInvoiceProps {
  * @name resolveJurisdiction
  * @description [Business Logic]: Determines the fiscal jurisdiction ('US' | 'VE' | 'MX' | 'OTRO')
  * for the expense. Reads persisted `pais_gasto` with intelligent fallback for legacy records.
+ * Currency is treated as an inviolable constraint: MXN can never be VE, VES can never be MX/US.
  */
 function resolveJurisdiction(gasto: Gasto): 'US' | 'VE' | 'MX' | 'OTRO' {
-  if (gasto.pais_gasto === 'US' || gasto.pais_gasto === 'VE' || gasto.pais_gasto === 'MX' || gasto.pais_gasto === 'OTRO') {
-    return gasto.pais_gasto;
+  const moneda = (gasto.moneda_original || gasto.moneda || '').toUpperCase().trim();
+  const rawPais = (gasto.pais_gasto || '').toUpperCase().trim();
+
+  // 1. Inviolable Currency Axioms:
+  // Mexican Pesos (MXN) is strictly Mexican jurisdiction (SAT / CFDI).
+  if (moneda === 'MXN') {
+    return 'MX';
   }
 
-  // Smart fallback resolution for legacy records without explicit `pais_gasto`
-  if (
-    Number(gasto.sales_tax_usd || 0) > 0 ||
-    Boolean(gasto.tiene_sales_tax) ||
-    (gasto.estado_region && /^[A-Z]{2}$/.test(gasto.estado_region.trim())) ||
-    (gasto.moneda === 'USD' && !gasto.rif_comercio?.match(/^[JVEGPjvegp]/i))
-  ) {
-    return 'US';
+  // Venezuelan Bolivars (VES) is strictly Venezuelan jurisdiction (SENIAT).
+  if (moneda === 'VES') {
+    return 'VE';
   }
 
+  // 2. Explicit Mexican RFC tax ID pattern (e.g., ABC123456XYZ or ABCD123456XYZ)
   if (
-    gasto.moneda === 'MXN' ||
-    Boolean(gasto.rif_comercio?.match(/^[A-Za-z]{3,4}\d{6}/))
+    Boolean(gasto.rif_comercio?.match(/^[A-Z&Ñ]{3,4}\d{6}[A-V1-9][A-Z1-9][0-9A]$/i)) ||
+    Boolean((gasto.datos_ocr as Record<string, unknown>)?.rfc)
   ) {
     return 'MX';
   }
 
-  if (
-    gasto.moneda === 'VES' ||
-    Boolean(gasto.rif_comercio?.match(/^[JVEGPjvegp]/i)) ||
-    Number(gasto.base_imponible_ves || 0) > 0 ||
-    Number(gasto.iva_ves || 0) > 0
-  ) {
+  // 3. Explicit pais_gasto when not contradicted by currency
+  if (rawPais === 'MX') {
+    return 'MX';
+  }
+
+  if (rawPais === 'US') {
+    return 'US';
+  }
+
+  if (rawPais === 'OTRO') {
+    return 'OTRO';
+  }
+
+  // 4. International non-USD currencies (EUR, COP, CLP, PEN, GBP, BRL, CAD, etc.)
+  if (moneda && moneda !== 'USD' && moneda !== 'VES' && moneda !== 'MXN') {
+    return 'OTRO';
+  }
+
+  // 5. USD currency resolution: distinguish between US and Venezuelan bimonetary invoices
+  if (moneda === 'USD') {
+    const hasSeniatRif = Boolean(gasto.rif_comercio?.match(/^[JVEGPjvegp]-?\d{7,9}-?\d?$/i));
+    const hasVesFiscalData =
+      Number(gasto.base_imponible_ves || 0) > 0 ||
+      Number(gasto.iva_ves || 0) > 0 ||
+      Number(gasto.igtf_ves || 0) > 0 ||
+      Number(gasto.monto_ves || 0) > 0;
+
+    // Only assign to Venezuela if there is verifiable SENIAT fiscal proof
+    if (hasSeniatRif || (rawPais === 'VE' && hasVesFiscalData)) {
+      return 'VE';
+    }
+
+    // Default to US for USD expenses
+    return 'US';
+  }
+
+  // 6. Generic fallback
+  if (rawPais === 'VE') {
     return 'VE';
   }
 
@@ -332,6 +366,34 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
   );
   const tieneSalesTax = salesTaxUsd > 0 || Boolean(gasto.tiene_sales_tax);
 
+  // ── Mexico & International Computed Amounts (with fallback to datos_ocr) ──
+  const rawOcr = (gasto.datos_ocr || {}) as Record<string, unknown>;
+  const impuestoLocalMonto = Number(
+    gasto.impuesto_local_monto ??
+    (rawOcr.impuesto_local_monto != null
+      ? rawOcr.impuesto_local_monto
+      : rawOcr.iva != null && Number(rawOcr.iva) > 0
+      ? rawOcr.iva
+      : 0)
+  );
+  const subtotalLocal = Number(
+    gasto.subtotal_local ??
+    (rawOcr.subtotal_local != null
+      ? rawOcr.subtotal_local
+      : rawOcr.subtotal != null
+      ? rawOcr.subtotal
+      : null) ??
+    Math.max(0, Number(gasto.monto || 0) - impuestoLocalMonto - propinaUsd)
+  );
+  const tasaImpuesto = Number(
+    gasto.tasa_impuesto_aplicada ??
+    (rawOcr.tasa_impuesto_aplicada != null
+      ? rawOcr.tasa_impuesto_aplicada
+      : impuestoLocalMonto > 0 && subtotalLocal > 0
+      ? Math.round((impuestoLocalMonto / subtotalLocal) * 100)
+      : 0)
+  );
+
   // ── USA Location String ──
   const ubicacionUsa = [
     gasto.ciudad,
@@ -519,7 +581,9 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                     borderRadius: '9999px',
                   }}
                 >
-                  RFC: {gasto.rif_comercio || 'N/A'}
+                  {gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>)?.rfc
+                    ? `RFC: ${gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>).rfc}`
+                    : 'Comprobante Fiscal'}
                 </span>
               </>
             )}
@@ -596,6 +660,8 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
               <span>${formatDec(totalUsd || gasto.monto)} USD</span>
             ) : jurisdiccion === 'VE' ? (
               <span>Bs. {formatVes(gasto.monto_ves || gasto.monto)} VES</span>
+            ) : jurisdiccion === 'MX' ? (
+              <span>${formatDec(gasto.monto)} MXN</span>
             ) : (
               <span>{formatDec(gasto.monto)} {monedaOriginal}</span>
             )}
@@ -639,10 +705,19 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                   ${Number(gasto.monto_usd || gasto.monto_convertido || 0).toFixed(2)} USD
                 </strong>
               </>
+            ) : (jurisdiccion === 'MX' || monedaOriginal === 'MXN') && hasExchangeRate ? (
+              <>
+                <strong>Tipo de Cambio:</strong> 1 USD = ${Number(gasto.tasa_cambio).toFixed(4)} MXN → Deducible{' '}
+                <strong>
+                  ${Number(gasto.monto_usd || gasto.monto_convertido || 0).toFixed(2)} USD
+                </strong>
+              </>
             ) : monedaOriginal !== 'USD' && hasExchangeRate ? (
               <>
-                <strong>Tipo de Cambio:</strong> 1 USD = {gasto.tasa_cambio} {monedaOriginal} → Ref.{' '}
-                <strong>${Number(gasto.monto_usd || 0).toFixed(2)} USD</strong>
+                <strong>Tipo de Cambio:</strong> 1 USD = {gasto.tasa_cambio} {monedaOriginal} → Deducible{' '}
+                <strong>
+                  ${Number(gasto.monto_usd || gasto.monto_convertido || 0).toFixed(2)} USD
+                </strong>
               </>
             ) : (
               <>
@@ -745,14 +820,19 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
             {/* Mexico Fiscal Identification: RFC, Folio / UUID CFDI */}
             {jurisdiccion === 'MX' && (
               <>
-                {Boolean(gasto.rif_comercio) && (
+                {Boolean(gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>)?.rfc) && (
                   <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
-                    RFC Emisor: {gasto.rif_comercio}
+                    RFC Emisor: {gasto.rif_comercio || String((gasto.datos_ocr as Record<string, unknown>).rfc)}
                   </div>
                 )}
-                {Boolean(gasto.folio_fiscal_uuid || gasto.numero_factura) && (
+                {Boolean(gasto.folio_fiscal_uuid || gasto.numero_factura || (gasto.datos_ocr as Record<string, unknown>)?.folio_fiscal) && (
                   <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
-                    Folio Fiscal / UUID: {gasto.folio_fiscal_uuid || gasto.numero_factura}
+                    Folio Fiscal / UUID: {gasto.folio_fiscal_uuid || gasto.numero_factura || String((gasto.datos_ocr as Record<string, unknown>).folio_fiscal)}
+                  </div>
+                )}
+                {Boolean(gasto.tasa_cambio) && (
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Tipo de Cambio (MXN/USD): 1 USD = ${Number(gasto.tasa_cambio).toFixed(4)} MXN
                   </div>
                 )}
               </>
@@ -790,6 +870,8 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                 ? `$${formatDec(totalUsd || gasto.monto)} USD`
                 : jurisdiccion === 'VE'
                 ? `Bs. ${formatVes(gasto.monto_ves || gasto.monto)}`
+                : jurisdiccion === 'MX'
+                ? `$${formatDec(gasto.monto)} MXN`
                 : `${formatDec(gasto.monto)} ${monedaOriginal}`}
             </span>
           </div>
@@ -910,34 +992,100 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
           </div>
         )}
 
-        {(jurisdiccion === 'MX' || jurisdiccion === 'OTRO') && (
+        {jurisdiccion === 'MX' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Subtotal MXN</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                ${formatDec(subtotalLocal)} MXN
+              </span>
+            </div>
+            {impuestoLocalMonto > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>
+                  {gasto.nombre_impuesto_local || 'IVA Trasladado'}
+                  {tasaImpuesto > 0 ? ` (${tasaImpuesto}%)` : ''}
+                </span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                  ${formatDec(impuestoLocalMonto)} MXN
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px' }}>
+                <span>IVA Trasladado</span>
+                <span style={{ fontStyle: 'italic', fontFamily: 'monospace' }}>
+                  Incluido en el total / No desglosado
+                </span>
+              </div>
+            )}
+            {propinaUsd > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                <span>Propina</span>
+                <span style={{ fontFamily: 'monospace' }}>
+                  ${formatDec(propinaUsd)} MXN
+                </span>
+              </div>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '15px',
+                fontWeight: 900,
+                color: '#0f172a',
+                marginTop: '6px',
+                paddingTop: '8px',
+                borderTop: '2px solid #0f172a',
+              }}
+            >
+              <span>Total Factura (MXN)</span>
+              <span style={{ fontFamily: 'monospace', color: '#0284c7' }}>
+                ${formatDec(Number(gasto.monto || 0))} MXN
+              </span>
+            </div>
+            {Number(gasto.monto_usd || 0) > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: '#64748b',
+                  marginTop: '4px',
+                }}
+              >
+                <span>Equivalente Deducible USD (Tasa ${Number(gasto.tasa_cambio || 0).toFixed(2)})</span>
+                <span style={{ fontFamily: 'monospace', color: '#047857', fontWeight: 700 }}>
+                  ${formatDec(Number(gasto.monto_usd))} USD
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {jurisdiccion === 'OTRO' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
               <span>Subtotal</span>
               <span style={{ fontFamily: 'monospace' }}>
-                {formatDec(
-                  Number(
-                    gasto.subtotal_local ??
-                    Math.max(0, gasto.monto - (gasto.impuesto_local_monto || 0) - (gasto.propina_usd || 0))
-                  )
-                )}{' '}
-                {monedaOriginal}
+                {formatDec(subtotalLocal)} {monedaOriginal}
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>
-                {gasto.nombre_impuesto_local || (jurisdiccion === 'MX' ? 'IVA Trasladado' : 'Impuestos')}
-                {Number(gasto.tasa_impuesto_aplicada || 0) > 0 ? ` (${gasto.tasa_impuesto_aplicada}%)` : ''}
-              </span>
-              <span style={{ fontFamily: 'monospace' }}>
-                {formatDec(Number(gasto.impuesto_local_monto || 0))} {monedaOriginal}
-              </span>
-            </div>
-            {Number(gasto.propina_usd || 0) > 0 && (
+            {impuestoLocalMonto > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>
+                  {gasto.nombre_impuesto_local || 'Impuestos Locales'}
+                  {tasaImpuesto > 0 ? ` (${tasaImpuesto}%)` : ''}
+                </span>
+                <span style={{ fontFamily: 'monospace' }}>
+                  {formatDec(impuestoLocalMonto)} {monedaOriginal}
+                </span>
+              </div>
+            )}
+            {propinaUsd > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                 <span>Propina</span>
                 <span style={{ fontFamily: 'monospace' }}>
-                  {formatDec(Number(gasto.propina_usd))} {monedaOriginal}
+                  {formatDec(propinaUsd)} {monedaOriginal}
                 </span>
               </div>
             )}
@@ -954,7 +1102,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
               }}
             >
               <span>Total ({monedaOriginal})</span>
-              <span style={{ fontFamily: 'monospace' }}>
+              <span style={{ fontFamily: 'monospace', color: '#0284c7' }}>
                 {formatDec(Number(gasto.monto || 0))} {monedaOriginal}
               </span>
             </div>

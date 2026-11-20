@@ -287,7 +287,16 @@ export async function exportAccountingReportAction(
         totalUsd,
         status: g.estado || 'REGISTRADO',
         receiptUrl: g.url_comprobante || null,
-        countryCode: g.pais_gasto || (resolvedCurrency === 'USD' ? 'US' : 'VE'),
+        countryCode:
+          (g.pais_gasto && g.pais_gasto !== 'VE') || resolvedCurrency === 'VES'
+            ? g.pais_gasto || 'VE'
+            : resolvedCurrency === 'MXN'
+            ? 'MX'
+            : resolvedCurrency === 'USD'
+            ? 'US'
+            : resolvedCurrency === 'VES'
+            ? 'VE'
+            : g.pais_gasto || 'OTRO',
         stateRegion: g.estado_region || ((g.datos_ocr as Record<string, unknown>)?.estado_region as string) || null,
         city: g.ciudad || ((g.datos_ocr as Record<string, unknown>)?.ciudad as string) || null,
         zipCode: g.codigo_postal || ((g.datos_ocr as Record<string, unknown>)?.codigo_postal as string) || null,
