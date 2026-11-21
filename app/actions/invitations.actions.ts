@@ -21,6 +21,7 @@ import { createAuthenticatedSession } from '@/lib/security/session';
 import { securityLogger } from '@/lib/security/logger';
 import { serverEnv } from '@/lib/security/env';
 import { enviarMensajeWhatsApp } from '@/app/lib/whatsapp';
+import { sendInvitationEmail } from '@/lib/email';
 
 /* ─────────────────────────────────────────────────────────────
  * Strict Zod Schemas (.strict() prevents Mass Assignment)
@@ -86,6 +87,7 @@ export interface CreatedInvitationArtifact {
   qrCodeDataUrl: string;
   tempPassword: string;
   whatsappDispatched: boolean;
+  emailDispatched: boolean;
   expiresAt: string;
 }
 
@@ -285,10 +287,32 @@ export async function createEmployeeInvitationAction(
       whatsappDispatched = false;
     }
 
+    // Attempt automated email invitation delivery (non-blocking: graceful degradation if Gmail SMTP is not configured)
+    let emailDispatched = false;
+    try {
+      const emailResult = await sendInvitationEmail(email, {
+        firstName,
+        companyName,
+        magicLinkUrl,
+        tempPassword,
+        expiresAt,
+      });
+      emailDispatched = emailResult.dispatched;
+      if (!emailResult.dispatched) {
+        securityLogger.warn('invitations.create.email_failed', {
+          invitationId,
+          errorDetail: emailResult.errorDetail,
+        });
+      }
+    } catch {
+      emailDispatched = false;
+    }
+
     securityLogger.info('invitations.create.succeeded', {
       invitationId,
       empresaId: session.empresaId,
       whatsappDispatched,
+      emailDispatched,
     });
 
     revalidatePath('/dashboard');
@@ -304,6 +328,7 @@ export async function createEmployeeInvitationAction(
         qrCodeDataUrl,
         tempPassword,
         whatsappDispatched,
+        emailDispatched,
         expiresAt,
       },
     };

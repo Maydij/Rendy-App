@@ -74,6 +74,15 @@ const ServerEnvSchema = z.object({
       .regex(/^\d{10,15}$/, 'NEXT_PUBLIC_WHATSAPP_BOT_NUMBER must be digits only (e.g. 584121234567)')
       .default('15550000000')
   ),
+
+  // Gmail SMTP credentials for transactional invitation emails (Nodemailer)
+  GMAIL_USER: z.preprocess(emptyStringToUndefined, z.string().email().optional()),
+  GMAIL_APP_PASSWORD: z.preprocess(emptyStringToUndefined, z.string().min(8).optional()),
+  SMTP_FROM_NAME: z.preprocess(emptyStringToUndefined, z.string().optional().default('Rendy')),
+
+  // Legacy Resend configuration (optional: kept for backwards-compatibility)
+  RESEND_API_KEY: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  RESEND_FROM_EMAIL: z.preprocess(emptyStringToUndefined, z.string().optional()),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
