@@ -12,6 +12,7 @@ import {
   Key,
   Loader2,
   AlertCircle,
+  Mail,
 } from 'lucide-react';
 import {
   createEmployeeInvitationAction,
@@ -194,10 +195,38 @@ export function InviteEmployeeModal({ isOpen, onClose }: InviteEmployeeModalProp
                   ¡Invitación lista para {createdArtifact.employeeFullName}!
                 </p>
                 <p>
-                  {createdArtifact.whatsappDispatched
-                    ? 'Se envió automáticamente un mensaje de invitación al WhatsApp del colaborador.'
-                    : 'Comparte el enlace único o pídele al colaborador que escanee este código QR.'}
+                  {createdArtifact.whatsappDispatched && createdArtifact.emailDispatched
+                    ? 'Se envió la invitación automáticamente por WhatsApp y correo electrónico.'
+                    : createdArtifact.whatsappDispatched
+                      ? 'Se envió automáticamente un mensaje de invitación al WhatsApp del colaborador.'
+                      : createdArtifact.emailDispatched
+                        ? 'Se envió la invitación por correo electrónico al colaborador.'
+                        : 'Comparte el enlace único o pídele al colaborador que escanee este código QR.'}
                 </p>
+              </div>
+            </div>
+
+            {/* Delivery Channel Status Badges */}
+            <div className="flex flex-wrap gap-2">
+              <div
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${
+                  createdArtifact.emailDispatched
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
+                }`}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                {createdArtifact.emailDispatched ? 'Email enviado' : 'Email no configurado'}
+              </div>
+              <div
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold ${
+                  createdArtifact.whatsappDispatched
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
+                }`}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                {createdArtifact.whatsappDispatched ? 'WhatsApp enviado' : 'WhatsApp no enviado'}
               </div>
             </div>
 
