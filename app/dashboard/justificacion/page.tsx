@@ -70,7 +70,12 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
       concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
       estado: g.estado || 'APROBADO',
       creado_en: g.creado_en,
-      moneda_original: g.moneda_original ?? null,
+      moneda_original:
+        g.moneda && g.moneda !== 'VES'
+          ? g.moneda
+          : g.moneda_original && g.moneda_original !== 'VES'
+            ? g.moneda_original
+            : ((g.datos_ocr as any)?.moneda ?? g.moneda_original ?? null),
       origen_tasa: g.origen_tasa ?? null,
       base_imponible_ves: g.base_imponible_ves ?? null,
       iva_ves: g.iva_ves ?? null,

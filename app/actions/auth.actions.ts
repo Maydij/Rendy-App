@@ -196,3 +196,46 @@ export async function logoutAction(): Promise<never> {
 
   redirect('/login');
 }
+
+export interface CurrentUserSessionInfo {
+  userId: string;
+  empresaId: string;
+  role: UserRole;
+  nombre?: string;
+  email?: string;
+}
+
+/**
+ * @name getCurrentUserSessionAction
+ * @description [Business Logic]: Returns the validated active session and profile metadata
+ * without exposing sensitive security tokens to client components.
+ */
+export async function getCurrentUserSessionAction(): Promise<CurrentUserSessionInfo | null> {
+  try {
+    const cookieStore = await cookies();
+    const { ACCESS_COOKIE_NAME, verifyAccessToken } = await import('@/lib/security/session');
+    const accessToken = cookieStore.get(ACCESS_COOKIE_NAME)?.value;
+
+    if (accessToken) {
+      const verified = await verifyAccessToken(accessToken);
+      if (verified) {
+        const { data: user } = await supabaseServer
+          .from('usuarios')
+          .select('nombre, email')
+          .eq('id', verified.userId)
+          .maybeSingle();
+
+        return {
+          userId: verified.userId,
+          empresaId: verified.empresaId,
+          role: verified.role,
+          nombre: user?.nombre || undefined,
+          email: user?.email || undefined,
+        };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

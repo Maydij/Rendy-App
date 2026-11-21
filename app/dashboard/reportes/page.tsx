@@ -6,7 +6,8 @@
  */
 
 import React from 'react';
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdminSession } from '@/lib/auth/session-context';
 import { getFilterOptionsAction, getReportHistoryAction } from './actions';
 import { ReportesClient } from './_components/ReportesClient';
 
@@ -18,6 +19,8 @@ export const metadata = {
 };
 
 export default async function ReportesPage() {
+  const session = await requireAdminSession();
+
   // Parallel server-side fetch of lookup entities, past reports, and summary aggregates
   const [filterOptions, history, expensesStats] = await Promise.all([
     getFilterOptionsAction(),
@@ -25,7 +28,7 @@ export default async function ReportesPage() {
     supabaseServer
       .from('gastos')
       .select('monto, moneda, monto_usd, monto_ves, tasa_cambio')
-      .eq('empresa_id', EMPRESA_ID),
+      .eq('empresa_id', session.empresaId),
   ]);
 
   const rawExpenses = expensesStats.data || [];

@@ -9,6 +9,7 @@ import {
   Copy,
   Check,
   MessageSquare,
+  Key,
   Loader2,
   AlertCircle,
 } from 'lucide-react';
@@ -81,6 +82,7 @@ export function InviteEmployeeModal({ isOpen, onClose }: InviteEmployeeModalProp
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [createdArtifact, setCreatedArtifact] = useState<CreatedInvitationArtifact | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedTempPassword, setCopiedTempPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleResetAndClose = () => {
@@ -94,6 +96,7 @@ export function InviteEmployeeModal({ isOpen, onClose }: InviteEmployeeModalProp
     setErrorMsg(null);
     setCreatedArtifact(null);
     setCopiedLink(false);
+    setCopiedTempPassword(false);
     onClose();
   };
 
@@ -137,6 +140,13 @@ export function InviteEmployeeModal({ isOpen, onClose }: InviteEmployeeModalProp
     await navigator.clipboard.writeText(createdArtifact.magicLinkUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleCopyTempPassword = async () => {
+    if (!createdArtifact?.tempPassword) return;
+    await navigator.clipboard.writeText(createdArtifact.tempPassword);
+    setCopiedTempPassword(true);
+    setTimeout(() => setCopiedTempPassword(false), 2500);
   };
 
   return (
@@ -227,10 +237,41 @@ export function InviteEmployeeModal({ isOpen, onClose }: InviteEmployeeModalProp
 
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   Al abrir este enlace o escanear el QR, el colaborador confirmará su vinculación,
-                  creará su contraseña y recibirá el acceso directo al bot de WhatsApp.
+                  ingresará su clave temporal y creará su contraseña personal.
                 </p>
               </div>
             </div>
+
+            {/* Temporary Password Highlight Box */}
+            {createdArtifact.tempPassword && (
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/20 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                    <Key className="h-4 w-4" />
+                    <span>Contraseña Temporal de Activación</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400">Requerida para activar perfil</span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 bg-slate-950/80 rounded-lg p-3 border border-slate-800">
+                  <span className="font-mono text-base font-bold tracking-wider text-emerald-300 select-all">
+                    {createdArtifact.tempPassword}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyTempPassword}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer shrink-0"
+                  >
+                    {copiedTempPassword ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedTempPassword ? 'Copiada' : 'Copiar Clave'}
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Esta clave única viene prellenada en el enlace o puede ingresarse manualmente por el colaborador en la pantalla de configuración de contraseña.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end">
               <button

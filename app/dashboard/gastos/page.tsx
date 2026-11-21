@@ -1,18 +1,27 @@
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import GastosEmpresaClient from './gastos-client';
 
-async function getGastosEmpresaData() {
+async function getGastosEmpresaData(empresaId: string, role: string, userId: string) {
+  let gastosQuery = supabaseServer
+    .from('gastos')
+    .select(
+      'id, usuario_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, proyecto_id, metodo_pago_id, estado, url_comprobante, concepto, datos_ocr, solicitud_id, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal, pais_gasto, estado_region, ciudad, codigo_postal, tiene_sales_tax, subtotal_usd, sales_tax_usd, propina_usd'
+    )
+    .eq('empresa_id', empresaId)
+    .or('metodo_pago_id.not.is.null,solicitud_id.not.is.null')
+    .order('creado_en', { ascending: false });
+
+  if (role === 'EMPLOYEE') {
+    gastosQuery = gastosQuery.eq('usuario_id', userId);
+  }
+
   const [{ data: gastos }, { data: usuarios }, { data: proyectos }, { data: metodos }, { data: solicitudes }] = await Promise.all([
-    supabaseServer
-      .from('gastos')
-      .select('id, usuario_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, proyecto_id, metodo_pago_id, estado, url_comprobante, concepto, datos_ocr, solicitud_id, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal, pais_gasto, estado_region, ciudad, codigo_postal, tiene_sales_tax, subtotal_usd, sales_tax_usd, propina_usd')
-      .eq('empresa_id', EMPRESA_ID)
-      .or('metodo_pago_id.not.is.null,solicitud_id.not.is.null')
-      .order('creado_en', { ascending: false }),
-    supabaseServer.from('usuarios').select('id, nombre').eq('empresa_id', EMPRESA_ID),
-    supabaseServer.from('proyectos').select('id, nombre').eq('empresa_id', EMPRESA_ID),
-    supabaseServer.from('metodos_pago').select('id, nombre').eq('empresa_id', EMPRESA_ID),
-    supabaseServer.from('solicitudes_viaticos').select('id, moneda').eq('empresa_id', EMPRESA_ID),
+    gastosQuery,
+    supabaseServer.from('usuarios').select('id, nombre').eq('empresa_id', empresaId),
+    supabaseServer.from('proyectos').select('id, nombre').eq('empresa_id', empresaId),
+    supabaseServer.from('metodos_pago').select('id, nombre').eq('empresa_id', empresaId),
+    supabaseServer.from('solicitudes_viaticos').select('id, moneda').eq('empresa_id', empresaId),
   ]);
 
   const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
@@ -44,7 +53,12 @@ async function getGastosEmpresaData() {
       url_comprobante: g.url_comprobante ?? null,
       concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
       datos_ocr: g.datos_ocr ?? null,
-      moneda_original: g.moneda_original ?? null,
+      moneda_original:
+        g.moneda && g.moneda !== 'VES'
+          ? g.moneda
+          : g.moneda_original && g.moneda_original !== 'VES'
+            ? g.moneda_original
+            : ((g.datos_ocr as any)?.moneda ?? g.moneda_original ?? null),
       origen_tasa: g.origen_tasa ?? null,
       base_imponible_ves: g.base_imponible_ves ?? null,
       iva_ves: g.iva_ves ?? null,
@@ -87,6 +101,7 @@ async function getGastosEmpresaData() {
 }
 
 export default async function GastosEmpresaPage() {
-  const gastos = await getGastosEmpresaData();
+  const session = await requireAuthenticatedSession();
+  const gastos = await getGastosEmpresaData(session.empresaId, session.role, session.userId);
   return <GastosEmpresaClient gastos={gastos} />;
 }
