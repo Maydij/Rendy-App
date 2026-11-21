@@ -34,6 +34,8 @@ import {
   actualizarLimiteDiarioCategoria,
   toggleCategoriaActiva,
   eliminarCategoriaPersonalizada,
+  darDeBajaMiembro,
+  reactivarMiembro,
 } from './actions';
 import { cancelTrialOrSubscriptionAction } from '@/app/actions/subscription.actions';
 import { InviteEmployeeModal } from '@/components/dashboard/InviteEmployeeModal';
@@ -58,6 +60,7 @@ type Usuario = {
   role?: string;
   department?: string | null;
   creado_en: string;
+  activo?: boolean;
 };
 type Proyecto = { id: string; nombre: string; activo: boolean; creado_en: string };
 type Metodo = { id: string; nombre: string; creado_en: string };
@@ -583,6 +586,37 @@ export default function ConfiguracionClient({
     setTimeout(() => setFeedback(null), 3500);
   }
 
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
+
+  const handleDarDeBaja = async (usuario: Usuario) => {
+    if (
+      !confirm(
+        `¿Estás seguro de que deseas dar de baja a ${usuario.nombre}?\n\nAl darlo de baja, se desactivará su acceso y su número de WhatsApp quedará liberado para poder ser registrado en otra organización.`
+      )
+    ) {
+      return;
+    }
+    setMemberActionLoading(usuario.id);
+    const res = await darDeBajaMiembro(usuario.id);
+    setMemberActionLoading(null);
+    if (res.error) {
+      alert(res.error);
+    } else {
+      toast('Colaborador dado de baja. Su número ha sido liberado.');
+    }
+  };
+
+  const handleReactivar = async (usuario: Usuario) => {
+    setMemberActionLoading(usuario.id);
+    const res = await reactivarMiembro(usuario.id);
+    setMemberActionLoading(null);
+    if (res.error) {
+      alert(res.error);
+    } else {
+      toast('Colaborador reactivado con éxito.');
+    }
+  };
+
   const handleUpdateDailyLimit = (catId: string, limitVal: number) => {
     startTransition(async () => {
       try {
@@ -970,7 +1004,9 @@ export default function ConfiguracionClient({
                       <th>Email</th>
                       <th>Departamento</th>
                       <th>Rol</th>
+                      <th>Estado</th>
                       <th>Alta</th>
+                      <th style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1011,8 +1047,60 @@ export default function ConfiguracionClient({
                           <td>
                             <RolBadge rol={effectiveRole} />
                           </td>
+                          <td>
+                            {u.activo !== false ? (
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '9999px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                Activo
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '9999px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                Inactivo (Baja)
+                              </span>
+                            )}
+                          </td>
                           <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
                             {new Date(u.creado_en).toLocaleDateString('es-VE')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {effectiveRole !== 'ADMIN' && (
+                              u.activo !== false ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDarDeBaja(u)}
+                                  disabled={memberActionLoading === u.id}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{
+                                    fontSize: '11px',
+                                    color: 'var(--rendy-danger, #ef4444)',
+                                    background: 'rgba(239, 68, 68, 0.08)',
+                                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                  }}
+                                  title="Dar de baja y liberar número de teléfono"
+                                >
+                                  {memberActionLoading === u.id ? '...' : 'Dar de baja'}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleReactivar(u)}
+                                  disabled={memberActionLoading === u.id}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{
+                                    fontSize: '11px',
+                                    color: '#10b981',
+                                    background: 'rgba(16, 185, 129, 0.08)',
+                                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                  }}
+                                  title="Reactivar usuario"
+                                >
+                                  {memberActionLoading === u.id ? '...' : 'Reactivar'}
+                                </button>
+                              )
+                            )}
                           </td>
                         </tr>
                       );

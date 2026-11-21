@@ -25,8 +25,57 @@ interface DigitalInvoiceProps {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Jurisdiction Helper
+   Currency & Jurisdiction Helpers
    ───────────────────────────────────────────────────────────── */
+
+/**
+ * @name resolveEffectiveCurrency
+ * @description [Business Logic]: Resolves the true operational currency of the receipt.
+ * Defends against legacy database records where `moneda_original` was erroneously defaulted
+ * to 'VES' by PostgreSQL migration 004 despite the transaction being in 'MXN', 'USD', or 'EUR'.
+ */
+export function resolveEffectiveCurrency(gasto: Gasto): string {
+  const rawOcr = (gasto.datos_ocr || {}) as Record<string, unknown>;
+  const ocrMoneda = ((rawOcr.moneda as string) || '').toUpperCase().trim();
+  const directMoneda = (gasto.moneda || '').toUpperCase().trim();
+  const origMoneda = (gasto.moneda_original || '').toUpperCase().trim();
+
+  // 1. Direct explicit non-VES currency (e.g. MXN, USD, EUR, COP) takes precedence
+  // over a legacy default 'VES' stored in moneda_original.
+  if (directMoneda && directMoneda !== 'VES') {
+    // If direct is USD, check if OCR or original proves it was a localized foreign currency (like MXN, EUR, COP)
+    if (directMoneda === 'USD') {
+      if (origMoneda && origMoneda !== 'VES' && origMoneda !== 'USD') {
+        return origMoneda;
+      }
+      if (ocrMoneda && ocrMoneda !== 'VES' && ocrMoneda !== 'USD') {
+        return ocrMoneda;
+      }
+      return 'USD';
+    }
+    return directMoneda;
+  }
+
+  // 2. If direct currency is VES or empty, but OCR or original indicates a distinct foreign currency (like MXN)
+  if (ocrMoneda && ocrMoneda !== 'VES') {
+    return ocrMoneda;
+  }
+  if (origMoneda && origMoneda !== 'VES') {
+    return origMoneda;
+  }
+
+  // 3. Check for Mexican RFC or indicators in OCR / merchant
+  if (
+    rawOcr.rfc ||
+    gasto.rif_comercio?.match(/^[A-Z&Ñ]{3,4}\d{6}[A-V1-9][A-Z1-9][0-9A]$/i) ||
+    (gasto.pais_gasto || '').toUpperCase() === 'MX' ||
+    (rawOcr.pais as string)?.toUpperCase() === 'MX'
+  ) {
+    return 'MXN';
+  }
+
+  return directMoneda || origMoneda || 'VES';
+}
 
 /**
  * @name resolveJurisdiction
@@ -34,35 +83,38 @@ interface DigitalInvoiceProps {
  * for the expense. Reads persisted `pais_gasto` with intelligent fallback for legacy records.
  * Currency is treated as an inviolable constraint: MXN can never be VE, VES can never be MX/US.
  */
-function resolveJurisdiction(gasto: Gasto): 'US' | 'VE' | 'MX' | 'OTRO' {
-  const moneda = (gasto.moneda_original || gasto.moneda || '').toUpperCase().trim();
-  const rawPais = (gasto.pais_gasto || '').toUpperCase().trim();
+export function resolveJurisdiction(gasto: Gasto): 'US' | 'VE' | 'MX' | 'OTRO' {
+  const rawOcr = (gasto.datos_ocr || {}) as Record<string, unknown>;
+  const moneda = resolveEffectiveCurrency(gasto);
+  const rawPais = (
+    gasto.pais_gasto ||
+    (rawOcr.pais_gasto as string) ||
+    (rawOcr.pais as string) ||
+    ''
+  ).toUpperCase().trim();
 
-  // 1. Inviolable Currency Axioms:
-  // Mexican Pesos (MXN) is strictly Mexican jurisdiction (SAT / CFDI).
-  if (moneda === 'MXN') {
-    return 'MX';
-  }
-
-  // Venezuelan Bolivars (VES) is strictly Venezuelan jurisdiction (SENIAT).
-  if (moneda === 'VES') {
-    return 'VE';
-  }
-
-  // 2. Explicit Mexican RFC tax ID pattern (e.g., ABC123456XYZ or ABCD123456XYZ)
+  // 1. Inviolable Mexican Jurisdiction Axioms:
+  // Mexican Pesos (MXN) or RFC is strictly Mexican jurisdiction (SAT / CFDI).
   if (
+    moneda === 'MXN' ||
+    rawPais === 'MX' ||
+    rawPais === 'MEX' ||
+    rawPais === 'MEXICO' ||
     Boolean(gasto.rif_comercio?.match(/^[A-Z&Ñ]{3,4}\d{6}[A-V1-9][A-Z1-9][0-9A]$/i)) ||
-    Boolean((gasto.datos_ocr as Record<string, unknown>)?.rfc)
+    Boolean(rawOcr.rfc)
   ) {
     return 'MX';
   }
 
-  // 3. Explicit pais_gasto when not contradicted by currency
-  if (rawPais === 'MX') {
-    return 'MX';
+  // 2. Inviolable Venezuelan Jurisdiction Axioms:
+  // Venezuelan Bolivars (VES) is strictly Venezuelan jurisdiction (SENIAT).
+  const hasSeniatRif = Boolean(gasto.rif_comercio?.match(/^[JVEGPjvegp]-?\d{7,9}-?\d?$/i));
+  if (moneda === 'VES') {
+    return 'VE';
   }
 
-  if (rawPais === 'US') {
+  // 3. Explicit USA jurisdiction
+  if (rawPais === 'US' || rawPais === 'USA') {
     return 'US';
   }
 
@@ -77,7 +129,6 @@ function resolveJurisdiction(gasto: Gasto): 'US' | 'VE' | 'MX' | 'OTRO' {
 
   // 5. USD currency resolution: distinguish between US and Venezuelan bimonetary invoices
   if (moneda === 'USD') {
-    const hasSeniatRif = Boolean(gasto.rif_comercio?.match(/^[JVEGPjvegp]-?\d{7,9}-?\d?$/i));
     const hasVesFiscalData =
       Number(gasto.base_imponible_ves || 0) > 0 ||
       Number(gasto.iva_ves || 0) > 0 ||
@@ -93,8 +144,8 @@ function resolveJurisdiction(gasto: Gasto): 'US' | 'VE' | 'MX' | 'OTRO' {
     return 'US';
   }
 
-  // 6. Generic fallback
-  if (rawPais === 'VE') {
+  // 6. Generic fallback: Only assign VE if there is explicit SENIAT RIF or genuine VES currency
+  if (rawPais === 'VE' && (hasSeniatRif || moneda === 'VES')) {
     return 'VE';
   }
 
@@ -354,7 +405,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
     Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const hasExchangeRate = gasto.tasa_cambio != null && gasto.tasa_cambio > 0 && gasto.tasa_cambio !== 1;
-  const monedaOriginal = gasto.moneda_original || gasto.moneda;
+  const monedaOriginal = resolveEffectiveCurrency(gasto);
 
   // ── USA Computed Amounts ──
   const salesTaxUsd = Number(gasto.sales_tax_usd || 0);

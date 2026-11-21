@@ -364,3 +364,66 @@ export async function toggleCategoriaActiva(input: {
 export async function eliminarCategoriaPersonalizada(input: { categoriaId: string }) {
   return await _eliminarCategoriaPersonalizada(input);
 }
+
+/**
+ * @name darDeBajaMiembro
+ * @description [Business Logic]: Deactivates a company member (`activo = false`, `status = 'INACTIVE'`),
+ * immediately freeing up their WhatsApp phone number so it can be registered or claimed in another
+ * tenant without uniqueness collision errors.
+ */
+export async function darDeBajaMiembro(usuarioId: string) {
+  const session = await requireAdminSession();
+
+  // Protect administrator against self-deactivation
+  if (usuarioId === session.userId) {
+    return { error: 'No puedes darte de baja a ti mismo como administrador activo.' };
+  }
+
+  const { error } = await supabaseServer
+    .from('usuarios')
+    .update({
+      activo: false,
+      status: 'INACTIVE',
+    })
+    .eq('id', usuarioId)
+    .eq('empresa_id', session.empresaId);
+
+  if (error) {
+    return { error: `Error al dar de baja al colaborador: ${error.message}` };
+  }
+
+  revalidatePath('/dashboard/configuracion');
+  return { error: null };
+}
+
+/**
+ * @name reactivarMiembro
+ * @description [Business Logic]: Reactivates a deactivated company member (`activo = true`, `status = 'ACTIVE'`).
+ * The DB trigger `trg_validar_unicidad_telefono_usuario` will verify if the phone number is still free or whitelisted.
+ */
+export async function reactivarMiembro(usuarioId: string) {
+  const session = await requireAdminSession();
+
+  const { error } = await supabaseServer
+    .from('usuarios')
+    .update({
+      activo: true,
+      status: 'ACTIVE',
+    })
+    .eq('id', usuarioId)
+    .eq('empresa_id', session.empresaId);
+
+  if (error) {
+    if (error.code === '23505' || error.message?.includes('TELEFONO_DUPLICADO')) {
+      return {
+        error:
+          'No se puede reactivar: el número de teléfono ya está en uso por otro usuario activo en Rendy.',
+      };
+    }
+    return { error: `Error al reactivar al colaborador: ${error.message}` };
+  }
+
+  revalidatePath('/dashboard/configuracion');
+  return { error: null };
+}
+

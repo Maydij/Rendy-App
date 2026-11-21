@@ -21,6 +21,7 @@ import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { RendyLogo } from '@/components/rendy-logo';
 import { LogoutConfirmModal } from '@/components/dashboard/LogoutConfirmModal';
+import { getCurrentUserSessionAction } from '@/app/actions/auth.actions';
 
 const SidebarContext = createContext({ collapsed: false });
 export const useSidebar = () => useContext(SidebarContext);
@@ -31,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [pendingViaticos, setPendingViaticos] = useState<number>(0);
   const [pendingReembolsos, setPendingReembolsos] = useState<number>(0);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [userRole, setUserRole] = useState<'ADMIN' | 'EMPLOYEE'>('ADMIN');
+  const [userProfile, setUserProfile] = useState<{ nombre?: string; email?: string } | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -38,58 +41,96 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname]);
 
   useEffect(() => {
-    async function fetchCounts() {
-      // Contar viáticos pendientes
-      const { count: vCount } = await supabase
-        .from('solicitudes_viaticos')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado', 'PENDIENTE');
+    async function initSessionAndCounts() {
+      try {
+        const session = await getCurrentUserSessionAction();
+        if (session) {
+          setUserRole(session.role);
+          setUserProfile({ nombre: session.nombre, email: session.email });
+        }
 
-      // Contar reembolsos pendientes
-      const { count: rCount } = await supabase
-        .from('gastos')
-        .select('*', { count: 'exact', head: true })
-        .eq('es_reembolso', true)
-        .eq('estado', 'PENDIENTE');
+        let vQuery = supabase
+          .from('solicitudes_viaticos')
+          .select('*', { count: 'exact', head: true })
+          .eq('estado', 'PENDIENTE');
 
-      setPendingViaticos(vCount || 0);
-      setPendingReembolsos(rCount || 0);
+        let rQuery = supabase
+          .from('gastos')
+          .select('*', { count: 'exact', head: true })
+          .eq('es_reembolso', true)
+          .eq('estado', 'PENDIENTE');
+
+        if (session?.role === 'EMPLOYEE' && session.userId) {
+          vQuery = vQuery.eq('usuario_id', session.userId);
+          rQuery = rQuery.eq('usuario_id', session.userId);
+        }
+
+        const [{ count: vCount }, { count: rCount }] = await Promise.all([
+          vQuery,
+          rQuery,
+        ]);
+
+        setPendingViaticos(vCount || 0);
+        setPendingReembolsos(rCount || 0);
+      } catch (err) {
+        console.error('Failed to load session/counts:', err);
+      }
     }
 
-    fetchCounts();
+    initSessionAndCounts();
   }, [pathname]);
 
-  const NAV_ITEMS = [
-    {
-      label: 'Principal',
-      items: [
-        { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', badge: null },
-      ],
-    },
-    {
-      label: 'Operaciones',
-      items: [
-        { href: '/dashboard/solicitudes', icon: Wallet, label: 'Solicitudes de Viáticos', badge: pendingViaticos > 0 ? String(pendingViaticos) : null },
-        { href: '/dashboard/justificacion', icon: ClipboardCheck, label: 'Progreso Justificación', badge: null },
-        { href: '/dashboard/gastos', icon: Receipt, label: 'Gastos de Empresa', badge: null },
-        { href: '/dashboard/reembolsos', icon: RotateCcw, label: 'Reembolsos', badge: pendingReembolsos > 0 ? String(pendingReembolsos) : null },
-      ],
-    },
-    {
-      label: 'Administración',
-      items: [
-        { href: '/dashboard/reportes', icon: FileSpreadsheet, label: 'Reportes Contables', badge: null },
-        { href: '/dashboard/configuracion', icon: Settings, label: 'Organización', badge: null },
-      ],
-    },
-  ];
+  const isEmployee = userRole === 'EMPLOYEE';
+
+  const NAV_ITEMS = isEmployee
+    ? [
+        {
+          label: 'Principal',
+          items: [
+            { href: '/dashboard', icon: LayoutDashboard, label: 'Mi Resumen', badge: null },
+          ],
+        },
+        {
+          label: 'Operaciones',
+          items: [
+            { href: '/dashboard/solicitudes', icon: Wallet, label: 'Mis Solicitudes', badge: pendingViaticos > 0 ? String(pendingViaticos) : null },
+            { href: '/dashboard/justificacion', icon: ClipboardCheck, label: 'Progreso Justificación', badge: null },
+            { href: '/dashboard/gastos', icon: Receipt, label: 'Mis Gastos', badge: null },
+            { href: '/dashboard/reembolsos', icon: RotateCcw, label: 'Mis Reembolsos', badge: pendingReembolsos > 0 ? String(pendingReembolsos) : null },
+          ],
+        },
+      ]
+    : [
+        {
+          label: 'Principal',
+          items: [
+            { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', badge: null },
+          ],
+        },
+        {
+          label: 'Operaciones',
+          items: [
+            { href: '/dashboard/solicitudes', icon: Wallet, label: 'Solicitudes de Viáticos', badge: pendingViaticos > 0 ? String(pendingViaticos) : null },
+            { href: '/dashboard/justificacion', icon: ClipboardCheck, label: 'Progreso Justificación', badge: null },
+            { href: '/dashboard/gastos', icon: Receipt, label: 'Gastos de Empresa', badge: null },
+            { href: '/dashboard/reembolsos', icon: RotateCcw, label: 'Reembolsos', badge: pendingReembolsos > 0 ? String(pendingReembolsos) : null },
+          ],
+        },
+        {
+          label: 'Administración',
+          items: [
+            { href: '/dashboard/reportes', icon: FileSpreadsheet, label: 'Reportes Contables', badge: null },
+            { href: '/dashboard/configuracion', icon: Settings, label: 'Organización', badge: null },
+          ],
+        },
+      ];
 
   const PAGE_LABELS: Record<string, string> = {
-    '/dashboard': 'Dashboard',
-    '/dashboard/solicitudes': 'Solicitudes de Viáticos',
+    '/dashboard': isEmployee ? 'Mi Resumen' : 'Dashboard',
+    '/dashboard/solicitudes': isEmployee ? 'Mis Solicitudes' : 'Solicitudes de Viáticos',
     '/dashboard/justificacion': 'Progreso de Justificación',
-    '/dashboard/gastos': 'Gastos de Empresa',
-    '/dashboard/reembolsos': 'Reembolsos',
+    '/dashboard/gastos': isEmployee ? 'Mis Gastos' : 'Gastos de Empresa',
+    '/dashboard/reembolsos': isEmployee ? 'Mis Reembolsos' : 'Reembolsos',
     '/dashboard/reportes': 'Reportes Contables',
     '/dashboard/configuracion': 'Organización',
   };
@@ -160,10 +201,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <div className="sidebar-footer">
             <div className="sidebar-org-pill">
-              <div className="sidebar-org-avatar">SD</div>
+              <div className="sidebar-org-avatar">
+                {userProfile?.nombre
+                  ? userProfile.nombre
+                      .split(' ')
+                      .map((p) => p[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()
+                  : isEmployee
+                  ? 'EM'
+                  : 'AD'}
+              </div>
               <div className="sidebar-org-info">
-                <div className="sidebar-org-name">Swork Demo</div>
-                <div className="sidebar-org-role">Admin · SaaS</div>
+                <div className="sidebar-org-name">{userProfile?.nombre || (isEmployee ? 'Colaborador' : 'Administrador')}</div>
+                <div className="sidebar-org-role">{isEmployee ? 'Empleado · Rendy' : 'Admin · Rendy'}</div>
               </div>
             </div>
           </div>
@@ -198,7 +250,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <LogOut size={16} />
               </button>
-              <div className="topbar-avatar">A</div>
+              <div className="topbar-avatar">
+                {userProfile?.nombre ? userProfile.nombre.charAt(0).toUpperCase() : isEmployee ? 'E' : 'A'}
+              </div>
             </div>
           </header>
 

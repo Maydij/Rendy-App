@@ -36,6 +36,7 @@ import {
   type WhatsAppRow,
 } from '@/app/lib/whatsapp';
 import { auditarGastoUSA } from '@/lib/services/usaTaxEngine';
+import { normalizarTelefonoE164 } from '@/lib/utils/phone';
 import {
   scheduleInactivityTimers,
   clearInactivityTimers,
@@ -106,20 +107,97 @@ export async function routerMensajeWhatsApp({
   interactiveReplyTitle,
 }: FlowEngineParams): Promise<{ status: string }> {
   // ───────────────────────────────────────────────────────────────────────────
-  // 1. Identity & Account Resolution
+  // 1. Identity & Account Resolution (Multi-Profile & QA Whitelist Support)
   // ───────────────────────────────────────────────────────────────────────────
-  const { data: usuario, error: errUsuario } = await supabase
-    .from('usuarios')
-    .select('id, empresa_id, nombre, empresas(moneda)')
-    .eq('telefono_whatsapp', telefono)
+  const telE164 = normalizarTelefonoE164(telefono);
+  const telDigits = telefono.replace(/[^\d]/g, '');
+
+  // 1a. Load Existing Session First (to read usuario_activo_id if already selected)
+  const { data: sesionData } = await supabase
+    .from('sesiones_whatsapp')
+    .select('*')
+    .eq('telefono', telefono)
     .maybeSingle();
 
-  if (errUsuario || !usuario || !usuario.empresa_id) {
+  // 1b. Query Active Users associated with this phone (handles both E.164 and raw digits)
+  const { data: activeUsers, error: errUsuario } = await supabase
+    .from('usuarios')
+    .select('id, empresa_id, nombre, rol, role, empresas(id, nombre, moneda), activo')
+    .or(`telefono_whatsapp.eq.${telE164},telefono_whatsapp.eq.${telDigits}`)
+    .eq('activo', true);
+
+  if (errUsuario || !activeUsers || activeUsers.length === 0) {
     await enviarMensajeWhatsApp(
       telefono,
       '⚠️ *Número no registrado*\nTu número de WhatsApp no está vinculado a ninguna empresa en *Rendy*. Por favor, contacta al administrador de tu organización.'
     );
     return { status: 'usuario_no_registrado' };
+  }
+
+  // 1c. Check Profile Switching Intent
+  const cleanText = (cuerpoTexto || '').toLowerCase().trim();
+  const isSwitchRequest =
+    interactiveReplyId?.startsWith('SWITCH_USER_') ||
+    ['cambiar perfil', 'cambiar de perfil', 'cambio perfil', 'perfil', 'switch', 'mis perfiles', 'conmutar perfil'].includes(cleanText);
+
+  // 1d. Handle Profile Selection via Interactive List Click
+  if (interactiveReplyId?.startsWith('SWITCH_USER_')) {
+    const selectedUserId = interactiveReplyId.replace('SWITCH_USER_', '');
+    const chosenUser = activeUsers.find((u) => u.id === selectedUserId);
+
+    if (chosenUser) {
+      await resetearSesion(supabase, telefono, chosenUser.id);
+
+      const companyName = (chosenUser.empresas as unknown as { nombre?: string })?.nombre || 'Organización';
+      const userRole = chosenUser.role || chosenUser.rol || 'EMPLEADO';
+
+      await enviarMensajeWhatsApp(
+        telefono,
+        `✅ *Perfil Activado con Éxito*\n\n` +
+        `👤 *Usuario:* ${chosenUser.nombre}\n` +
+        `🏢 *Organización:* ${companyName}\n` +
+        `💼 *Rol:* ${userRole}\n\n` +
+        `Ahora todas tus consultas y justificaciones se procesarán bajo este perfil de prueba.\n` +
+        `_💡 Puedes volver a cambiar de perfil en cualquier momento escribiendo *\"cambiar perfil\"*._`
+      );
+
+      await enviarMenuPrincipalListMessage(telefono, chosenUser.nombre);
+      return { status: 'perfil_cambiado' };
+    }
+  }
+
+  // 1e. If multiple active profiles exist (QA Whitelist), prompt user to choose if needed
+  let usuario = activeUsers[0];
+
+  if (activeUsers.length > 1) {
+    const storedActiveUserId = (sesionData as { usuario_activo_id?: string | null })?.usuario_activo_id;
+    const existingActiveUser = storedActiveUserId
+      ? activeUsers.find((u) => u.id === storedActiveUserId)
+      : null;
+
+    if (isSwitchRequest || !existingActiveUser) {
+      const rows: WhatsAppRow[] = activeUsers.slice(0, 10).map((u) => {
+        const companyName = (u.empresas as unknown as { nombre?: string })?.nombre || 'Organización';
+        const role = u.role || u.rol || 'EMPLEADO';
+        return {
+          id: `SWITCH_USER_${u.id}`,
+          title: u.nombre.substring(0, 24),
+          description: `${companyName} • ${role}`.substring(0, 72),
+        };
+      });
+
+      await enviarListaWhatsApp(
+        telefono,
+        'Tienes múltiples perfiles de prueba asociados a este número en la Whitelist de Rendy.\n\nPor favor, selecciona el perfil con el que deseas interactuar:',
+        'Elegir perfil',
+        '👤 Conmutador de Perfiles QA',
+        rows,
+        'Escribe "cambiar perfil" para alternar'
+      );
+      return { status: 'esperando_seleccion_perfil' };
+    }
+
+    usuario = existingActiveUser;
   }
 
   const empleadoId = usuario.id;
@@ -129,12 +207,6 @@ export async function routerMensajeWhatsApp({
   // ───────────────────────────────────────────────────────────────────────────
   // 2. Load Persistent Session from Database
   // ───────────────────────────────────────────────────────────────────────────
-  let { data: sesionData } = await supabase
-    .from('sesiones_whatsapp')
-    .select('*')
-    .eq('telefono', telefono)
-    .maybeSingle();
-
   let sesion: SesionWhatsAppRecord = {
     telefono,
     empleado_id: empleadoId,
@@ -2447,13 +2519,22 @@ export async function resetearSesion(
   empleadoId?: string | null
 ) {
   clearInactivityTimers(telefono);
-  await supabase.from('sesiones_whatsapp').upsert({
+  const payload: Record<string, unknown> = {
     telefono,
     empleado_id: empleadoId || null,
     estado: 'INICIO',
     datos_temporales: null,
     ultima_interaccion: new Date().toISOString(),
-  });
+  };
+  if (empleadoId) {
+    payload.usuario_activo_id = empleadoId;
+  }
+
+  const { error } = await supabase.from('sesiones_whatsapp').upsert(payload);
+  if (error && (error.message?.includes('usuario_activo_id') || error.code === '42703')) {
+    delete payload.usuario_activo_id;
+    await supabase.from('sesiones_whatsapp').upsert(payload);
+  }
 }
 
 /**
@@ -2479,11 +2560,20 @@ export async function actualizarSesion(
     });
   }
 
-  await supabase.from('sesiones_whatsapp').upsert({
+  const payload: Record<string, unknown> = {
     telefono,
     empleado_id: empleadoId || null,
     estado,
     datos_temporales: datos as unknown as Record<string, unknown>,
     ultima_interaccion: new Date().toISOString(),
-  });
+  };
+  if (empleadoId) {
+    payload.usuario_activo_id = empleadoId;
+  }
+
+  const { error } = await supabase.from('sesiones_whatsapp').upsert(payload);
+  if (error && (error.message?.includes('usuario_activo_id') || error.code === '42703')) {
+    delete payload.usuario_activo_id;
+    await supabase.from('sesiones_whatsapp').upsert(payload);
+  }
 }

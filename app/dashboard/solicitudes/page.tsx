@@ -1,21 +1,28 @@
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import SolicitudesClient from './solicitudes-client';
 
-async function getSolicitudesData() {
+async function getSolicitudesData(empresaId: string, role: string, userId: string) {
+  let solQuery = supabaseServer
+    .from('solicitudes_viaticos')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('creado_en', { ascending: false });
+
+  if (role === 'EMPLOYEE') {
+    solQuery = solQuery.eq('usuario_id', userId);
+  }
+
   const [{ data: solicitudes }, { data: usuarios }, { data: proyectos }] = await Promise.all([
-    supabaseServer
-      .from('solicitudes_viaticos')
-      .select('*')
-      .eq('empresa_id', EMPRESA_ID)
-      .order('creado_en', { ascending: false }),
+    solQuery,
     supabaseServer
       .from('usuarios')
       .select('id, nombre, email')
-      .eq('empresa_id', EMPRESA_ID),
+      .eq('empresa_id', empresaId),
     supabaseServer
       .from('proyectos')
       .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID),
+      .eq('empresa_id', empresaId),
   ]);
 
   const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
@@ -31,6 +38,7 @@ async function getSolicitudesData() {
 }
 
 export default async function SolicitudesPage() {
-  const { solicitudes } = await getSolicitudesData();
+  const session = await requireAuthenticatedSession();
+  const { solicitudes } = await getSolicitudesData(session.empresaId, session.role, session.userId);
   return <SolicitudesClient solicitudes={solicitudes} />;
 }

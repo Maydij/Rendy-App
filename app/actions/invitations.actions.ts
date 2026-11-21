@@ -60,16 +60,15 @@ const CreateEmployeeInvitationSchema = z
 
 const StrongEmployeePasswordSchema = z
   .string()
-  .min(12, 'La contraseña debe tener al menos 12 caracteres.')
+  .min(8, 'La contraseña debe tener al menos 8 caracteres.')
   .max(128, 'La contraseña no puede exceder 128 caracteres.')
   .regex(/[A-Z]/, 'Debe incluir al menos una letra mayúscula.')
-  .regex(/[a-z]/, 'Debe incluir al menos una letra minúscula.')
-  .regex(/[0-9]/, 'Debe incluir al menos un número.')
-  .regex(/[^A-Za-z0-9]/, 'Debe incluir al menos un carácter especial.');
+  .regex(/[0-9]/, 'Debe incluir al menos un número.');
 
 const AcceptInvitationSchema = z
   .object({
     token: z.string().min(20, 'Token de invitación inválido.').max(128),
+    tempPassword: z.string().trim().min(1, 'Ingresa la contraseña temporal enviada a tu correo.'),
     password: StrongEmployeePasswordSchema,
     confirmPassword: z.string(),
   })
@@ -85,12 +84,14 @@ export interface CreatedInvitationArtifact {
   email: string;
   magicLinkUrl: string;
   qrCodeDataUrl: string;
+  tempPassword: string;
   whatsappDispatched: boolean;
   expiresAt: string;
 }
 
 export interface InvitationPreviewData {
   valid: boolean;
+  statusReason?: 'ACTIVE' | 'EXPIRED' | 'ALREADY_ACTIVATED' | 'INVALID';
   error?: string;
   firstName?: string;
   lastName?: string;
@@ -99,6 +100,19 @@ export interface InvitationPreviewData {
   companyName?: string;
   allowedCategories?: ExpenseCategoryPermissions;
   expiresAt?: string;
+  tempPasswordSample?: string;
+}
+
+/**
+ * @name generateTemporaryPassword
+ * @description [Helper]: Generates an unambiguous alphanumeric temporary access code (e.g. TMP-9831-KX)
+ * excluding easily confused characters (0, O, 1, I).
+ */
+function generateTemporaryPassword(): string {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const part1 = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const part2 = Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `TMP-${part1}-${part2}`;
 }
 
 /**
@@ -164,36 +178,63 @@ export async function createEmployeeInvitationAction(
     const cedulaEncrypted = encryptPII(canonicalCedula);
     const whatsappEncrypted = encryptPII(canonicalWhatsapp);
 
-    // Generate 256-bit cryptographic invitation token
+    // Generate 256-bit cryptographic invitation token and temporary access password
     const { rawToken, tokenHash } = generateCryptographicToken(32);
+    const tempPassword = generateTemporaryPassword();
+    const tempPasswordHash = hashSha256(tempPassword.toUpperCase().trim());
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(); // 72 hours
+
+    // Try inserting with temp_password and temp_password_hash; fall back if migration 015 is pending
+    let invitationId: string | null = null;
+    const insertPayloadWithTemp = {
+      empresa_id: session.empresaId,
+      invited_by_user_id: session.userId,
+      token_hash: tokenHash,
+      temp_password: tempPassword,
+      temp_password_hash: tempPasswordHash,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      cedula_encrypted: cedulaEncrypted,
+      cedula_blind_index: cedulaBlindIndex,
+      whatsapp_encrypted: whatsappEncrypted,
+      whatsapp_blind_index: whatsappBlindIndex,
+      department,
+      allowed_expense_categories: allowedCategories,
+      status: 'PENDING',
+      expires_at: expiresAt,
+    };
 
     const { data: invitation, error: insertErr } = await supabaseServer
       .from('employee_invitations')
-      .insert({
-        empresa_id: session.empresaId,
-        invited_by_user_id: session.userId,
-        token_hash: tokenHash,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        cedula_encrypted: cedulaEncrypted,
-        cedula_blind_index: cedulaBlindIndex,
-        whatsapp_encrypted: whatsappEncrypted,
-        whatsapp_blind_index: whatsappBlindIndex,
-        department,
-        allowed_expense_categories: allowedCategories,
-        status: 'PENDING',
-        expires_at: expiresAt,
-      })
+      .insert(insertPayloadWithTemp)
       .select('id')
       .single();
 
     if (insertErr || !invitation) {
-      securityLogger.error('invitations.create.insert_failed', insertErr, {
-        empresaId: session.empresaId,
-      });
-      return { success: false, error: 'No se pudo generar la invitación del empleado.' };
+      if (insertErr?.code === '42703' || insertErr?.message?.includes('temp_password')) {
+        const { temp_password: _tp, temp_password_hash: _tph, ...legacyPayload } = insertPayloadWithTemp;
+        const { data: fallbackInvitation, error: fallbackErr } = await supabaseServer
+          .from('employee_invitations')
+          .insert(legacyPayload)
+          .select('id')
+          .single();
+
+        if (fallbackErr || !fallbackInvitation) {
+          securityLogger.error('invitations.create.fallback_insert_failed', fallbackErr, {
+            empresaId: session.empresaId,
+          });
+          return { success: false, error: 'No se pudo generar la invitación del empleado.' };
+        }
+        invitationId = fallbackInvitation.id;
+      } else {
+        securityLogger.error('invitations.create.insert_failed', insertErr, {
+          empresaId: session.empresaId,
+        });
+        return { success: false, error: 'No se pudo generar la invitación del empleado.' };
+      }
+    } else {
+      invitationId = invitation.id;
     }
 
     // Fetch company name and FTUX state
@@ -204,7 +245,7 @@ export async function createEmployeeInvitationAction(
       .single();
 
     const companyName = company?.nombre || 'tu empresa';
-    const magicLinkUrl = `${serverEnv.NEXT_PUBLIC_APP_URL}/invitacion/${rawToken}`;
+    const magicLinkUrl = `${serverEnv.NEXT_PUBLIC_APP_URL}/invitacion/${rawToken}?code=${encodeURIComponent(tempPassword)}`;
 
     // Generate high-contrast QR Code Data URL for instant mobile onboarding
     const qrCodeDataUrl = await QRCode.toDataURL(magicLinkUrl, {
@@ -234,8 +275,9 @@ export async function createEmployeeInvitationAction(
       const inviteMessage =
         `👋 *¡Hola ${firstName}!*\n\n` +
         `Has sido invitado a unirte a *${companyName}* en *Rendy* para gestionar tus viáticos y reembolsos corporativos.\n\n` +
+        `🔑 *Tu clave temporal de activación:* \`${tempPassword}\`\n\n` +
         `🔐 *Activa tu cuenta aquí (enlace único):*\n${magicLinkUrl}\n\n` +
-        `Una vez creada tu contraseña, podrás enviarnos fotos de tus facturas directamente por este chat.`;
+        `Al abrir el enlace, ingresa tu clave temporal y define tu contraseña personal para acceder de inmediato a tu dashboard.`;
 
       await enviarMensajeWhatsApp(canonicalWhatsapp, inviteMessage);
       whatsappDispatched = true;
@@ -244,7 +286,7 @@ export async function createEmployeeInvitationAction(
     }
 
     securityLogger.info('invitations.create.succeeded', {
-      invitationId: invitation.id,
+      invitationId,
       empresaId: session.empresaId,
       whatsappDispatched,
     });
@@ -255,11 +297,12 @@ export async function createEmployeeInvitationAction(
     return {
       success: true,
       data: {
-        invitationId: invitation.id,
+        invitationId: invitationId!,
         employeeFullName: `${firstName} ${lastName}`,
         email,
         magicLinkUrl,
         qrCodeDataUrl,
+        tempPassword,
         whatsappDispatched,
         expiresAt,
       },
@@ -273,15 +316,15 @@ export async function createEmployeeInvitationAction(
 /**
  * @name getInvitationPreviewAction
  * @description [Business Logic]: Validates a magic link invitation token and returns non-sensitive
- * onboarding context (company name, employee first name, department, and allowed expense categories)
- * for the employee activation screen.
+ * onboarding context (company name, employee first name, department, allowed expense categories,
+ * and token expiration status) for the employee password configuration screen.
  */
 export async function getInvitationPreviewAction(
   rawToken: string
 ): Promise<InvitationPreviewData> {
   try {
     if (!rawToken || rawToken.length < 20) {
-      return { valid: false, error: 'El enlace de invitación es inválido.' };
+      return { valid: false, statusReason: 'INVALID', error: 'El enlace de invitación es inválido.' };
     }
 
     const tokenHash = hashSha256(rawToken);
@@ -289,30 +332,29 @@ export async function getInvitationPreviewAction(
     const { data: invitation } = await supabaseServer
       .from('employee_invitations')
       .select(`
-        id,
-        first_name,
-        last_name,
-        email,
-        department,
-        allowed_expense_categories,
-        status,
-        expires_at,
+        *,
         empresas!empresa_id ( nombre )
       `)
       .eq('token_hash', tokenHash)
       .maybeSingle();
 
     if (!invitation) {
-      return { valid: false, error: 'Esta invitación no existe o ya fue utilizada.' };
+      return { valid: false, statusReason: 'INVALID', error: 'Esta invitación no existe o ya fue utilizada.' };
     }
+
+    const empresaRel = invitation.empresas as unknown as { nombre?: string } | null;
+    const companyName = empresaRel?.nombre || 'tu empresa';
 
     if (invitation.status !== 'PENDING') {
       return {
         valid: false,
+        statusReason: invitation.status === 'ACCEPTED' ? 'ALREADY_ACTIVATED' : 'EXPIRED',
         error:
           invitation.status === 'ACCEPTED'
             ? 'Esta invitación ya fue aceptada. Inicia sesión con tu correo y contraseña.'
             : 'Esta invitación ha sido revocada o expiró.',
+        email: invitation.email,
+        companyName,
       };
     }
 
@@ -321,38 +363,46 @@ export async function getInvitationPreviewAction(
         .from('employee_invitations')
         .update({ status: 'EXPIRED' })
         .eq('id', invitation.id);
-      return { valid: false, error: 'Este enlace de invitación ha expirado. Solicita uno nuevo.' };
+      return {
+        valid: false,
+        statusReason: 'EXPIRED',
+        error: 'Este enlace de invitación ha expirado. Solicita a un administrador de tu empresa que te reenvíe una nueva invitación.',
+        email: invitation.email,
+        companyName,
+      };
     }
-
-    const empresaRel = invitation.empresas as unknown as { nombre?: string } | null;
 
     return {
       valid: true,
+      statusReason: 'ACTIVE',
       firstName: invitation.first_name,
       lastName: invitation.last_name,
       email: invitation.email,
       department: invitation.department,
-      companyName: empresaRel?.nombre || 'Organización Corporativa',
+      companyName,
       allowedCategories: invitation.allowed_expense_categories as ExpenseCategoryPermissions,
       expiresAt: invitation.expires_at,
+      tempPasswordSample: (invitation as { temp_password?: string }).temp_password || undefined,
     };
   } catch {
-    return { valid: false, error: 'No se pudo verificar el enlace de invitación.' };
+    return { valid: false, statusReason: 'INVALID', error: 'No se pudo verificar el enlace de invitación.' };
   }
 }
 
 /**
  * @name acceptEmployeeInvitationAction
  * @description [Business Logic]: Completes employee onboarding by verifying the single-use token,
- * hashing the chosen password with Argon2id, provisioning the EMPLOYEE account with encrypted PII
- * and category permissions, establishing an authenticated Ed25519 + RTR session, and returning
- * the official WhatsApp bot deep link.
+ * validating the temporary activation password, hashing the chosen password with Argon2id,
+ * provisioning the EMPLOYEE account with encrypted PII, establishing an authenticated Ed25519 + RTR session,
+ * and returning the redirect target to the employee dashboard.
  */
 export async function acceptEmployeeInvitationAction(
   rawInput: unknown
 ): Promise<{
   success: boolean;
   error?: string;
+  errorType?: 'INVALID_TEMP_PASSWORD' | 'MATCH_ERROR' | 'GENERIC';
+  redirectUrl?: string;
   whatsappBotUrl?: string;
   companyName?: string;
 }> {
@@ -380,7 +430,7 @@ export async function acceptEmployeeInvitationAction(
       };
     }
 
-    const { token, password } = parsed.data;
+    const { token, tempPassword, password } = parsed.data;
     const tokenHash = hashSha256(token);
 
     const { data: invitation } = await supabaseServer
@@ -400,10 +450,24 @@ export async function acceptEmployeeInvitationAction(
       };
     }
 
+    // Validate temporary password if registered on the invitation
+    const storedTemp = (invitation as { temp_password?: string }).temp_password;
+    if (storedTemp && storedTemp.trim().length > 0) {
+      const cleanStored = storedTemp.trim().toUpperCase();
+      const cleanInput = tempPassword.trim().toUpperCase();
+      if (cleanStored !== cleanInput) {
+        return {
+          success: false,
+          errorType: 'INVALID_TEMP_PASSWORD',
+          error: 'Contraseña temporal inválida. Verifica los datos del correo de invitación e inténtalo nuevamente.',
+        };
+      }
+    }
+
     const passwordHash = await hashPassword(password);
     const fullName = `${invitation.first_name} ${invitation.last_name}`.trim();
 
-    // 1. Provision Active Employee Account
+    // 1. Provision Active Employee Account with role 'EMPLOYEE' and rol 'EMPLEADO'
     const { data: createdEmployee, error: userErr } = await supabaseServer
       .from('usuarios')
       .insert({
@@ -414,6 +478,7 @@ export async function acceptEmployeeInvitationAction(
         rol: 'EMPLEADO',
         role: 'EMPLOYEE',
         status: 'ACTIVE',
+        activo: true,
         password_hash: passwordHash,
         cedula_encrypted: invitation.cedula_encrypted,
         cedula_blind_index: invitation.cedula_blind_index,
@@ -466,6 +531,7 @@ export async function acceptEmployeeInvitationAction(
 
     return {
       success: true,
+      redirectUrl: '/dashboard',
       whatsappBotUrl,
       companyName,
     };

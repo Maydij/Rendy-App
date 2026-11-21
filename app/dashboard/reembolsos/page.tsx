@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
-import { EMPRESA_ID } from '@/lib/supabase-server';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import {
   obtenerReembolsosPaginados,
   obtenerKpisReembolsos,
@@ -32,6 +32,8 @@ interface PageProps {
 export const dynamic = 'force-dynamic';
 
 export default async function ReembolsosPage({ searchParams }: PageProps) {
+  const session = await requireAuthenticatedSession();
+  const isEmployee = session.role === 'EMPLOYEE';
   const params = await searchParams;
 
   const validEstados: Set<string> = new Set([
@@ -48,7 +50,7 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
       : 'TODOS';
 
   const filtros = {
-    empleadoId: params.empleado || undefined,
+    empleadoId: isEmployee ? session.userId : params.empleado || undefined,
     estado: estadoParsed,
     fechaDesde: params.desde || undefined,
     fechaHasta: params.hasta || undefined,
@@ -59,9 +61,9 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
 
   // Parallel server fetch for optimal performance
   const [paginatedData, kpis, empleados] = await Promise.all([
-    obtenerReembolsosPaginados(EMPRESA_ID, filtros),
-    obtenerKpisReembolsos(EMPRESA_ID),
-    obtenerEmpleadosEmpresa(EMPRESA_ID),
+    obtenerReembolsosPaginados(session.empresaId, filtros),
+    obtenerKpisReembolsos(session.empresaId),
+    obtenerEmpleadosEmpresa(session.empresaId),
   ]);
 
   const { reembolsos, totalCount, totalPages, currentPage, pageSize } = paginatedData;
