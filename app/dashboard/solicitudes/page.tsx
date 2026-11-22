@@ -40,5 +40,5 @@ async function getSolicitudesData(empresaId: string, role: string, userId: strin
 export default async function SolicitudesPage() {
   const session = await requireAuthenticatedSession();
   const { solicitudes } = await getSolicitudesData(session.empresaId, session.role, session.userId);
-  return <SolicitudesClient solicitudes={solicitudes} />;
+  return <SolicitudesClient solicitudes={solicitudes} userRole={session.role} />;
 }

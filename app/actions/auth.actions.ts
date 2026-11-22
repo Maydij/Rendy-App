@@ -45,7 +45,7 @@ export interface LoginActionResult {
  * @name loginWithCredentialsAction
  * @description [Business Logic]: Authenticates enterprise administrators and employees using
  * constant-time Argon2id verification, Redis rate-limiting, anti-enumeration timing parity,
- * and automatic role-based routing (/dashboard for ADMIN, /portal for EMPLOYEE).
+ * and routing directly to the unified, role-isolated /dashboard.
  */
 export async function loginWithCredentialsAction(
   rawInput: unknown
@@ -158,7 +158,7 @@ export async function loginWithCredentialsAction(
 
     return {
       success: true,
-      redirectTo: role === 'ADMIN' ? '/dashboard' : '/portal',
+      redirectTo: '/dashboard',
     };
   } catch (error) {
     securityLogger.error('auth.login.unexpected_error', error);

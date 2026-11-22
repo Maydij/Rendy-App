@@ -14,10 +14,12 @@ import type { EmpleadoOption, EstadoReembolso } from '@/lib/services/reembolsos.
 
 interface ReembolsosFiltersProps {
   empleados: EmpleadoOption[];
+  userRole?: 'ADMIN' | 'EMPLOYEE';
 }
 
-export function ReembolsosFilters({ empleados }: ReembolsosFiltersProps) {
+export function ReembolsosFilters({ empleados, userRole = 'ADMIN' }: ReembolsosFiltersProps) {
   const router = useRouter();
+  const isEmployee = userRole === 'EMPLOYEE';
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -195,32 +197,34 @@ export function ReembolsosFilters({ empleados }: ReembolsosFiltersProps) {
           borderTop: '1px solid rgba(99, 102, 241, 0.08)',
         }}
       >
-        {/* Employee Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <User size={14} style={{ color: 'var(--text-muted)' }} />
-          <select
-            id="reembolsos-empleado-filter"
-            value={currentEmpleado}
-            onChange={(e) => updateParams({ empleado: e.target.value })}
-            style={{
-              background: 'var(--bg-base)',
-              border: '1px solid var(--bg-border)',
-              borderRadius: '8px',
-              padding: '6px 12px',
-              color: 'var(--text-primary)',
-              fontSize: '12px',
-              outline: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <option value="TODOS">Todos los empleados</option>
-            {empleados.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.nombre} {emp.email ? `(${emp.email})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Employee Dropdown (Hidden for Collaborators) */}
+        {!isEmployee && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <User size={14} style={{ color: 'var(--text-muted)' }} />
+            <select
+              id="reembolsos-empleado-filter"
+              value={currentEmpleado}
+              onChange={(e) => updateParams({ empleado: e.target.value })}
+              style={{
+                background: 'var(--bg-base)',
+                border: '1px solid var(--bg-border)',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="TODOS">Todos los empleados</option>
+              {empleados.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.nombre} {emp.email ? `(${emp.email})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Date Range: Desde */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

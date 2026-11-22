@@ -38,7 +38,14 @@ function StatusBadge({ estado }: { estado: string }) {
   );
 }
 
-export default function SolicitudesClient({ solicitudes }: { solicitudes: Solicitud[] }) {
+export default function SolicitudesClient({
+  solicitudes,
+  userRole = 'ADMIN',
+}: {
+  solicitudes: Solicitud[];
+  userRole?: 'ADMIN' | 'EMPLOYEE';
+}) {
+  const isEmployee = userRole === 'EMPLOYEE';
   const [search, setSearch] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
@@ -121,7 +128,9 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
           )}
         </h1>
         <p className="page-subtitle">
-          Revisa, aprueba, adjunta comprobantes de transferencia bancaria y audita las solicitudes de fondos.
+          {isEmployee
+            ? 'Consulta el estado de tus solicitudes de viáticos y visualiza los comprobantes de transferencia aprobados.'
+            : 'Revisa, aprueba, adjunta comprobantes de transferencia bancaria y audita las solicitudes de fondos.'}
         </p>
       </div>
 
@@ -341,26 +350,28 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
                                   <span className="badge-dot" style={{ background: 'var(--rendy-warning)' }} />
                                   ⏳ Sin Comprobante
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setApproveTarget(sol);
-                                    setApproveModalMode('SUBIR_COMPROBANTE');
-                                  }}
-                                  className="btn btn-ghost btn-sm"
-                                  style={{
-                                    padding: '3px 8px',
-                                    fontSize: '11px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    color: 'var(--rendy-warning)',
-                                    borderColor: 'rgba(245, 158, 11, 0.4)',
-                                  }}
-                                  title="Subir comprobante de transferencia bancaria"
-                                >
-                                  <Paperclip size={12} /> Subir
-                                </button>
+                                {!isEmployee && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setApproveTarget(sol);
+                                      setApproveModalMode('SUBIR_COMPROBANTE');
+                                    }}
+                                    className="btn btn-ghost btn-sm"
+                                    style={{
+                                      padding: '3px 8px',
+                                      fontSize: '11px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      color: 'var(--rendy-warning)',
+                                      borderColor: 'rgba(245, 158, 11, 0.4)',
+                                    }}
+                                    title="Subir comprobante de transferencia bancaria"
+                                  >
+                                    <Paperclip size={12} /> Subir
+                                  </button>
+                                )}
                               </div>
                             )
                           ) : (
@@ -370,7 +381,37 @@ export default function SolicitudesClient({ solicitudes }: { solicitudes: Solici
 
                         {/* Acciones */}
                         <td style={{ verticalAlign: 'middle' }}>
-                          {isPendingState ? (
+                          {isEmployee ? (
+                            isPendingState ? (
+                              <div style={{ textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                En espera de aprobación
+                              </div>
+                            ) : isApproved && !hasTransferProof ? (
+                              <div style={{ textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                Pendiente de pago
+                              </div>
+                            ) : isApproved && hasTransferProof ? (
+                              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                  className="btn btn-ghost btn-sm"
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                  }}
+                                  onClick={() => setViewTarget(sol)}
+                                >
+                                  <Eye size={12} /> Ver Comprobante
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                {sol.motivo_rechazo ? `Rechazado: ${sol.motivo_rechazo}` : '—'}
+                              </div>
+                            )
+                          ) : isPendingState ? (
                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                               <button
                                 id={`aprobar-${sol.id}`}

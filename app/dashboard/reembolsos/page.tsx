@@ -62,7 +62,7 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
   // Parallel server fetch for optimal performance
   const [paginatedData, kpis, empleados] = await Promise.all([
     obtenerReembolsosPaginados(session.empresaId, filtros),
-    obtenerKpisReembolsos(session.empresaId),
+    obtenerKpisReembolsos(session.empresaId, isEmployee ? session.userId : undefined),
     obtenerEmpleadosEmpresa(session.empresaId),
   ]);
 
@@ -77,7 +77,9 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
           Liquidación de Reembolsos
         </h1>
         <p className="page-subtitle">
-          Supervisa, aprueba y audita los pagos adeudados a empleados por gastos cubiertos con fondos personales.
+          {isEmployee
+            ? 'Revisa tus gastos personales rendidos y verifica el estado de tus liquidaciones.'
+            : 'Supervisa, aprueba y audita los pagos adeudados a empleados por gastos cubiertos con fondos personales.'}
         </p>
       </div>
 
@@ -85,7 +87,7 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
       <ReembolsosStatsCards kpis={kpis} />
 
       {/* Filters (URL-Driven with 300ms Debounce) */}
-      <ReembolsosFilters empleados={empleados} />
+      <ReembolsosFilters empleados={empleados} userRole={session.role} />
 
       {/* Paginated Data Table with Actions & eReceipt Modal */}
       <ReembolsosTable
@@ -94,6 +96,7 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
         totalPages={totalPages}
         currentPage={currentPage}
         pageSize={pageSize}
+        userRole={session.role}
       />
     </div>
   );

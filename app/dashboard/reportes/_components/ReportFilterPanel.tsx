@@ -42,6 +42,7 @@ interface ReportFilterPanelProps {
   onFilterChange: <K extends keyof ReportFilters>(key: K, value: ReportFilters[K]) => void;
   onResetFilters: () => void;
   onGenerateReport: () => void;
+  userRole?: 'ADMIN' | 'EMPLOYEE';
 }
 
 export function ReportFilterPanel({
@@ -57,7 +58,9 @@ export function ReportFilterPanel({
   onFilterChange,
   onResetFilters,
   onGenerateReport,
+  userRole = 'ADMIN',
 }: ReportFilterPanelProps) {
+  const isEmployee = userRole === 'EMPLOYEE';
   // Preset helpers for common date ranges
   const handleApplyPreset = (preset: 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_30' | 'YEAR_TO_DATE') => {
     const today = new Date();
@@ -308,45 +311,76 @@ export function ReportFilterPanel({
           </select>
         </div>
 
-        {/* Employee Selector */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label
-            htmlFor="filter-employee"
-            style={{
-              fontSize: '12px',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Users size={13} style={{ color: 'var(--rendy-primary)' }} />
-            Empleado Solicitante
-          </label>
-          <select
-            id="filter-employee"
-            value={filters.employeeId || 'ALL'}
-            onChange={(e) => onFilterChange('employeeId', e.target.value)}
-            style={{
-              background: 'var(--bg-base)',
-              border: '1px solid var(--bg-border)',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              outline: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <option value="ALL">Todos los colaboradores</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Employee Selector (Hidden for Collaborators — server enforces employee filter) */}
+        {isEmployee ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Users size={13} style={{ color: 'var(--rendy-primary)' }} />
+              Empleado Solicitante
+            </label>
+            <span
+              style={{
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--rendy-primary-light)',
+              }}
+            >
+              📋 Exportando mis gastos personales
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label
+              htmlFor="filter-employee"
+              style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Users size={13} style={{ color: 'var(--rendy-primary)' }} />
+              Empleado Solicitante
+            </label>
+            <select
+              id="filter-employee"
+              value={filters.employeeId || 'ALL'}
+              onChange={(e) => onFilterChange('employeeId', e.target.value)}
+              style={{
+                background: 'var(--bg-base)',
+                border: '1px solid var(--bg-border)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="ALL">Todos los colaboradores</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Currency / Jurisdiction Selector */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

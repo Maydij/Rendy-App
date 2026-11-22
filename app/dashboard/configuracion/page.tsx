@@ -1,8 +1,14 @@
 import { supabaseServer } from '@/lib/supabase-server';
-import { requireAdminSession } from '@/lib/auth/session-context';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import { obtenerCategoriasEmpresa } from '@/app/actions/categorias.actions';
 import ConfiguracionClient from './configuracion-client';
 
+/**
+ * @name getConfigData
+ * @description [Business Logic]: Fetches all organization configuration entities
+ * (company info, users, projects, payment methods, subscription, invitations, categories)
+ * scoped to the authenticated user's organization for the Configuration dashboard.
+ */
 async function getConfigData(empresaId: string) {
   const [
     { data: empresa },
@@ -39,7 +45,19 @@ async function getConfigData(empresaId: string) {
 }
 
 export default async function ConfiguracionPage() {
-  const session = await requireAdminSession();
+  const session = await requireAuthenticatedSession();
   const data = await getConfigData(session.empresaId);
-  return <ConfiguracionClient {...data} />;
+
+  // Resolve user display name from the fetched users list (session JWT does not carry nombre)
+  const currentUser = data.usuarios.find((u) => u.id === session.userId);
+  const currentUserName = currentUser?.nombre ?? 'Colaborador';
+
+  return (
+    <ConfiguracionClient
+      {...data}
+      isAdmin={session.role === 'ADMIN'}
+      currentUserId={session.userId}
+      currentUserName={currentUserName}
+    />
+  );
 }

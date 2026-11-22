@@ -546,6 +546,9 @@ export default function ConfiguracionClient({
   subscription,
   pendingInvitations,
   categorias: initCategorias = [],
+  isAdmin = true,
+  currentUserId,
+  currentUserName,
 }: {
   empresa: Empresa | null;
   usuarios: Usuario[];
@@ -554,6 +557,9 @@ export default function ConfiguracionClient({
   subscription: SubscriptionInfo | null;
   pendingInvitations: PendingInvitation[];
   categorias?: CategoriaGasto[];
+  isAdmin?: boolean;
+  currentUserId?: string;
+  currentUserName?: string;
 }) {
   const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos' | 'suscripcion' | 'fiscal' | 'categorias'>(
     'usuarios'
@@ -771,6 +777,167 @@ export default function ConfiguracionClient({
       }
     });
   };
+
+  /* ─────────────────────────────────────────────────────────────
+   * Employee Read-Only View
+   * ───────────────────────────────────────────────────────────── */
+  if (!isAdmin) {
+    const myUser = usuarios.find((u) => u.id === currentUserId);
+
+    return (
+      <>
+        <div className="page-header">
+          <h1 className="page-title">
+            <Settings size={24} strokeWidth={2} />
+            Información de mi Organización
+          </h1>
+          <p className="page-subtitle">
+            Vista informativa de tu empresa, tu perfil y las políticas de gastos vigentes.
+          </p>
+        </div>
+
+        {feedback && (
+          <div
+            style={{
+              position: 'fixed',
+              top: '20px',
+              right: '24px',
+              zIndex: 200,
+              background: feedback.startsWith('❌') ? 'var(--rendy-danger)' : 'var(--rendy-accent)',
+              color: 'white',
+              padding: '12px 20px',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 600,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            }}
+          >
+            {feedback}
+          </div>
+        )}
+
+        {/* Organization Info Card */}
+        {empresa && (
+          <div className="card" style={{ marginBottom: '24px' }}>
+            <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '14px',
+                  flexShrink: 0,
+                  background: 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  fontWeight: 800,
+                  color: 'white',
+                }}
+              >
+                {empresa.nombre.charAt(0).toUpperCase()}
+                {empresa.nombre.split(' ')[1]?.charAt(0).toUpperCase() ?? ''}
+              </div>
+              <div style={{ flex: 1, minWidth: '220px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>{empresa.nombre}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Moneda de operación: <strong style={{ color: 'var(--text-secondary)' }}>{empresa.moneda || 'USD'}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* My Profile */}
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div style={{ padding: '20px 24px' }}>
+            <SectionHeader
+              title="Mi Perfil"
+              subtitle="Tu información registrada en la organización."
+            />
+            {myUser ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nombre</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{myUser.nombre}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{myUser.email || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Teléfono WhatsApp</div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{myUser.telefono_whatsapp ? `+${myUser.telefono_whatsapp}` : '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rol</div>
+                  <RolBadge rol={myUser.rol || myUser.role || 'EMPLOYEE'} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Departamento</div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{myUser.department || 'General'}</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>No se encontró tu perfil de usuario.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Expense Categories & Daily Limits (Read-Only) */}
+        <div className="card">
+          <div style={{ padding: '20px 24px' }}>
+            <SectionHeader
+              title="Categorías de Gastos y Límites Diarios"
+              subtitle="Políticas de gastos vigentes definidas por tu administrador."
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+              {categorias.filter((c) => c.activa).map((cat) => (
+                <div
+                  key={cat.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--bg-border)',
+                    borderRadius: '10px',
+                    gap: '16px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px', flex: 1 }}>
+                    <span style={{ fontSize: '20px', lineHeight: 1 }}>{cat.icono || '🏷️'}</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{cat.nombre}</div>
+                      {cat.descripcion && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{cat.descripcion}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', minWidth: '120px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: cat.limite_diario_usd > 0 ? 'var(--rendy-accent)' : 'var(--text-muted)' }}>
+                      {cat.limite_diario_usd > 0 ? `$${cat.limite_diario_usd.toFixed(2)} USD / día` : 'Sin límite'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {categorias.filter((c) => c.activa).length === 0 && (
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
+                  No hay categorías activas configuradas.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+   * Admin Full View (original)
+   * ───────────────────────────────────────────────────────────── */
 
   const TABS = [
     { id: 'usuarios' as const, label: 'Usuarios', icon: Users, count: usuarios.length },
