@@ -4,6 +4,7 @@ import {
   buildInvitationEmailSubject,
   type InvitationEmailParams,
 } from './invitation-template';
+import { resolveAppBaseUrl } from '@/lib/utils/url';
 
 export interface SendInvitationEmailResult {
   /** Whether the email was successfully accepted by Gmail SMTP */
@@ -62,7 +63,19 @@ export async function sendInvitationEmail(
   }
 
   try {
-    const htmlBody = buildInvitationEmailHtml(params);
+    // Defensive URL hygiene: If executing in cloud (Vercel) but the magic link URL still contains localhost,
+    // auto-heal to the authoritative cloud base URL (e.g. https://rendystaging.vercel.app)
+    let sanitizedMagicLinkUrl = params.magicLinkUrl;
+    const isCloud = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+    if (isCloud && sanitizedMagicLinkUrl.includes('localhost')) {
+      const canonicalBase = resolveAppBaseUrl();
+      sanitizedMagicLinkUrl = sanitizedMagicLinkUrl.replace(/^https?:\/\/localhost(:\d+)?/, canonicalBase);
+    }
+
+    const htmlBody = buildInvitationEmailHtml({
+      ...params,
+      magicLinkUrl: sanitizedMagicLinkUrl,
+    });
     const subject = buildInvitationEmailSubject(params.companyName);
     const fromName = process.env.SMTP_FROM_NAME?.trim() || 'Rendy';
 

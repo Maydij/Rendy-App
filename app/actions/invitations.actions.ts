@@ -22,6 +22,7 @@ import { securityLogger } from '@/lib/security/logger';
 import { serverEnv } from '@/lib/security/env';
 import { enviarMensajeWhatsApp } from '@/app/lib/whatsapp';
 import { sendInvitationEmail } from '@/lib/email';
+import { buildInvitationMagicLinkUrl } from '@/lib/utils/url';
 
 /* ─────────────────────────────────────────────────────────────
  * Strict Zod Schemas (.strict() prevents Mass Assignment)
@@ -136,6 +137,7 @@ export async function createEmployeeInvitationAction(
 ): Promise<{ success: boolean; error?: string; data?: CreatedInvitationArtifact }> {
   try {
     const session = await requireAdminSession();
+    const headerStore = await headers();
 
     const parsed = CreateEmployeeInvitationSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -247,7 +249,7 @@ export async function createEmployeeInvitationAction(
       .single();
 
     const companyName = company?.nombre || 'tu empresa';
-    const magicLinkUrl = `${serverEnv.NEXT_PUBLIC_APP_URL}/invitacion/${rawToken}?code=${encodeURIComponent(tempPassword)}`;
+    const magicLinkUrl = buildInvitationMagicLinkUrl(rawToken, tempPassword, headerStore);
 
     // Generate high-contrast QR Code Data URL for instant mobile onboarding
     const qrCodeDataUrl = await QRCode.toDataURL(magicLinkUrl, {
