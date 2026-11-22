@@ -495,36 +495,67 @@ export async function acceptEmployeeInvitationAction(
     const fullName = `${invitation.first_name} ${invitation.last_name}`.trim();
 
     // 1. Provision Active Employee Account with role 'EMPLOYEE' and rol 'EMPLEADO'
-    const { data: createdEmployee, error: userErr } = await supabaseServer
+    const userPayloadWithActivo = {
+      empresa_id: invitation.empresa_id,
+      nombre: fullName,
+      email: invitation.email,
+      telefono_whatsapp: '',
+      rol: 'EMPLEADO',
+      role: 'EMPLOYEE',
+      status: 'ACTIVE',
+      activo: true,
+      password_hash: passwordHash,
+      cedula_encrypted: invitation.cedula_encrypted,
+      cedula_blind_index: invitation.cedula_blind_index,
+      whatsapp_encrypted: invitation.whatsapp_encrypted,
+      whatsapp_blind_index: invitation.whatsapp_blind_index,
+      department: invitation.department,
+      allowed_expense_categories: invitation.allowed_expense_categories,
+    };
+
+    let createdEmployee: { id: string } | null = null;
+    const { data: insertedUser, error: userErr } = await supabaseServer
       .from('usuarios')
-      .insert({
-        empresa_id: invitation.empresa_id,
-        nombre: fullName,
-        email: invitation.email,
-        telefono_whatsapp: '',
-        rol: 'EMPLEADO',
-        role: 'EMPLOYEE',
-        status: 'ACTIVE',
-        activo: true,
-        password_hash: passwordHash,
-        cedula_encrypted: invitation.cedula_encrypted,
-        cedula_blind_index: invitation.cedula_blind_index,
-        whatsapp_encrypted: invitation.whatsapp_encrypted,
-        whatsapp_blind_index: invitation.whatsapp_blind_index,
-        department: invitation.department,
-        allowed_expense_categories: invitation.allowed_expense_categories,
-      })
+      .insert(userPayloadWithActivo)
       .select('id')
       .single();
 
-    if (userErr || !createdEmployee) {
-      securityLogger.error('invitations.accept.user_insert_failed', userErr, {
-        invitationId: invitation.id,
-      });
-      return {
-        success: false,
-        error: 'No se pudo activar tu perfil de empleado. Verifica si ya tienes una cuenta.',
-      };
+    if (userErr || !insertedUser) {
+      // Defensive fallback if migration 014 (column 'activo') has not been applied to Supabase
+      const isMissingActivo =
+        userErr?.code === 'PGRST204' ||
+        userErr?.code === '42703' ||
+        userErr?.message?.includes('activo');
+
+      if (isMissingActivo) {
+        const { activo: _unused, ...legacyPayload } = userPayloadWithActivo;
+        const { data: fallbackUser, error: fallbackErr } = await supabaseServer
+          .from('usuarios')
+          .insert(legacyPayload)
+          .select('id')
+          .single();
+
+        if (fallbackErr || !fallbackUser) {
+          securityLogger.error('invitations.accept.user_fallback_insert_failed', fallbackErr, {
+            invitationId: invitation.id,
+          });
+          return {
+            success: false,
+            error: 'No se pudo activar tu perfil de empleado. Verifica si ya tienes una cuenta.',
+          };
+        }
+        createdEmployee = fallbackUser;
+      } else {
+        securityLogger.error('invitations.accept.user_insert_failed', userErr, {
+          invitationId: invitation.id,
+        });
+        return {
+          success: false,
+          error: 'No se pudo activar tu perfil de empleado. Verifica si ya tienes una cuenta.',
+        };
+      }
+    } else {
+      createdEmployee = insertedUser;
     }
 
     // 2. Mark Invitation as ACCEPTED (Single-Use Enforcement)
