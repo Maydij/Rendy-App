@@ -85,13 +85,22 @@ const ServerEnvSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.preprocess(emptyStringToUndefined, z.string().url().optional()),
   UPSTASH_REDIS_REST_TOKEN: z.preprocess(emptyStringToUndefined, z.string().min(10).optional()),
 
-  // Official WhatsApp Business Bot number for employee activation links
+  // Official WhatsApp Business Bot number for employee activation and portal links
   NEXT_PUBLIC_WHATSAPP_BOT_NUMBER: z.preprocess(
-    emptyStringToUndefined,
+    (val) => {
+      const cleaned = emptyStringToUndefined(val);
+      if (typeof cleaned === 'string') {
+        const digitsOnly = cleaned.replace(/\D/g, '');
+        if (digitsOnly.length >= 10 && digitsOnly.length <= 15) {
+          return digitsOnly;
+        }
+      }
+      return '15551636909';
+    },
     z
       .string()
-      .regex(/^\d{10,15}$/, 'NEXT_PUBLIC_WHATSAPP_BOT_NUMBER must be digits only (e.g. 584121234567)')
-      .default('15550000000')
+      .regex(/^\d{10,15}$/, 'NEXT_PUBLIC_WHATSAPP_BOT_NUMBER must be digits only (e.g. 15551636909)')
+      .default('15551636909')
   ),
 
   // Gmail SMTP credentials for transactional invitation emails (Nodemailer)
