@@ -8,6 +8,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdminSession } from '@/lib/auth/session-context';
 import {
   encryptPII,
+  decryptPII,
   computeBlindIndex,
   generateCryptographicToken,
   hashPassword,
@@ -23,6 +24,7 @@ import { serverEnv } from '@/lib/security/env';
 import { enviarMensajeWhatsApp } from '@/app/lib/whatsapp';
 import { sendInvitationEmail } from '@/lib/email';
 import { buildInvitationMagicLinkUrl } from '@/lib/utils/url';
+import { normalizarTelefonoE164 } from '@/lib/utils/phone';
 
 /* ─────────────────────────────────────────────────────────────
  * Strict Zod Schemas (.strict() prevents Mass Assignment)
@@ -494,12 +496,24 @@ export async function acceptEmployeeInvitationAction(
     const passwordHash = await hashPassword(password);
     const fullName = `${invitation.first_name} ${invitation.last_name}`.trim();
 
+    // Decrypt employee WhatsApp phone from encrypted invitation PII and normalize to E.164
+    let employeePhone: string | null = null;
+    if (invitation.whatsapp_encrypted) {
+      try {
+        const rawDigits = decryptPII(invitation.whatsapp_encrypted);
+        const normalized = normalizarTelefonoE164(rawDigits);
+        employeePhone = normalized && normalized.length > 2 ? normalized : null;
+      } catch {
+        employeePhone = null;
+      }
+    }
+
     // 1. Provision Active Employee Account with role 'EMPLOYEE' and rol 'EMPLEADO'
     const userPayloadWithActivo = {
       empresa_id: invitation.empresa_id,
       nombre: fullName,
       email: invitation.email,
-      telefono_whatsapp: '',
+      telefono_whatsapp: employeePhone,
       rol: 'EMPLEADO',
       role: 'EMPLOYEE',
       status: 'ACTIVE',
@@ -521,6 +535,18 @@ export async function acceptEmployeeInvitationAction(
       .single();
 
     if (userErr || !insertedUser) {
+      // Handle legacy duplicate phone constraint if the number already belongs to another user
+      if (userErr?.code === '23505' && userErr?.message?.includes('usuarios_telefono_whatsapp_key')) {
+        securityLogger.warn('invitations.accept.duplicate_phone_key', {
+          invitationId: invitation.id,
+          phone: employeePhone,
+        });
+        return {
+          success: false,
+          error: 'Este número de teléfono ya está registrado en otra cuenta activa. Elimina la restricción usuarios_telefono_whatsapp_key en Supabase para habilitar números de pruebas.',
+        };
+      }
+
       // Defensive fallback if migration 014 (column 'activo') has not been applied to Supabase
       const isMissingActivo =
         userErr?.code === 'PGRST204' ||
@@ -536,6 +562,13 @@ export async function acceptEmployeeInvitationAction(
           .single();
 
         if (fallbackErr || !fallbackUser) {
+          if (fallbackErr?.code === '23505' && fallbackErr?.message?.includes('usuarios_telefono_whatsapp_key')) {
+            return {
+              success: false,
+              error: 'Este número de teléfono ya está registrado en otra cuenta activa. Elimina la restricción usuarios_telefono_whatsapp_key en Supabase para habilitar números de pruebas.',
+            };
+          }
+
           securityLogger.error('invitations.accept.user_fallback_insert_failed', fallbackErr, {
             invitationId: invitation.id,
           });
