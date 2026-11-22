@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { supabaseServer } from '@/lib/supabase-server';
-import { requireAdminSession } from '@/lib/auth/session-context';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import { getFilterOptionsAction, getReportHistoryAction } from './actions';
 import { ReportesClient } from './_components/ReportesClient';
 
@@ -19,16 +19,23 @@ export const metadata = {
 };
 
 export default async function ReportesPage() {
-  const session = await requireAdminSession();
+  const session = await requireAuthenticatedSession();
+  const isEmployee = session.role === 'EMPLOYEE';
+
+  let expensesQuery = supabaseServer
+    .from('gastos')
+    .select('monto, moneda, monto_usd, monto_ves, tasa_cambio')
+    .eq('empresa_id', session.empresaId);
+
+  if (isEmployee) {
+    expensesQuery = expensesQuery.eq('usuario_id', session.userId);
+  }
 
   // Parallel server-side fetch of lookup entities, past reports, and summary aggregates
   const [filterOptions, history, expensesStats] = await Promise.all([
     getFilterOptionsAction(),
     getReportHistoryAction(),
-    supabaseServer
-      .from('gastos')
-      .select('monto, moneda, monto_usd, monto_ves, tasa_cambio')
-      .eq('empresa_id', session.empresaId),
+    expensesQuery,
   ]);
 
   const rawExpenses = expensesStats.data || [];
@@ -68,6 +75,7 @@ export default async function ReportesPage() {
       totalExpensesInDb={totalExpensesInDb}
       totalUsdInDb={Number(totalUsdInDb.toFixed(2))}
       totalVesInDb={Number(totalVesInDb.toFixed(2))}
+      userRole={session.role}
     />
   );
 }

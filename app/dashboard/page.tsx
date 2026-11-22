@@ -1,5 +1,5 @@
 import { supabaseServer } from '@/lib/supabase-server';
-import { requireAdminSession } from '@/lib/auth/session-context';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import { TrendingUp, TrendingDown, Wallet, ClipboardCheck, RotateCcw, DollarSign, ArrowUpRight, Coins, CheckCircle2, Clock, SendHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { getExchangeRates, convertAmount, formatCurrency, normalizeMoneda } from '@/lib/currency';
@@ -27,7 +27,29 @@ function StatusBadge({ estado }: { estado: string }) {
 }
 
 /* ─── Multi-Tenant Data Fetching ─── */
-async function getDashboardData(empresaId: string) {
+/**
+ * @name getDashboardData
+ * @description [Business Logic]: Gathers multi-currency financial telemetry, approved allowances,
+ * justified WhatsApp expenses, and pending out-of-pocket settlements. Enforces strict data isolation
+ * when accessed by a collaborator with role 'EMPLOYEE'.
+ */
+async function getDashboardData(empresaId: string, role?: string, userId?: string) {
+  let gastosQuery = supabaseServer
+    .from('gastos')
+    .select('id, comercio, categoria, monto, moneda, monto_usd, monto_ves, tasa_cambio, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto, solicitud_id, es_reembolso, rif_comercio, numero_factura')
+    .eq('empresa_id', empresaId)
+    .order('creado_en', { ascending: false });
+
+  let solicitudesQuery = supabaseServer
+    .from('solicitudes_viaticos')
+    .select('id, monto_solicitado, monto_aprobado, moneda, estado, usuario_id, proyecto_id')
+    .eq('empresa_id', empresaId);
+
+  if (role === 'EMPLOYEE' && userId) {
+    gastosQuery = gastosQuery.eq('usuario_id', userId);
+    solicitudesQuery = solicitudesQuery.eq('usuario_id', userId);
+  }
+
   const [
     { data: gastos },
     { data: solicitudes },
@@ -37,15 +59,8 @@ async function getDashboardData(empresaId: string) {
     rates,
     reembolsosKpis,
   ] = await Promise.all([
-    supabaseServer
-      .from('gastos')
-      .select('id, comercio, categoria, monto, moneda, monto_usd, monto_ves, tasa_cambio, fecha_gasto, estado, proyecto_id, usuario_id, datos_ocr, concepto, solicitud_id, es_reembolso, rif_comercio, numero_factura')
-      .eq('empresa_id', empresaId)
-      .order('creado_en', { ascending: false }),
-    supabaseServer
-      .from('solicitudes_viaticos')
-      .select('id, monto_solicitado, monto_aprobado, moneda, estado, usuario_id, proyecto_id')
-      .eq('empresa_id', empresaId),
+    gastosQuery,
+    solicitudesQuery,
     supabaseServer
       .from('proyectos')
       .select('id, nombre')
@@ -61,7 +76,7 @@ async function getDashboardData(empresaId: string) {
       .eq('id', empresaId)
       .single(),
     getExchangeRates(),
-    obtenerKpisReembolsos(empresaId),
+    obtenerKpisReembolsos(empresaId, role === 'EMPLOYEE' ? userId : undefined),
   ]);
 
   const moneda = normalizeMoneda(empresa?.moneda ?? 'USD');
@@ -187,7 +202,8 @@ async function getDashboardData(empresaId: string) {
 
 /* ─── Page ─── */
 export default async function DashboardPage() {
-  const session = await requireAdminSession();
+  const session = await requireAuthenticatedSession();
+  const isEmployee = session.role === 'EMPLOYEE';
   const {
     moneda,
     empresa,
@@ -199,7 +215,7 @@ export default async function DashboardPage() {
     projectBreakdown,
     currencyBreakdown,
     proyMap,
-  } = await getDashboardData(session.empresaId);
+  } = await getDashboardData(session.empresaId, session.role, session.userId);
 
   const kpiCards = [
     { id: 'total-gastado', label: 'Total Registrado', value: fmt(kpis.totalGastado, moneda), icon: DollarSign, color: 'indigo', trend: 'up' as const },
@@ -217,11 +233,15 @@ export default async function DashboardPage() {
             {empresa}
           </span>
         </h1>
-        <p className="page-subtitle">Resumen ejecutivo de gastos, viáticos y reembolsos de tu organización (convirtiendo monedas locales a {moneda}).</p>
+        <p className="page-subtitle">
+          {isEmployee
+            ? `Resumen personal de tus gastos, viáticos y reembolsos registrados (convirtiendo monedas locales a ${moneda}).`
+            : `Resumen ejecutivo de gastos, viáticos y reembolsos de tu organización (convirtiendo monedas locales a ${moneda}).`}
+        </p>
       </div>
 
-      {/* FTUX Checklist + Invite Employee Modal + Active Dwell-Time Telemetry */}
-      <DashboardInteractiveShell companyName={empresa} ftuxState={ftuxState} />
+      {/* FTUX Checklist + Invite Employee Modal + Active Dwell-Time Telemetry (Only for Admins) */}
+      {!isEmployee && <DashboardInteractiveShell companyName={empresa} ftuxState={ftuxState} />}
 
       {/* KPIs */}
       <div className="kpi-grid" role="list" aria-label="Indicadores clave">

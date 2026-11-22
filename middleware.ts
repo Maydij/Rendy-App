@@ -29,17 +29,22 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 
 /**
  * @name middleware
- * @description [Business Logic]: Enforces Zero-Trust authentication and Role-Based Access Control
- * (RBAC), isolating Project Administrator views (/dashboard) from Employee views (/portal).
+ * @description [Business Logic]: Enforces Zero-Trust authentication and session validation
+ * for protected application routes (/dashboard), while safely redirecting legacy /portal requests
+ * to the unified role-isolated /dashboard.
  */
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
-  const isAdminRoute = pathname.startsWith('/dashboard');
-  const isEmployeePortalRoute = pathname.startsWith('/portal');
+  // Legacy portal route: redirect directly to the unified dashboard
+  if (pathname.startsWith('/portal')) {
+    return applySecurityHeaders(NextResponse.redirect(new URL('/dashboard', request.url)));
+  }
+
+  const isDashboardRoute = pathname.startsWith('/dashboard');
   const isAuthPage = pathname === '/login' || pathname === '/registro';
 
-  if (!isAdminRoute && !isEmployeePortalRoute && !isAuthPage) {
+  if (!isDashboardRoute && !isAuthPage) {
     return applySecurityHeaders(NextResponse.next());
   }
 
@@ -47,14 +52,13 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const hasRefreshCookie = Boolean(request.cookies.get(REFRESH_COOKIE_NAME)?.value);
   const session = accessToken ? await verifyAccessToken(accessToken) : null;
 
-  // Redirect already-authenticated users away from /login or /registro
+  // Redirect already-authenticated users away from /login or /registro to /dashboard
   if (isAuthPage && session) {
-    const destination = session.role === 'ADMIN' ? '/dashboard' : '/portal';
-    return applySecurityHeaders(NextResponse.redirect(new URL(destination, request.url)));
+    return applySecurityHeaders(NextResponse.redirect(new URL('/dashboard', request.url)));
   }
 
   // Protected routes: require valid Access Token (or transparently refresh via Route Handler)
-  if (isAdminRoute || isEmployeePortalRoute) {
+  if (isDashboardRoute) {
     if (!session) {
       if (hasRefreshCookie) {
         // Transparent session refresh via Route Handler where Set-Cookie headers are supported
@@ -67,16 +71,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       loginUrl.searchParams.set('next', pathname);
       return applySecurityHeaders(NextResponse.redirect(loginUrl));
     }
-
-    // Strict RBAC Enforcement: Employees cannot access Administrator /dashboard routes
-    if (isAdminRoute && session.role !== 'ADMIN') {
-      return applySecurityHeaders(NextResponse.redirect(new URL('/portal', request.url)));
-    }
   }
 
   return applySecurityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/portal/:path*', '/login', '/registro'],
+  matcher: ['/dashboard/:path*', '/portal', '/portal/:path*', '/login', '/registro'],
 };

@@ -74,11 +74,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
-  // Prevent role mismatch: employees cannot be redirected to /dashboard routes
-  const destination =
-    rotated.role !== 'ADMIN' && targetNext.startsWith('/dashboard')
-      ? '/portal'
-      : targetNext;
+  // Redirect legacy /portal queries to unified /dashboard
+  const destination = targetNext.startsWith('/portal') ? '/dashboard' : targetNext;
 
   const response = NextResponse.redirect(new URL(destination, request.url));
 

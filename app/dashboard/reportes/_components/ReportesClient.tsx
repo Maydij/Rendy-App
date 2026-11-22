@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   FileSpreadsheet,
   Layers,
@@ -34,9 +35,8 @@ interface ReportesClientProps {
   totalExpensesInDb: number;
   totalUsdInDb: number;
   totalVesInDb: number;
+  userRole?: 'ADMIN' | 'EMPLOYEE';
 }
-
-const LOCAL_STORAGE_KEY = 'rendy_accounting_reports_history';
 
 export function ReportesClient({
   projects,
@@ -46,30 +46,23 @@ export function ReportesClient({
   totalExpensesInDb,
   totalUsdInDb,
   totalVesInDb,
+  userRole = 'ADMIN',
 }: ReportesClientProps) {
+  const router = useRouter();
   const [historyList, setHistoryList] = useState<ReportHistoryItem[]>(initialHistory);
 
-  // Sync and hydrate with client-side persistent storage on mount
+  // Proactively purge legacy insecure localStorage key to eliminate cross-session residue
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        const parsed: ReportHistoryItem[] = JSON.parse(stored);
-        // Merge initial server history with locally cached history
-        const mergedMap = new Map<string, ReportHistoryItem>();
-        [...parsed, ...initialHistory].forEach((item) => {
-          if (!mergedMap.has(item.reportName)) {
-            mergedMap.set(item.reportName, item);
-          }
-        });
-        const mergedList = Array.from(mergedMap.values()).sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setHistoryList(mergedList);
-      }
-    } catch (e) {
-      console.warn('⚠️ [ReportesClient] Error hydrating report history from localStorage:', e);
+      localStorage.removeItem('rendy_accounting_reports_history');
+    } catch {
+      // Storage access may be restricted in sandboxed environments
     }
+  }, []);
+
+  // Synchronize component state strictly with server-side tenant & user isolated history
+  useEffect(() => {
+    setHistoryList(initialHistory);
   }, [initialHistory]);
 
   const {
@@ -84,25 +77,17 @@ export function ReportesClient({
     handleExport,
   } = useReportGenerator();
 
-  // Helper to persist updated history
-  const persistHistory = (newItem: ReportHistoryItem) => {
-    setHistoryList((prev) => {
-      const filtered = prev.filter((p) => p.reportName !== newItem.reportName);
-      const updated = [newItem, ...filtered].slice(0, 30);
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.warn('⚠️ [ReportesClient] Error saving report history to localStorage:', e);
-      }
-      return updated;
-    });
-  };
-
   // Trigger export from filter panel
   const onTriggerExport = async () => {
     const result = await handleExport();
     if (result && result.historyItem) {
-      persistHistory(result.historyItem);
+      setHistoryList((prev) => [
+        result.historyItem!,
+        ...prev.filter(
+          (p) => p.id !== result.historyItem!.id && p.reportName !== result.historyItem!.reportName
+        ),
+      ].slice(0, 30));
+      router.refresh();
     }
   };
 
@@ -110,7 +95,13 @@ export function ReportesClient({
   const onReExportHistory = async (savedFilters: ReportFilters) => {
     const result = await handleExport(savedFilters);
     if (result && result.historyItem) {
-      persistHistory(result.historyItem);
+      setHistoryList((prev) => [
+        result.historyItem!,
+        ...prev.filter(
+          (p) => p.id !== result.historyItem!.id && p.reportName !== result.historyItem!.reportName
+        ),
+      ].slice(0, 30));
+      router.refresh();
     }
   };
 
@@ -328,6 +319,7 @@ export function ReportesClient({
         onFilterChange={updateFilter}
         onResetFilters={resetFilters}
         onGenerateReport={onTriggerExport}
+        userRole={userRole}
       />
 
       {/* Historical Audit Trail Table */}

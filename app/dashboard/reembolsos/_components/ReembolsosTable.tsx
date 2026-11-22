@@ -42,6 +42,7 @@ interface ReembolsosTableProps {
   totalPages: number;
   currentPage: number;
   pageSize: number;
+  userRole?: 'ADMIN' | 'EMPLOYEE';
 }
 
 type ActionMenuState = {
@@ -59,8 +60,10 @@ export function ReembolsosTable({
   totalPages,
   currentPage,
   pageSize,
+  userRole = 'ADMIN',
 }: ReembolsosTableProps) {
   const router = useRouter();
+  const isEmployee = userRole === 'EMPLOYEE';
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -639,24 +642,28 @@ export function ReembolsosTable({
                         </div>
                       </td>
 
-                      {/* Action Menu trigger (menu itself is portaled to document.body) */}
+                      {/* Action Menu trigger (menu itself is portaled to document.body, hidden for employees) */}
                       <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          aria-haspopup="menu"
-                          aria-expanded={actionMenu?.id === r.id}
-                          onClick={(e) => openActionMenu(r.id, e.currentTarget)}
-                          style={{
-                            background: actionMenu?.id === r.id ? 'var(--bg-overlay)' : 'transparent',
-                            border: '1px solid var(--bg-border)',
-                            borderRadius: '8px',
-                            padding: '6px 8px',
-                            color: 'var(--text-primary)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <MoreVertical size={15} />
-                        </button>
+                        {isEmployee ? (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-haspopup="menu"
+                            aria-expanded={actionMenu?.id === r.id}
+                            onClick={(e) => openActionMenu(r.id, e.currentTarget)}
+                            style={{
+                              background: actionMenu?.id === r.id ? 'var(--bg-overlay)' : 'transparent',
+                              border: '1px solid var(--bg-border)',
+                              borderRadius: '8px',
+                              padding: '6px 8px',
+                              color: 'var(--text-primary)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <MoreVertical size={15} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

@@ -382,18 +382,26 @@ export async function obtenerReembolsosPaginados(
 
 /**
  * @name obtenerKpisReembolsos
- * @description [Business Logic]: Calculates aggregated financial metrics for all employee
- * personal refunds (total count, pending settlement amount, processed ready to pay, and transferred).
+ * @description [Business Logic]: Calculates aggregated financial metrics for employee
+ * personal refunds (total count, pending settlement amount, processed ready to pay, and transferred),
+ * optionally scoped to a single employee when logged in as a collaborator.
  */
 export async function obtenerKpisReembolsos(
-  empresaId: string
+  empresaId: string,
+  empleadoId?: string
 ): Promise<ReembolsosKpisResponse> {
+  let query = supabaseServer
+    .from('gastos')
+    .select('id, estado, monto, moneda, monto_usd, tasa_cambio, datos_ocr')
+    .eq('empresa_id', empresaId)
+    .eq('es_reembolso', true);
+
+  if (empleadoId && empleadoId !== 'TODOS') {
+    query = query.eq('usuario_id', empleadoId);
+  }
+
   const [dataResult, rates] = await Promise.all([
-    supabaseServer
-      .from('gastos')
-      .select('id, estado, monto, moneda, monto_usd, tasa_cambio, datos_ocr')
-      .eq('empresa_id', empresaId)
-      .eq('es_reembolso', true),
+    query,
     getExchangeRates(),
   ]);
 

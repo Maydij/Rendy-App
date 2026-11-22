@@ -46,7 +46,7 @@ export async function requireAuthenticatedSession(): Promise<AuthenticatedSessio
 export async function requireAdminSession(): Promise<AuthenticatedSessionPayload> {
   const session = await requireAuthenticatedSession();
   if (session.role !== 'ADMIN') {
-    redirect('/portal');
+    redirect('/dashboard');
   }
   return session;
 }

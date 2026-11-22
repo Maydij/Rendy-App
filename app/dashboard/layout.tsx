@@ -68,55 +68,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isEmployee = userRole === 'EMPLOYEE';
 
-  const NAV_ITEMS = isEmployee
-    ? [
-        {
-          label: 'Principal',
-          items: [
-            { href: '/dashboard', icon: LayoutDashboard, label: 'Mi Resumen', badge: null },
-          ],
-        },
-        {
-          label: 'Operaciones',
-          items: [
-            { href: '/dashboard/solicitudes', icon: Wallet, label: 'Mis Solicitudes', badge: pendingViaticos > 0 ? String(pendingViaticos) : null },
-            { href: '/dashboard/justificacion', icon: ClipboardCheck, label: 'Progreso Justificación', badge: null },
-            { href: '/dashboard/gastos', icon: Receipt, label: 'Mis Gastos', badge: null },
-            { href: '/dashboard/reembolsos', icon: RotateCcw, label: 'Mis Reembolsos', badge: pendingReembolsos > 0 ? String(pendingReembolsos) : null },
-          ],
-        },
-      ]
-    : [
-        {
-          label: 'Principal',
-          items: [
-            { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', badge: null },
-          ],
-        },
-        {
-          label: 'Operaciones',
-          items: [
-            { href: '/dashboard/solicitudes', icon: Wallet, label: 'Solicitudes de Viáticos', badge: pendingViaticos > 0 ? String(pendingViaticos) : null },
-            { href: '/dashboard/justificacion', icon: ClipboardCheck, label: 'Progreso Justificación', badge: null },
-            { href: '/dashboard/gastos', icon: Receipt, label: 'Gastos de Empresa', badge: null },
-            { href: '/dashboard/reembolsos', icon: RotateCcw, label: 'Reembolsos', badge: pendingReembolsos > 0 ? String(pendingReembolsos) : null },
-          ],
-        },
-        {
-          label: 'Administración',
-          items: [
-            { href: '/dashboard/reportes', icon: FileSpreadsheet, label: 'Reportes Contables', badge: null },
-            { href: '/dashboard/configuracion', icon: Settings, label: 'Organización', badge: null },
-          ],
-        },
-      ];
+  const NAV_ITEMS = [
+    {
+      label: 'Principal',
+      items: [
+        { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', badge: null },
+      ],
+    },
+    {
+      label: 'Operaciones',
+      items: [
+        { href: '/dashboard/solicitudes', icon: Wallet, label: 'Solicitudes de Viáticos', badge: pendingViaticos > 0 ? String(pendingViaticos) : null },
+        { href: '/dashboard/justificacion', icon: ClipboardCheck, label: 'Progreso Justificación', badge: null },
+        { href: '/dashboard/gastos', icon: Receipt, label: 'Gastos de Empresa', badge: null },
+        { href: '/dashboard/reembolsos', icon: RotateCcw, label: 'Reembolsos', badge: pendingReembolsos > 0 ? String(pendingReembolsos) : null },
+      ],
+    },
+    {
+      label: 'Administración',
+      items: [
+        { href: '/dashboard/reportes', icon: FileSpreadsheet, label: 'Reportes Contables', badge: null },
+        { href: '/dashboard/configuracion', icon: Settings, label: 'Organización', badge: null },
+      ],
+    },
+  ];
 
   const PAGE_LABELS: Record<string, string> = {
-    '/dashboard': isEmployee ? 'Mi Resumen' : 'Dashboard',
-    '/dashboard/solicitudes': isEmployee ? 'Mis Solicitudes' : 'Solicitudes de Viáticos',
+    '/dashboard': 'Dashboard',
+    '/dashboard/solicitudes': 'Solicitudes de Viáticos',
     '/dashboard/justificacion': 'Progreso de Justificación',
-    '/dashboard/gastos': isEmployee ? 'Mis Gastos' : 'Gastos de Empresa',
-    '/dashboard/reembolsos': isEmployee ? 'Mis Reembolsos' : 'Reembolsos',
+    '/dashboard/gastos': 'Gastos de Empresa',
+    '/dashboard/reembolsos': 'Reembolsos',
     '/dashboard/reportes': 'Reportes Contables',
     '/dashboard/configuracion': 'Organización',
   };

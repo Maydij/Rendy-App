@@ -150,9 +150,19 @@ export async function exportAccountingReportAction(
       `)
       .eq('empresa_id', session.empresaId);
 
+    // Enforce role-based employee isolation strictly
+    const enforcedEmployeeId =
+      session.role === 'EMPLOYEE'
+        ? session.userId
+        : filters.employeeId && filters.employeeId !== 'ALL'
+          ? filters.employeeId
+          : undefined;
+
     // Role-based isolation: Employees only export their own expenses
     if (session.role === 'EMPLOYEE') {
       query = query.eq('usuario_id', session.userId);
+    } else if (enforcedEmployeeId) {
+      query = query.eq('usuario_id', enforcedEmployeeId);
     }
 
     // Filter by Date Range
@@ -166,11 +176,6 @@ export async function exportAccountingReportAction(
     // Filter by Project
     if (filters.projectId && filters.projectId !== 'ALL') {
       query = query.eq('proyecto_id', filters.projectId);
-    }
-
-    // Filter by Employee
-    if (filters.employeeId && filters.employeeId !== 'ALL') {
-      query = query.eq('usuario_id', filters.employeeId);
     }
 
     // Filter by Expense Type
@@ -324,11 +329,16 @@ export async function exportAccountingReportAction(
     const totalUsd = normalizedExpenses.reduce((sum, item) => sum + item.totalUsd, 0);
     const detectedCurrencies = Array.from(detectedCurrenciesSet);
 
+    // Resolve generating user name accurately from authenticated session
+    const generatingUser = (usersData || []).find((u) => u.id === session.userId);
+    const generatingUserName =
+      generatingUser?.nombre || (session.role === 'ADMIN' ? 'Administrador Rendy' : 'Colaborador Rendy');
+
     // 5. Generate Excel Workbook Binary
     const uint8Array = await generateAccountingExcelReport({
       companyName,
       companyRif: 'J-50000000-0',
-      generatedByName: 'Administrador Rendy',
+      generatedByName: generatingUserName,
       filters: {
         ...filters,
         projectName: selectedProjectName,
@@ -341,9 +351,7 @@ export async function exportAccountingReportAction(
     const dateStamp = new Date().toISOString().slice(0, 10);
     const filename = `Reporte_Contable_Rendy_${dateStamp}_${Date.now().toString().slice(-4)}.xlsx`;
 
-    // 6. Audit in `reportes_generados` Table (Safe Execution)
-    const adminUser = (usersData || [])[0];
-    const adminUserName = adminUser?.nombre || 'Administrador Rendy';
+    // 6. Audit in `reportes_generados` Table (Strictly isolated by empresa_id & usuario_id)
     const totalVesAmount = normalizedExpenses
       .filter((e) => e.originalCurrency === 'VES')
       .reduce((sum, e) => sum + e.totalLocal, 0);
@@ -357,14 +365,14 @@ export async function exportAccountingReportAction(
         dateTo: filters.dateTo || '',
         currency: filters.currency || 'ALL',
         projectId: filters.projectId || 'ALL',
-        employeeId: filters.employeeId || 'ALL',
+        employeeId: session.role === 'EMPLOYEE' ? session.userId : (filters.employeeId || 'ALL'),
         expenseType: filters.expenseType || 'ALL',
       },
       totalExpenses: totalCount,
       totalUsd: Number(totalUsd.toFixed(2)),
       totalVes: Number(totalVesAmount.toFixed(2)),
       createdAt: new Date().toISOString(),
-      userName: adminUserName,
+      userName: generatingUserName,
     };
 
     try {
@@ -378,7 +386,7 @@ export async function exportAccountingReportAction(
           dateTo: filters.dateTo || null,
           currency: filters.currency || 'ALL',
           projectId: filters.projectId || 'ALL',
-          employeeId: filters.employeeId || 'ALL',
+          employeeId: session.role === 'EMPLOYEE' ? session.userId : (filters.employeeId || 'ALL'),
           expenseType: filters.expenseType || 'ALL',
           detectedCurrencies,
         },
@@ -413,12 +421,14 @@ export async function exportAccountingReportAction(
 /**
  * @name getReportHistoryAction
  * @description [Business Logic]: Retrieves the audit history of previously exported reports
- * for the current company tenant, displaying date, author, total aggregates, and filter criteria.
+ * strictly filtered by organization (empresa_id) AND the current requesting user (usuario_id)
+ * for ALL roles (both ADMIN and EMPLOYEE) to guarantee absolute data privacy between users.
  */
 export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
   try {
     const session = await requireAuthenticatedSession();
 
+    // Enforce strict tenant AND user ownership isolation for all accounts
     const { data: reports, error } = await supabaseServer
       .from('reportes_generados')
       .select(`
@@ -433,8 +443,9 @@ export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
         usuario_id
       `)
       .eq('empresa_id', session.empresaId)
+      .eq('usuario_id', session.userId)
       .order('creado_en', { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (error || !reports) {
       return [];
@@ -457,7 +468,7 @@ export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
       totalUsd: Number(r.monto_total_usd || 0),
       totalVes: Number(r.monto_total_ves || 0),
       createdAt: r.creado_en,
-      userName: r.usuario_id ? (userMap.get(r.usuario_id) || 'Administrador') : 'Administrador',
+      userName: r.usuario_id ? (userMap.get(r.usuario_id) || 'Usuario') : 'Usuario',
     }));
   } catch (err) {
     console.warn('⚠️ [getReportHistoryAction] Failed to retrieve report history:', err);
@@ -468,7 +479,8 @@ export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
 /**
  * @name getFilterOptionsAction
  * @description [Business Logic]: Provides active project, employee, and distinct currency lists
- * used to populate the interactive filter selectors on the report generator panel.
+ * used to populate the interactive filter selectors on the report generator panel,
+ * scoped strictly to the current tenant and current collaborator.
  */
 export async function getFilterOptionsAction(): Promise<FilterOptions> {
   const session = await requireAuthenticatedSession();
@@ -481,21 +493,49 @@ export async function getFilterOptionsAction(): Promise<FilterOptions> {
 
   let gastosQuery = supabaseServer
     .from('gastos')
-    .select('moneda, moneda_original, datos_ocr')
+    .select('moneda, moneda_original, datos_ocr, proyecto_id')
     .eq('empresa_id', session.empresaId);
 
-  // If collaborator, restrict employee filter and expense scanning to self
+  let proyectosQuery = supabaseServer
+    .from('proyectos')
+    .select('id, nombre')
+    .eq('empresa_id', session.empresaId)
+    .order('nombre', { ascending: true });
+
+  // If collaborator, restrict employee filter, expenses, and project scope strictly to self
   if (session.role === 'EMPLOYEE') {
     usuariosQuery = usuariosQuery.eq('id', session.userId);
     gastosQuery = gastosQuery.eq('usuario_id', session.userId);
+
+    // Only query projects where this employee actually has expenses or viáticos
+    const [{ data: userGastos }, { data: userViaticos }] = await Promise.all([
+      supabaseServer
+        .from('gastos')
+        .select('proyecto_id')
+        .eq('empresa_id', session.empresaId)
+        .eq('usuario_id', session.userId)
+        .not('proyecto_id', 'is', null),
+      supabaseServer
+        .from('solicitudes_viaticos')
+        .select('proyecto_id')
+        .eq('empresa_id', session.empresaId)
+        .eq('usuario_id', session.userId)
+        .not('proyecto_id', 'is', null),
+    ]);
+
+    const activeProjectIds = new Set<string>();
+    (userGastos || []).forEach((g) => g.proyecto_id && activeProjectIds.add(g.proyecto_id));
+    (userViaticos || []).forEach((v) => v.proyecto_id && activeProjectIds.add(v.proyecto_id));
+
+    if (activeProjectIds.size > 0) {
+      proyectosQuery = proyectosQuery.in('id', Array.from(activeProjectIds));
+    } else {
+      proyectosQuery = proyectosQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+    }
   }
 
   const [{ data: projects }, { data: users }, { data: gastos }] = await Promise.all([
-    supabaseServer
-      .from('proyectos')
-      .select('id, nombre')
-      .eq('empresa_id', session.empresaId)
-      .order('nombre', { ascending: true }),
+    proyectosQuery,
     usuariosQuery,
     gastosQuery,
   ]);

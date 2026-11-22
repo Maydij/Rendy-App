@@ -105,10 +105,10 @@ export function AcceptInvitationForm({
 
           <button
             type="button"
-            onClick={() => router.push('/portal')}
+            onClick={() => router.push('/dashboard')}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-3 text-xs font-semibold text-white transition cursor-pointer"
           >
-            <span>Ir a mi Portal</span>
+            <span>Ir a mi Dashboard</span>
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
