@@ -15,10 +15,29 @@ const emptyStringToUndefined = (value: unknown): unknown =>
  */
 const ServerEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  NEXT_PUBLIC_APP_URL: z.preprocess(
-    emptyStringToUndefined,
-    z.string().url('NEXT_PUBLIC_APP_URL must be a valid URL (e.g. http://localhost:3000)')
-  ),
+  NEXT_PUBLIC_APP_URL: z.preprocess((val) => {
+    const raw = emptyStringToUndefined(val);
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      // When deployed on Vercel, auto-heal misconfigured localhost URLs to staging
+      const isCloud = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+      if (isCloud && (raw.includes('localhost') || raw.includes('127.0.0.1'))) {
+        if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+        return 'https://rendystaging.vercel.app';
+      }
+      return raw.replace(/\/+$/, '');
+    }
+    // Fallback hierarchy for Vercel preview/production or local development
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+      return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+    }
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'production') {
+      return 'https://rendystaging.vercel.app';
+    }
+    return 'http://localhost:3000';
+  }, z.string().url('NEXT_PUBLIC_APP_URL must be a valid URL (e.g. http://localhost:3000)')),
   NEXT_PUBLIC_SUPABASE_URL: z.preprocess(
     emptyStringToUndefined,
     z.string().url('NEXT_PUBLIC_SUPABASE_URL must be a valid URL')
