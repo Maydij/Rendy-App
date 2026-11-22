@@ -454,9 +454,9 @@ export async function evaluarLimiteDiarioCategoria({
     let query = supabase
       .from('gastos')
       .select('id, monto_usd')
+      .eq('empresa_id', empresaId)
       .eq('usuario_id', employeeId)
       .neq('estado', 'RECHAZADO')
-      .neq('estado', 'BOCETO')
       .or(`categoria.eq.${codigoCategoria},categoria.ilike.${categoryRecordNombre}`)
       .gte('fecha_gasto', targetDateStr)
       .lte('fecha_gasto', targetDateStr);
@@ -472,9 +472,9 @@ export async function evaluarLimiteDiarioCategoria({
       const fallbackQuery = await supabase
         .from('gastos')
         .select('id, monto_usd')
+        .eq('empresa_id', empresaId)
         .eq('usuario_id', employeeId)
         .neq('estado', 'RECHAZADO')
-        .neq('estado', 'BOCETO')
         .or(`categoria.eq.${codigoCategoria},categoria.ilike.${categoryRecordNombre}`)
         .gte('creado_en', start)
         .lte('creado_en', end);

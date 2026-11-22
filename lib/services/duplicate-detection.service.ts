@@ -29,6 +29,7 @@ import {
  * @description Input payload for the duplicate verification pipeline.
  */
 export interface DuplicateVerificationInput {
+  empresaId: string;
   employeeId: string;
   senderPhone: string;
   taxId: string | null;
@@ -63,7 +64,18 @@ export async function verifyInvoiceDuplicate(
   supabase: SupabaseClient,
   input: DuplicateVerificationInput,
 ): Promise<DuplicateVerificationResult> {
-  const { employeeId, senderPhone, taxId, invoiceNumber, totalAmount, merchantName, currency } = input;
+  const { empresaId, employeeId, senderPhone, taxId, invoiceNumber, totalAmount, merchantName, currency } = input;
+
+  // Multi-Tenant Isolation Guard: duplicate checks MUST always be scoped to an organization
+  if (!empresaId) {
+    console.warn('⚠️ [Anti-Fraud Multi-Tenant Warning]: Missing empresaId in duplicate verification. Skipping check to prevent cross-tenant leaks.');
+    return {
+      isDuplicate: false,
+      duplicateHash: null,
+      blockMessage: null,
+      originalExpenseId: null,
+    };
+  }
 
   // Guard: if we don't have enough fiscal data, we cannot generate a reliable hash
   if (!hasSufficientFiscalData(taxId, invoiceNumber, totalAmount)) {
@@ -83,11 +95,13 @@ export async function verifyInvoiceDuplicate(
   const hash = generateExpenseHash(safeTaxId, safeInvoice, safeAmount);
 
   try {
-    // ───── LOCK 1: Direct hash lookup (primary, fastest) ─────
+    // ───── LOCK 1: Direct hash lookup (primary, fastest) — Strictly scoped to tenant ─────
     const { data: hashMatch } = await supabase
       .from('gastos')
       .select('id, creado_en, usuario_id, usuarios!usuario_id(nombre)')
+      .eq('empresa_id', empresaId)
       .eq('hash_duplicado', hash)
+      .neq('estado', 'RECHAZADO')
       .maybeSingle();
 
     if (hashMatch) {
@@ -113,6 +127,7 @@ export async function verifyInvoiceDuplicate(
 
       // Register fraud/error attempt for audit trail
       await registerDuplicateAttempt(supabase, {
+        empresaId,
         employeeId,
         senderPhone,
         taxId: safeTaxId,
@@ -130,7 +145,7 @@ export async function verifyInvoiceDuplicate(
       };
     }
 
-    // ───── LOCK 2: Composite field match (defensive fallback) ─────
+    // ───── LOCK 2: Composite field match (defensive fallback) — Strictly scoped to tenant ─────
     const cleanTaxId = sanitizeTaxId(safeTaxId);
     const cleanInvoice = sanitizeInvoiceNumber(safeInvoice);
     const cleanAmount = sanitizeAmount(safeAmount);
@@ -138,9 +153,11 @@ export async function verifyInvoiceDuplicate(
     const { data: fieldMatch } = await supabase
       .from('gastos')
       .select('id, creado_en, usuario_id, usuarios!usuario_id(nombre)')
+      .eq('empresa_id', empresaId)
       .eq('rif_comercio', cleanTaxId)
       .eq('numero_factura', cleanInvoice)
       .eq('monto_total', parseFloat(cleanAmount))
+      .neq('estado', 'RECHAZADO')
       .maybeSingle();
 
     if (fieldMatch) {
@@ -165,6 +182,7 @@ export async function verifyInvoiceDuplicate(
       });
 
       await registerDuplicateAttempt(supabase, {
+        empresaId,
         employeeId,
         senderPhone,
         taxId: safeTaxId,
@@ -206,6 +224,7 @@ export async function verifyInvoiceDuplicate(
  * ───────────────────────────────────────────────────────── */
 
 interface DuplicateAttemptPayload {
+  empresaId: string;
   employeeId: string;
   senderPhone: string;
   taxId: string;
@@ -226,7 +245,8 @@ async function registerDuplicateAttempt(
   payload: DuplicateAttemptPayload,
 ): Promise<void> {
   try {
-    const { error } = await supabase.from('intentos_duplicados').insert({
+    const insertPayload: Record<string, unknown> = {
+      empresa_id: payload.empresaId,
       empleado_id: payload.employeeId,
       telefono_remitente: payload.senderPhone,
       rif_comercio: payload.taxId,
@@ -234,7 +254,16 @@ async function registerDuplicateAttempt(
       monto_total: payload.totalAmount,
       hash_duplicado: payload.duplicateHash,
       gasto_original_id: payload.originalExpenseId,
-    });
+    };
+
+    let { error } = await supabase.from('intentos_duplicados').insert(insertPayload);
+
+    // Defensive fallback: if empresa_id column doesn't exist yet in DB schema cache
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('schema cache'))) {
+      delete insertPayload.empresa_id;
+      const fallback = await supabase.from('intentos_duplicados').insert(insertPayload);
+      error = fallback.error;
+    }
 
     if (error) {
       console.error('❌ [Anti-Fraud] Failed to log duplicate attempt:', error);

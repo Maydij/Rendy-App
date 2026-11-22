@@ -1605,6 +1605,7 @@ async function manejarIngestaComprobanteEnFrio({
   }
 
   const fiscalDupResult = await verifyInvoiceDuplicate(supabase, {
+    empresaId,
     employeeId: empleadoId,
     senderPhone: telefono,
     taxId: raw.rif_comercio,
@@ -1841,6 +1842,7 @@ async function manejarComprobanteEnRutaGuiada({
   });
 
   const fiscalDupResult = await verifyInvoiceDuplicate(supabase, {
+    empresaId,
     employeeId: empleadoId,
     senderPhone: telefono,
     taxId: raw.rif_comercio,
@@ -2065,6 +2067,7 @@ async function persistirGastoDefinitivo(
     const { data: viaticoRecord } = await supabase
       .from('solicitudes_viaticos')
       .select('proyecto_id')
+      .eq('empresa_id', empresaId)
       .eq('id', targetViaticoId)
       .maybeSingle();
 
@@ -2075,6 +2078,7 @@ async function persistirGastoDefinitivo(
       const { data: viaticoFallback } = await supabase
         .from('viaticos')
         .select('proyecto_id')
+        .eq('empresa_id', empresaId)
         .eq('id', targetViaticoId)
         .maybeSingle();
 
@@ -2242,6 +2246,7 @@ async function persistirGastoDefinitivo(
     const { data: todosLosGastos } = await supabase
       .from('gastos')
       .select('monto_convertido, monto, monto_usd')
+      .eq('empresa_id', empresaId)
       .or(`solicitud_id.eq.${targetViaticoId},viatico_id.eq.${targetViaticoId}`)
       .neq('estado', 'RECHAZADO');
 
@@ -2255,6 +2260,7 @@ async function persistirGastoDefinitivo(
     await supabase
       .from('solicitudes_viaticos')
       .update({ monto_gastado: nuevoGastado })
+      .eq('empresa_id', empresaId)
       .eq('id', targetViaticoId);
   }
 
