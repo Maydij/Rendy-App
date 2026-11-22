@@ -579,7 +579,8 @@ export async function verificarGastoDuplicado(
         .from('gastos')
         .select('id')
         .eq('empresa_id', empresaId)
-        .eq('hash_comprobante', hashArchivo);
+        .eq('hash_comprobante', hashArchivo)
+        .neq('estado', 'RECHAZADO');
 
       if (coincidenciaHash && coincidenciaHash.length > 0) {
         return {
@@ -597,7 +598,8 @@ export async function verificarGastoDuplicado(
         .select('id')
         .eq('empresa_id', empresaId)
         .eq('monto', monto)
-        .eq('fecha_gasto', fecha);
+        .eq('fecha_gasto', fecha)
+        .neq('estado', 'RECHAZADO');
 
       if (comercio) {
         query = query.ilike('comercio', `%${comercio.trim()}%`);

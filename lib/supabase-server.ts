@@ -119,6 +119,7 @@ export type Database = {
   };
   intentos_duplicados: {
     id: string;
+    empresa_id: string | null;
     empleado_id: string | null;
     telefono_remitente: string;
     rif_comercio: string | null;
