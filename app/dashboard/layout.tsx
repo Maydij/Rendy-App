@@ -18,10 +18,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import { RendyLogo } from '@/components/rendy-logo';
 import { LogoutConfirmModal } from '@/components/dashboard/LogoutConfirmModal';
-import { getCurrentUserSessionAction } from '@/app/actions/auth.actions';
+import { getCurrentUserSessionAction, getDashboardPendingCountsAction } from '@/app/actions/auth.actions';
 
 const SidebarContext = createContext({ collapsed: false });
 export const useSidebar = () => useContext(SidebarContext);
@@ -34,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [userRole, setUserRole] = useState<'ADMIN' | 'EMPLOYEE'>('ADMIN');
   const [userProfile, setUserProfile] = useState<{ nombre?: string; email?: string } | null>(null);
+  const [empresaNombre, setEmpresaNombre] = useState<string>('');
   const pathname = usePathname();
 
   useEffect(() => {
@@ -43,35 +43,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     async function initSessionAndCounts() {
       try {
-        const session = await getCurrentUserSessionAction();
+        const [session, counts] = await Promise.all([
+          getCurrentUserSessionAction(),
+          getDashboardPendingCountsAction(),
+        ]);
+
         if (session) {
           setUserRole(session.role);
           setUserProfile({ nombre: session.nombre, email: session.email });
+          if (session.empresaNombre) {
+            setEmpresaNombre(session.empresaNombre);
+          }
         }
 
-        let vQuery = supabase
-          .from('solicitudes_viaticos')
-          .select('*', { count: 'exact', head: true })
-          .eq('estado', 'PENDIENTE');
-
-        let rQuery = supabase
-          .from('gastos')
-          .select('*', { count: 'exact', head: true })
-          .eq('es_reembolso', true)
-          .eq('estado', 'PENDIENTE');
-
-        if (session?.role === 'EMPLOYEE' && session.userId) {
-          vQuery = vQuery.eq('usuario_id', session.userId);
-          rQuery = rQuery.eq('usuario_id', session.userId);
-        }
-
-        const [{ count: vCount }, { count: rCount }] = await Promise.all([
-          vQuery,
-          rQuery,
-        ]);
-
-        setPendingViaticos(vCount || 0);
-        setPendingReembolsos(rCount || 0);
+        setPendingViaticos(counts.pendingViaticos);
+        setPendingReembolsos(counts.pendingReembolsos);
       } catch (err) {
         console.error('Failed to load session/counts:', err);
       }
@@ -160,7 +146,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="sidebar-brand-text">
               <span className="sidebar-brand-name">Rendy</span>
-              <span className="sidebar-brand-tagline">by Swork · B2B SaaS</span>
+              <span className="sidebar-brand-tagline">
+                {empresaNombre ? `${empresaNombre} · B2B SaaS` : 'B2B SaaS'}
+              </span>
             </div>
             {!collapsed ? (
               <button className="sidebar-toggle" onClick={(e) => { e.stopPropagation(); setCollapsed(true); }} title="Colapsar">

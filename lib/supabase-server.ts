@@ -160,5 +160,8 @@ function createServerClient() {
 
 export const supabaseServer = createServerClient();
 
-/* ─── empresa activa (hardcoded para el MVP mono-tenant) ─── */
+/**
+ * @deprecated Legacy mono-tenant fallback. Do NOT use in multi-tenant code.
+ * Always resolve empresaId from session (`session.empresaId`) or user context.
+ */
 export const EMPRESA_ID = '11111111-1111-1111-1111-111111111111';

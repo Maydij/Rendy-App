@@ -122,29 +122,39 @@ export function extractExpenseUsd(g: {
 export async function calcularSaldoViatico(
   supabase: SupabaseClient,
   viaticoId: string,
-  montoNuevaFacturaUsd: number
+  montoNuevaFacturaUsd: number,
+  empresaId?: string
 ): Promise<EvaluacionSobregiro> {
   // 1. Fetch viático metadata from viaticos table
   let nombreProyecto = 'General';
   let montoAsignado = 0;
-  let montoGastadoCache = 0;
 
-  const { data: viatico } = await supabase
+  let viaticoQuery = supabase
     .from('viaticos')
     .select('id, nombre_proyecto, monto_asignado_usd')
-    .eq('id', viaticoId)
-    .maybeSingle();
+    .eq('id', viaticoId);
+
+  if (empresaId) {
+    viaticoQuery = viaticoQuery.eq('empresa_id', empresaId);
+  }
+
+  const { data: viatico } = await viaticoQuery.maybeSingle();
 
   if (viatico) {
     nombreProyecto = viatico.nombre_proyecto || 'General';
     montoAsignado = Number(viatico.monto_asignado_usd || 0);
   } else {
     // Fallback: check solicitudes_viaticos for backward compatibility
-    const { data: sol } = await supabase
+    let solQuery = supabase
       .from('solicitudes_viaticos')
       .select('id, monto_aprobado, monto_solicitado, monto_gastado, proyectos(nombre)')
-      .eq('id', viaticoId)
-      .maybeSingle();
+      .eq('id', viaticoId);
+
+    if (empresaId) {
+      solQuery = solQuery.eq('empresa_id', empresaId);
+    }
+
+    const { data: sol } = await solQuery.maybeSingle();
 
     if (sol) {
       nombreProyecto = (sol.proyectos as unknown as { nombre?: string })?.nombre || 'General';
@@ -155,11 +165,17 @@ export async function calcularSaldoViatico(
   }
 
   // 2. Aggregate all existing expenses for this viático (checking both viatico_id and solicitud_id)
-  const { data: gastosPrevios, error: errGastos } = await supabase
+  let gastosQuery = supabase
     .from('gastos')
     .select('monto_usd, monto_convertido, monto, moneda')
     .or(`viatico_id.eq.${viaticoId},solicitud_id.eq.${viaticoId}`)
     .neq('estado', 'RECHAZADO');
+
+  if (empresaId) {
+    gastosQuery = gastosQuery.eq('empresa_id', empresaId);
+  }
+
+  const { data: gastosPrevios, error: errGastos } = await gastosQuery;
 
   if (errGastos) {
     throw new Error(`Error fetching existing expenses: ${errGastos.message}`);

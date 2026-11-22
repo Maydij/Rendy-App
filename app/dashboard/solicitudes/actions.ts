@@ -8,7 +8,8 @@
  */
 
 import { revalidatePath } from 'next/cache';
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdminSession } from '@/lib/auth/session-context';
 import { enviarMensajeWhatsApp, enviarArchivoWhatsApp } from '@/app/lib/whatsapp';
 
 export interface SolicitudActionResult {
@@ -110,15 +111,18 @@ export async function aprobarSolicitudConComprobanteAction(
       return { success: false, error: 'Identificador de solicitud inválido.' };
     }
 
-    // 1. Fetch solicitud details with joined user and project
+    const session = await requireAdminSession();
+
+    // 1. Fetch solicitud details strictly scoped to admin's tenant
     const { data: sol, error: fetchErr } = await supabaseServer
       .from('solicitudes_viaticos')
       .select('id, monto_solicitado, moneda, usuario_id, empresa_id, proyecto_id, proyectos(nombre), usuarios(telefono_whatsapp, nombre)')
       .eq('id', solicitudId)
-      .single();
+      .eq('empresa_id', session.empresaId)
+      .maybeSingle();
 
     if (fetchErr || !sol) {
-      return { success: false, error: 'No se pudo encontrar la solicitud de viáticos.' };
+      return { success: false, error: 'No se pudo encontrar la solicitud de viáticos en su organización.' };
     }
 
     // 2. Upload file if provided
@@ -132,7 +136,7 @@ export async function aprobarSolicitudConComprobanteAction(
       urlComprobanteTransferencia = uploadResult.url;
     }
 
-    // 3. Update solicitudes_viaticos record
+    // 3. Update solicitudes_viaticos record strictly scoped to admin's tenant
     const nowIso = new Date().toISOString();
     const updatePayload: Record<string, unknown> = {
       estado: 'APROBADO',
@@ -149,7 +153,8 @@ export async function aprobarSolicitudConComprobanteAction(
     let { error: updateError } = await supabaseServer
       .from('solicitudes_viaticos')
       .update(updatePayload)
-      .eq('id', solicitudId);
+      .eq('id', solicitudId)
+      .eq('empresa_id', session.empresaId);
 
     // Defensive fallback: if migration 013 is not yet applied, retry without new columns
     if (updateError && updateError.code === '42703') {
@@ -161,7 +166,8 @@ export async function aprobarSolicitudConComprobanteAction(
       const retryResult = await supabaseServer
         .from('solicitudes_viaticos')
         .update(fallbackPayload)
-        .eq('id', solicitudId);
+        .eq('id', solicitudId)
+        .eq('empresa_id', session.empresaId);
 
       updateError = retryResult.error;
     }
@@ -180,7 +186,7 @@ export async function aprobarSolicitudConComprobanteAction(
     const viaticosPayload: Record<string, unknown> = {
       id: solicitudId,
       empleado_id: sol.usuario_id,
-      empresa_id: sol.empresa_id || EMPRESA_ID,
+      empresa_id: session.empresaId,
       proyecto_id: sol.proyecto_id,
       nombre_proyecto: proyectoNombre,
       monto_asignado_usd: Number(sol.monto_solicitado || 0),
@@ -305,15 +311,18 @@ export async function adjuntarComprobanteTransferenciaPosteriorAction(
       return { success: false, error: 'Debes seleccionar el comprobante de transferencia bancaria.' };
     }
 
-    // 1. Fetch solicitud details
+    const session = await requireAdminSession();
+
+    // 1. Fetch solicitud details strictly scoped to admin's tenant
     const { data: sol, error: fetchErr } = await supabaseServer
       .from('solicitudes_viaticos')
       .select('id, monto_solicitado, monto_aprobado, moneda, usuario_id, empresa_id, proyecto_id, proyectos(nombre), usuarios(telefono_whatsapp, nombre)')
       .eq('id', solicitudId)
-      .single();
+      .eq('empresa_id', session.empresaId)
+      .maybeSingle();
 
     if (fetchErr || !sol) {
-      return { success: false, error: 'No se pudo encontrar la solicitud de viáticos.' };
+      return { success: false, error: 'No se pudo encontrar la solicitud de viáticos en su organización.' };
     }
 
     // 2. Upload file
@@ -325,7 +334,7 @@ export async function adjuntarComprobanteTransferenciaPosteriorAction(
     const urlComprobante = uploadResult.url;
     const nowIso = new Date().toISOString();
 
-    // 3. Update solicitudes_viaticos
+    // 3. Update solicitudes_viaticos strictly scoped to admin's tenant
     const updatePayload: Record<string, unknown> = {
       url_comprobante_transferencia: urlComprobante,
       referencia_transferencia: referenciaTransferencia,
@@ -336,7 +345,8 @@ export async function adjuntarComprobanteTransferenciaPosteriorAction(
     let { error: updateError } = await supabaseServer
       .from('solicitudes_viaticos')
       .update(updatePayload)
-      .eq('id', solicitudId);
+      .eq('id', solicitudId)
+      .eq('empresa_id', session.empresaId);
 
     if (updateError && updateError.code === '42703') {
       return {
@@ -349,11 +359,12 @@ export async function adjuntarComprobanteTransferenciaPosteriorAction(
       return { success: false, error: updateError.message };
     }
 
-    // 4. Also update viaticos table
+    // 4. Also update viaticos table strictly scoped to admin's tenant
     await supabaseServer
       .from('viaticos')
       .update(updatePayload)
-      .eq('id', solicitudId);
+      .eq('id', solicitudId)
+      .eq('empresa_id', session.empresaId);
 
     // 5. Send WhatsApp notification with the attachment
     const rawUsuario = (Array.isArray(sol.usuarios) ? sol.usuarios[0] : sol.usuarios) as
@@ -423,13 +434,16 @@ export async function aprobarSolicitud(id: string): Promise<{ error: string | nu
  */
 export async function rechazarSolicitud(id: string, motivo: string): Promise<{ error: string | null }> {
   try {
+    const session = await requireAdminSession();
+
     const { data: sol, error: fetchErr } = await supabaseServer
       .from('solicitudes_viaticos')
       .select('monto_solicitado, moneda, usuario_id, proyecto_id, proyectos(nombre), usuarios(telefono_whatsapp)')
       .eq('id', id)
-      .single();
+      .eq('empresa_id', session.empresaId)
+      .maybeSingle();
 
-    if (fetchErr || !sol) return { error: 'No se pudo encontrar la solicitud' };
+    if (fetchErr || !sol) return { error: 'No se pudo encontrar la solicitud en su organización' };
 
     const { error } = await supabaseServer
       .from('solicitudes_viaticos')
@@ -437,7 +451,8 @@ export async function rechazarSolicitud(id: string, motivo: string): Promise<{ e
         estado: 'RECHAZADO',
         motivo_rechazo: motivo || null,
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('empresa_id', session.empresaId);
 
     if (error) return { error: error.message };
 
@@ -448,7 +463,8 @@ export async function rechazarSolicitud(id: string, motivo: string): Promise<{ e
         estado: 'RECHAZADO',
         actualizado_en: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('empresa_id', session.empresaId);
 
     // Notificar por WhatsApp al empleado
     const rawUsuario = (Array.isArray(sol.usuarios) ? sol.usuarios[0] : sol.usuarios) as

@@ -815,6 +815,7 @@ export async function routerMensajeWhatsApp({
           supabase,
           telefono,
           empleadoId,
+          empresaId,
           textoCorreccion: cuerpoTexto || '',
           sesion,
         });
@@ -1228,7 +1229,7 @@ export async function routerMensajeWhatsApp({
 
       if (interactiveReplyId.startsWith('DESTINO_VIATICO_')) {
         const viaticoId = interactiveReplyId.replace('DESTINO_VIATICO_', '');
-        const evaluacion = await calcularSaldoViatico(supabase, viaticoId, extraccion.monto_usd);
+        const evaluacion = await calcularSaldoViatico(supabase, viaticoId, extraccion.monto_usd, empresaId);
 
         const nombreProyFinal =
           evaluacion.nombre_proyecto ||
@@ -1902,7 +1903,7 @@ async function manejarComprobanteEnRutaGuiada({
 
   if (sesion.estado === 'ESPERANDO_FOTO_VIATICO' && sesion.datos_temporales?.viatico_id) {
     const viaticoId = sesion.datos_temporales.viatico_id;
-    const evaluacion = await calcularSaldoViatico(supabase, viaticoId, fiscalResult.monto_usd);
+    const evaluacion = await calcularSaldoViatico(supabase, viaticoId, fiscalResult.monto_usd, empresaId);
 
     const datosSesion: DatosTemporalesSesion = {
       es_reembolso: false,
@@ -1943,12 +1944,14 @@ async function manejarCorreccionTextoComprobante({
   supabase,
   telefono,
   empleadoId,
+  empresaId,
   textoCorreccion,
   sesion,
 }: {
   supabase: SupabaseClient;
   telefono: string;
   empleadoId: string;
+  empresaId: string;
   textoCorreccion: string;
   sesion: SesionWhatsAppRecord;
 }): Promise<{ status: string }> {
@@ -2009,7 +2012,8 @@ async function manejarCorreccionTextoComprobante({
     evaluacionActualizada = await calcularSaldoViatico(
       supabase,
       sesion.datos_temporales.viatico_id,
-      fiscalResult.monto_usd
+      fiscalResult.monto_usd,
+      empresaId
     );
   }
 
