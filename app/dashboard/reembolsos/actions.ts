@@ -8,7 +8,8 @@
  */
 
 import { revalidatePath } from 'next/cache';
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdminSession } from '@/lib/auth/session-context';
 import type { EstadoReembolso } from '@/lib/services/reembolsos.service';
 import { enviarNotificacionWhatsAppReembolso } from '@/lib/services/notificacionesReembolso';
 
@@ -22,10 +23,12 @@ export interface ActionResult {
  * @name marcarReembolsoComoProcesadoAction
  * @description [Business Logic]: Advances a reimbursement to 'PROCESADO' (accounting approval)
  * and dispatches a WhatsApp notification to the employee indicating payment is queued.
+ * Strictly isolated to the authenticated administrator's tenant (`session.empresaId`).
  */
 export async function marcarReembolsoComoProcesadoAction(gastoId: string): Promise<ActionResult> {
   try {
     if (!gastoId) return { success: false, error: 'Identificador de gasto inválido.' };
+    const session = await requireAdminSession();
 
     const { data: gasto, error } = await supabaseServer
       .from('gastos')
@@ -35,7 +38,7 @@ export async function marcarReembolsoComoProcesadoAction(gastoId: string): Promi
         actualizado_en: new Date().toISOString(),
       })
       .eq('id', gastoId)
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', session.empresaId)
       .eq('es_reembolso', true)
       .select(`
         id,
@@ -96,6 +99,7 @@ export async function marcarReembolsoComoTransferidoAction({
 }): Promise<ActionResult> {
   try {
     if (!gastoId) return { success: false, error: 'Identificador de gasto inválido.' };
+    const session = await requireAdminSession();
 
     const fechaTransferencia = new Date().toISOString();
 
@@ -109,7 +113,7 @@ export async function marcarReembolsoComoTransferidoAction({
         actualizado_en: fechaTransferencia,
       })
       .eq('id', gastoId)
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', session.empresaId)
       .eq('es_reembolso', true)
       .select(`
         id,
@@ -172,6 +176,7 @@ export async function rechazarReembolsoAction({
   try {
     if (!gastoId) return { success: false, error: 'Identificador de gasto inválido.' };
     if (!motivo.trim()) return { success: false, error: 'Debe especificar el motivo del rechazo.' };
+    const session = await requireAdminSession();
 
     const motivoLimpio = motivo.trim();
 
@@ -183,7 +188,7 @@ export async function rechazarReembolsoAction({
         actualizado_en: new Date().toISOString(),
       })
       .eq('id', gastoId)
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', session.empresaId)
       .eq('es_reembolso', true)
       .select(`
         id,
@@ -323,6 +328,7 @@ export async function revertirEstadoReembolsoAction({
 }): Promise<ActionResult> {
   try {
     if (!gastoId) return { success: false, error: 'Identificador de gasto inválido.' };
+    const session = await requireAdminSession();
 
     const updatePayload: {
       estado: EstadoReembolso;
@@ -343,7 +349,7 @@ export async function revertirEstadoReembolsoAction({
       .from('gastos')
       .update(updatePayload)
       .eq('id', gastoId)
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', session.empresaId)
       .eq('es_reembolso', true);
 
     if (error) {

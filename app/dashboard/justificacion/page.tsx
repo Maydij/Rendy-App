@@ -1,4 +1,12 @@
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+/**
+ * @name JustificacionPage
+ * @description [Business Logic]: Multi-tenant server component for tracking travel allowance
+ * expense justification progress. Strictly isolates records by `session.empresaId`.
+ * If accessed by an `EMPLOYEE`, further restricts display to their own assigned viáticos.
+ */
+
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import JustificacionClient, { JustificacionItem, GastoJustificacion } from './justificacion-client';
 
 function formatFecha(fechaStr?: string | null, fallbackIso?: string | null): string {
@@ -17,57 +25,80 @@ function formatFecha(fechaStr?: string | null, fallbackIso?: string | null): str
   }
 }
 
-async function getJustificacionData(): Promise<JustificacionItem[]> {
+/**
+ * @name getJustificacionData
+ * @description [Data Fetching]: Fetches approved travel allowances and associated expense receipts
+ * strictly scoped to the active tenant (`empresaId`). Enforces role-based isolation for collaborators.
+ */
+async function getJustificacionData(
+  empresaId: string,
+  userId: string,
+  role: string
+): Promise<JustificacionItem[]> {
+  let solQuery = supabaseServer
+    .from('solicitudes_viaticos')
+    .select('id, usuario_id, proyecto_id, monto_aprobado, monto_solicitado, moneda, estado, creado_en')
+    .eq('empresa_id', empresaId)
+    .eq('estado', 'APROBADO')
+    .order('creado_en', { ascending: false });
+
+  let gastosQuery = supabaseServer
+    .from('gastos')
+    .select('id, solicitud_id, viatico_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, url_comprobante, concepto, datos_ocr, estado, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal, pais_gasto, estado_region, ciudad, codigo_postal, tiene_sales_tax, subtotal_usd, sales_tax_usd, propina_usd, nombre_impuesto_local, tasa_impuesto_aplicada, impuesto_local_monto, subtotal_local, folio_fiscal_uuid')
+    .eq('empresa_id', empresaId)
+    .or('solicitud_id.not.is.null,viatico_id.not.is.null')
+    .order('creado_en', { ascending: false });
+
+  // Role isolation: Employees only see their own assigned travel allowances
+  if (role === 'EMPLOYEE') {
+    solQuery = solQuery.eq('usuario_id', userId);
+    gastosQuery = gastosQuery.eq('usuario_id', userId);
+  }
+
   const [{ data: solicitudes }, { data: gastos }, { data: usuarios }, { data: proyectos }] = await Promise.all([
-    supabaseServer
-      .from('solicitudes_viaticos')
-      .select('id, usuario_id, proyecto_id, monto_aprobado, monto_solicitado, moneda, estado, creado_en')
-      .eq('empresa_id', EMPRESA_ID)
-      .eq('estado', 'APROBADO')
-      .order('creado_en', { ascending: false }),
-
-    supabaseServer
-      .from('gastos')
-      .select('id, solicitud_id, categoria, comercio, monto, moneda, tasa_cambio, monto_convertido, fecha_gasto, url_comprobante, concepto, datos_ocr, estado, creado_en, moneda_original, origen_tasa, base_imponible_ves, iva_ves, exento_ves, igtf_ves, monto_ves, monto_usd, rif_comercio, numero_factura, requiere_revision_fiscal, pais_gasto, estado_region, ciudad, codigo_postal, tiene_sales_tax, subtotal_usd, sales_tax_usd, propina_usd')
-      .eq('empresa_id', EMPRESA_ID)
-      .not('solicitud_id', 'is', null)
-      .order('creado_en', { ascending: false }),
-
+    solQuery,
+    gastosQuery,
     supabaseServer
       .from('usuarios')
       .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID),
-
+      .eq('empresa_id', empresaId),
     supabaseServer
       .from('proyectos')
       .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID),
+      .eq('empresa_id', empresaId),
   ]);
 
   const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
   const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
 
-  // Agrupar gastos por solicitud_id
+  // Agrupar gastos por solicitud_id o viatico_id
   const gastosPorSol: Record<string, GastoJustificacion[]> = {};
 
   for (const g of gastos ?? []) {
-    if (!g.solicitud_id) continue;
-    // Excluir registros totalmente vacíos o inconsistentes
-    if (g.monto == null && g.comercio == null && !(g.datos_ocr as any)?.comercio) continue;
+    const rawG = g as unknown as Record<string, unknown>;
+    const targetSolId = (g.solicitud_id || rawG.viatico_id) as string | undefined;
+    if (!targetSolId) continue;
 
+    // Excluir registros totalmente vacíos o inconsistentes
+    if (g.monto == null && g.comercio == null && !(rawG.datos_ocr as Record<string, unknown> | undefined)?.comercio) {
+      continue;
+    }
+
+    const ocrMap = (rawG.datos_ocr as Record<string, unknown> | undefined) || {};
     const montoEfectivo = g.monto_convertido ?? g.monto ?? 0;
+
     const gastoItem: GastoJustificacion = {
       id: g.id,
       categoria: g.categoria || 'Otros',
-      comercio: g.comercio ?? (g.datos_ocr as any)?.comercio ?? 'Comercio no especificado',
+      comercio: g.comercio ?? (ocrMap.comercio as string | undefined) ?? 'Comercio no especificado',
       monto: g.monto ?? 0,
-      moneda: g.moneda ?? (g.datos_ocr as any)?.moneda ?? 'USD',
+      moneda: g.moneda ?? (ocrMap.moneda as string | undefined) ?? 'USD',
       tasa_cambio: g.tasa_cambio ?? null,
       monto_convertido: g.monto_convertido ?? null,
       monto_efectivo: Number(montoEfectivo.toFixed(2)),
       fecha_gasto: formatFecha(g.fecha_gasto, g.creado_en),
-      url_comprobante: g.url_comprobante ?? (g.datos_ocr as any)?.url_comprobante ?? null,
-      concepto: g.concepto ?? (g.datos_ocr as any)?.concepto ?? null,
+      url_comprobante: g.url_comprobante ?? (ocrMap.url_comprobante as string | undefined) ?? null,
+      concepto: g.concepto ?? (ocrMap.concepto as string | undefined) ?? null,
       estado: g.estado || 'APROBADO',
       creado_en: g.creado_en,
       moneda_original:
@@ -75,7 +106,7 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
           ? g.moneda
           : g.moneda_original && g.moneda_original !== 'VES'
             ? g.moneda_original
-            : ((g.datos_ocr as any)?.moneda ?? g.moneda_original ?? null),
+            : ((ocrMap.moneda as string | undefined) ?? g.moneda_original ?? null),
       origen_tasa: g.origen_tasa ?? null,
       base_imponible_ves: g.base_imponible_ves ?? null,
       iva_ves: g.iva_ves ?? null,
@@ -94,32 +125,32 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
       subtotal_usd: g.subtotal_usd != null ? Number(g.subtotal_usd) : null,
       sales_tax_usd: g.sales_tax_usd != null ? Number(g.sales_tax_usd) : null,
       propina_usd: g.propina_usd != null ? Number(g.propina_usd) : null,
-      nombre_impuesto_local: (g as any).nombre_impuesto_local ?? (g.datos_ocr as any)?.nombre_impuesto_local ?? null,
-      tasa_impuesto_aplicada: (g as any).tasa_impuesto_aplicada != null
-        ? Number((g as any).tasa_impuesto_aplicada)
-        : (g.datos_ocr as any)?.tasa_impuesto_aplicada != null
-        ? Number((g.datos_ocr as any)?.tasa_impuesto_aplicada)
+      nombre_impuesto_local: (rawG.nombre_impuesto_local as string | undefined) ?? (ocrMap.nombre_impuesto_local as string | undefined) ?? null,
+      tasa_impuesto_aplicada: rawG.tasa_impuesto_aplicada != null
+        ? Number(rawG.tasa_impuesto_aplicada)
+        : ocrMap.tasa_impuesto_aplicada != null
+        ? Number(ocrMap.tasa_impuesto_aplicada)
         : null,
-      impuesto_local_monto: (g as any).impuesto_local_monto != null
-        ? Number((g as any).impuesto_local_monto)
-        : (g.datos_ocr as any)?.impuesto_local_monto != null
-        ? Number((g.datos_ocr as any)?.impuesto_local_monto)
+      impuesto_local_monto: rawG.impuesto_local_monto != null
+        ? Number(rawG.impuesto_local_monto)
+        : ocrMap.impuesto_local_monto != null
+        ? Number(ocrMap.impuesto_local_monto)
         : null,
-      subtotal_local: (g as any).subtotal_local != null
-        ? Number((g as any).subtotal_local)
-        : (g.datos_ocr as any)?.subtotal_local != null
-        ? Number((g.datos_ocr as any)?.subtotal_local)
+      subtotal_local: rawG.subtotal_local != null
+        ? Number(rawG.subtotal_local)
+        : ocrMap.subtotal_local != null
+        ? Number(ocrMap.subtotal_local)
         : null,
-      folio_fiscal_uuid: (g as any).folio_fiscal_uuid ?? (g.datos_ocr as any)?.folio_fiscal_uuid ?? null,
-      es_deducible_fiscal: (g as any).es_deducible_fiscal != null
-        ? Boolean((g as any).es_deducible_fiscal)
+      folio_fiscal_uuid: (rawG.folio_fiscal_uuid as string | undefined) ?? (ocrMap.folio_fiscal_uuid as string | undefined) ?? null,
+      es_deducible_fiscal: rawG.es_deducible_fiscal != null
+        ? Boolean(rawG.es_deducible_fiscal)
         : true,
     };
 
-    if (!gastosPorSol[g.solicitud_id]) {
-      gastosPorSol[g.solicitud_id] = [];
+    if (!gastosPorSol[targetSolId]) {
+      gastosPorSol[targetSolId] = [];
     }
-    gastosPorSol[g.solicitud_id].push(gastoItem);
+    gastosPorSol[targetSolId].push(gastoItem);
   }
 
   return (solicitudes ?? []).map((s) => {
@@ -141,6 +172,7 @@ async function getJustificacionData(): Promise<JustificacionItem[]> {
 }
 
 export default async function JustificacionPage() {
-  const items = await getJustificacionData();
+  const session = await requireAuthenticatedSession();
+  const items = await getJustificacionData(session.empresaId, session.userId, session.role);
   return <JustificacionClient items={items} />;
 }

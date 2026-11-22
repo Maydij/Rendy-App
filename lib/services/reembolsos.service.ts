@@ -5,7 +5,7 @@
  * personal out-of-pocket expenses submitted by company employees via WhatsApp OCR.
  */
 
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
 import { getExchangeRates, convertAmount, normalizeMoneda } from '@/lib/currency';
 
 /* ─────────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ export interface EmpleadoOption {
  * for the given organization, filtered by employee, status, date range, and merchant search term.
  */
 export async function obtenerReembolsosPaginados(
-  empresaId: string = EMPRESA_ID,
+  empresaId: string,
   filtros: FiltrosReembolso = {}
 ): Promise<ReembolsosPaginadosResponse> {
   const page = Math.max(1, filtros.page || 1);
@@ -386,7 +386,7 @@ export async function obtenerReembolsosPaginados(
  * personal refunds (total count, pending settlement amount, processed ready to pay, and transferred).
  */
 export async function obtenerKpisReembolsos(
-  empresaId: string = EMPRESA_ID
+  empresaId: string
 ): Promise<ReembolsosKpisResponse> {
   const [dataResult, rates] = await Promise.all([
     supabaseServer
@@ -500,7 +500,7 @@ export async function obtenerKpisReembolsos(
  * for population of the filter dropdown selector.
  */
 export async function obtenerEmpleadosEmpresa(
-  empresaId: string = EMPRESA_ID
+  empresaId: string
 ): Promise<EmpleadoOption[]> {
   const { data, error } = await supabaseServer
     .from('usuarios')

@@ -8,7 +8,8 @@
  */
 
 import { revalidatePath } from 'next/cache';
-import { supabaseServer, EMPRESA_ID } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAuthenticatedSession } from '@/lib/auth/session-context';
 import { normalizeMoneda, getExchangeRates } from '@/lib/currency';
 import { computeFiscalBreakdown } from '@/lib/services/taxRulesEngine';
 import {
@@ -96,12 +97,14 @@ export async function exportAccountingReportAction(
   filters: ReportFilters
 ): Promise<ExportReportResult> {
   try {
+    const session = await requireAuthenticatedSession();
+
     // 1. Fetch Company Information
     const { data: companyData } = await supabaseServer
       .from('empresas')
       .select('id, nombre')
-      .eq('id', EMPRESA_ID)
-      .single();
+      .eq('id', session.empresaId)
+      .maybeSingle();
 
     const companyName = companyData?.nombre || 'Rendy Technologies';
 
@@ -145,7 +148,12 @@ export async function exportAccountingReportAction(
         sales_tax_usd,
         propina_usd
       `)
-      .eq('empresa_id', EMPRESA_ID);
+      .eq('empresa_id', session.empresaId);
+
+    // Role-based isolation: Employees only export their own expenses
+    if (session.role === 'EMPLOYEE') {
+      query = query.eq('usuario_id', session.userId);
+    }
 
     // Filter by Date Range
     if (filters.dateFrom) {
@@ -182,8 +190,8 @@ export async function exportAccountingReportAction(
 
     // 3. Resolve Reference Lookups (Users and Projects)
     const [{ data: usersData }, { data: projectsData }, liveRates] = await Promise.all([
-      supabaseServer.from('usuarios').select('id, nombre').eq('empresa_id', EMPRESA_ID),
-      supabaseServer.from('proyectos').select('id, nombre').eq('empresa_id', EMPRESA_ID),
+      supabaseServer.from('usuarios').select('id, nombre').eq('empresa_id', session.empresaId),
+      supabaseServer.from('proyectos').select('id, nombre').eq('empresa_id', session.empresaId),
       getExchangeRates(),
     ]);
 
@@ -360,27 +368,24 @@ export async function exportAccountingReportAction(
     };
 
     try {
-      const adminUserId = adminUser?.id;
-      if (adminUserId) {
-        await supabaseServer.from('reportes_generados').insert({
-          empresa_id: EMPRESA_ID,
-          usuario_id: adminUserId,
-          nombre_reporte: historyItem.reportName,
-          formato: 'XLSX',
-          filtros_aplicados: {
-            dateFrom: filters.dateFrom || null,
-            dateTo: filters.dateTo || null,
-            currency: filters.currency || 'ALL',
-            projectId: filters.projectId || 'ALL',
-            employeeId: filters.employeeId || 'ALL',
-            expenseType: filters.expenseType || 'ALL',
-            detectedCurrencies,
-          },
-          total_gastos_incluidos: totalCount,
-          monto_total_usd: Number(totalUsd.toFixed(2)),
-          monto_total_ves: Number(totalVesAmount.toFixed(2)),
-        });
-      }
+      await supabaseServer.from('reportes_generados').insert({
+        empresa_id: session.empresaId,
+        usuario_id: session.userId,
+        nombre_reporte: historyItem.reportName,
+        formato: 'XLSX',
+        filtros_aplicados: {
+          dateFrom: filters.dateFrom || null,
+          dateTo: filters.dateTo || null,
+          currency: filters.currency || 'ALL',
+          projectId: filters.projectId || 'ALL',
+          employeeId: filters.employeeId || 'ALL',
+          expenseType: filters.expenseType || 'ALL',
+          detectedCurrencies,
+        },
+        total_gastos_incluidos: totalCount,
+        monto_total_usd: Number(totalUsd.toFixed(2)),
+        monto_total_ves: Number(totalVesAmount.toFixed(2)),
+      });
     } catch (auditErr) {
       console.warn('⚠️ [exportAccountingReportAction] Audit log warning (non-fatal):', auditErr);
     }
@@ -412,6 +417,8 @@ export async function exportAccountingReportAction(
  */
 export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
   try {
+    const session = await requireAuthenticatedSession();
+
     const { data: reports, error } = await supabaseServer
       .from('reportes_generados')
       .select(`
@@ -425,7 +432,7 @@ export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
         creado_en,
         usuario_id
       `)
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', session.empresaId)
       .order('creado_en', { ascending: false })
       .limit(20);
 
@@ -436,7 +443,7 @@ export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
     const { data: users } = await supabaseServer
       .from('usuarios')
       .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID);
+      .eq('empresa_id', session.empresaId);
 
     const userMap = new Map<string, string>();
     (users || []).forEach((u) => userMap.set(u.id, u.nombre));
@@ -464,21 +471,33 @@ export async function getReportHistoryAction(): Promise<ReportHistoryItem[]> {
  * used to populate the interactive filter selectors on the report generator panel.
  */
 export async function getFilterOptionsAction(): Promise<FilterOptions> {
+  const session = await requireAuthenticatedSession();
+
+  let usuariosQuery = supabaseServer
+    .from('usuarios')
+    .select('id, nombre')
+    .eq('empresa_id', session.empresaId)
+    .order('nombre', { ascending: true });
+
+  let gastosQuery = supabaseServer
+    .from('gastos')
+    .select('moneda, moneda_original, datos_ocr')
+    .eq('empresa_id', session.empresaId);
+
+  // If collaborator, restrict employee filter and expense scanning to self
+  if (session.role === 'EMPLOYEE') {
+    usuariosQuery = usuariosQuery.eq('id', session.userId);
+    gastosQuery = gastosQuery.eq('usuario_id', session.userId);
+  }
+
   const [{ data: projects }, { data: users }, { data: gastos }] = await Promise.all([
     supabaseServer
       .from('proyectos')
       .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID)
+      .eq('empresa_id', session.empresaId)
       .order('nombre', { ascending: true }),
-    supabaseServer
-      .from('usuarios')
-      .select('id, nombre')
-      .eq('empresa_id', EMPRESA_ID)
-      .order('nombre', { ascending: true }),
-    supabaseServer
-      .from('gastos')
-      .select('moneda, moneda_original, datos_ocr')
-      .eq('empresa_id', EMPRESA_ID),
+    usuariosQuery,
+    gastosQuery,
   ]);
 
   const currencySet = new Set<string>();

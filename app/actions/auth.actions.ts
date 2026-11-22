@@ -203,6 +203,7 @@ export interface CurrentUserSessionInfo {
   role: UserRole;
   nombre?: string;
   email?: string;
+  empresaNombre?: string;
 }
 
 /**
@@ -219,23 +220,74 @@ export async function getCurrentUserSessionAction(): Promise<CurrentUserSessionI
     if (accessToken) {
       const verified = await verifyAccessToken(accessToken);
       if (verified) {
-        const { data: user } = await supabaseServer
-          .from('usuarios')
-          .select('nombre, email')
-          .eq('id', verified.userId)
-          .maybeSingle();
+        const [userRes, empRes] = await Promise.all([
+          supabaseServer
+            .from('usuarios')
+            .select('nombre, email')
+            .eq('id', verified.userId)
+            .eq('empresa_id', verified.empresaId)
+            .maybeSingle(),
+          supabaseServer
+            .from('empresas')
+            .select('nombre')
+            .eq('id', verified.empresaId)
+            .maybeSingle(),
+        ]);
 
         return {
           userId: verified.userId,
           empresaId: verified.empresaId,
           role: verified.role,
-          nombre: user?.nombre || undefined,
-          email: user?.email || undefined,
+          nombre: userRes.data?.nombre || undefined,
+          email: userRes.data?.email || undefined,
+          empresaNombre: empRes.data?.nombre || undefined,
         };
       }
     }
     return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * @name getDashboardPendingCountsAction
+ * @description [Business Logic]: Securely counts pending travel allowances and reimbursement
+ * requests strictly scoped to the active tenant session (`empresa_id`).
+ */
+export async function getDashboardPendingCountsAction(): Promise<{
+  pendingViaticos: number;
+  pendingReembolsos: number;
+}> {
+  try {
+    const session = await getCurrentUserSessionAction();
+    if (!session) return { pendingViaticos: 0, pendingReembolsos: 0 };
+
+    let vQuery = supabaseServer
+      .from('solicitudes_viaticos')
+      .select('*', { count: 'exact', head: true })
+      .eq('empresa_id', session.empresaId)
+      .eq('estado', 'PENDIENTE');
+
+    let rQuery = supabaseServer
+      .from('gastos')
+      .select('*', { count: 'exact', head: true })
+      .eq('empresa_id', session.empresaId)
+      .eq('es_reembolso', true)
+      .eq('estado', 'PENDIENTE');
+
+    if (session.role === 'EMPLOYEE' && session.userId) {
+      vQuery = vQuery.eq('usuario_id', session.userId);
+      rQuery = rQuery.eq('usuario_id', session.userId);
+    }
+
+    const [{ count: vCount }, { count: rCount }] = await Promise.all([vQuery, rQuery]);
+
+    return {
+      pendingViaticos: vCount || 0,
+      pendingReembolsos: rCount || 0,
+    };
+  } catch {
+    return { pendingViaticos: 0, pendingReembolsos: 0 };
   }
 }
