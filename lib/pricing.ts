@@ -8,6 +8,11 @@ export type BillingCycle = 'monthly' | 'annual';
 
 export type PlanId = 'starter' | 'growth' | 'enterprise';
 
+export interface PlanFeature {
+  text: string;
+  emphasis?: 'strong' | 'highlight';
+}
+
 export interface Plan {
   id: PlanId;
   tier: string;
@@ -16,7 +21,7 @@ export interface Plan {
   prices: Record<BillingCycle, number>;
   featured?: boolean;
   trialDays: number;
-  features: { text: string; emphasis?: 'strong' | 'highlight' }[];
+  features: PlanFeature[];
 }
 
 export const TRIAL_DAYS = 7;
@@ -24,9 +29,27 @@ export const SETUP_FEE_USD = 0;
 export const ANNUAL_DISCOUNT_LABEL = 'Ahorra 20%';
 
 /**
+ * @name COMMON_PLAN_FEATURES
+ * @description [Business Logic]: Compact, single-line feature suite included identically
+ * in ALL Rendy subscription tiers (Starter, Growth, Enterprise). All plans share 100% feature
+ * parity without gating modules, withholding capabilities, or requiring tier upgrades for tooling.
+ */
+export const COMMON_PLAN_FEATURES: PlanFeature[] = [
+  { text: 'Dashboard y KPIs en tiempo real' },
+  { text: 'Ingesta de facturas vía WhatsApp con IA' },
+  { text: 'Viáticos y progreso de justificación' },
+  { text: 'Reembolsos con soporte de transferencia' },
+  { text: 'Gastos de empresa y recibos digitales' },
+  { text: 'Categorías personalizadas y límites diarios' },
+  { text: 'Proyectos y métodos de pago a empleados' },
+  { text: 'Exportación de reportes a Excel (.xlsx)' },
+];
+
+/**
  * @name PLANS
  * @description [Business Logic]: Marketing and onboarding presentation catalog synchronized
- * with the server-enforced Stripe pricing authority (`SUBSCRIPTION_PLANS`).
+ * with the server-enforced Stripe pricing authority (`SUBSCRIPTION_PLANS`). The only distinction
+ * between plans is active user capacity and monthly invoice ingestion quota.
  */
 export const PLANS: Plan[] = [
   {
@@ -40,13 +63,9 @@ export const PLANS: Plan[] = [
     },
     trialDays: SUBSCRIPTION_PLANS.STARTER.trialDays,
     features: [
-      { text: 'Hasta 5 usuarios activos' },
-      { text: '150 facturas / comprobantes al mes' },
-      { text: 'Ingesta directa de fotos y PDFs vía WhatsApp' },
-      { text: 'Extracción contable con IA (Base imponible, IVA 16% y Exento)' },
-      { text: 'Conversión bimonetaria automática (USD / VES con tasa oficial)' },
-      { text: 'Detección anti-fraude de facturas duplicadas (Hash SHA-256)' },
-      { text: 'Panel web para liquidación y exportación a Excel' },
+      { text: 'Hasta 5 usuarios activos', emphasis: 'strong' },
+      { text: '150 facturas / comprobantes al mes', emphasis: 'strong' },
+      ...COMMON_PLAN_FEATURES,
     ],
   },
   {
@@ -63,13 +82,7 @@ export const PLANS: Plan[] = [
     features: [
       { text: 'Hasta 15 usuarios activos', emphasis: 'strong' },
       { text: '500 facturas / comprobantes al mes', emphasis: 'strong' },
-      { text: 'Todo lo del plan Starter, más:', emphasis: 'highlight' },
-      { text: 'Desglose fiscal completo (IGTF 3%, IVA, Base y Exento)' },
-      { text: 'Control de múltiples viáticos y proyectos en paralelo' },
-      { text: 'Alertas automáticas de sobregiro de presupuesto' },
-      { text: 'Módulo de reembolsos con carga de comprobantes bancarios' },
-      { text: 'Notificaciones transaccionales automáticas por WhatsApp' },
-      { text: 'Soporte prioritario vía WhatsApp' },
+      ...COMMON_PLAN_FEATURES,
     ],
   },
   {
@@ -85,12 +98,7 @@ export const PLANS: Plan[] = [
     features: [
       { text: 'Hasta 40 usuarios activos', emphasis: 'strong' },
       { text: '1,500 facturas / comprobantes al mes', emphasis: 'strong' },
-      { text: 'Todo lo del plan Growth, más:', emphasis: 'highlight' },
-      { text: 'Aprobación y rechazo interactivo por WhatsApp para gerentes' },
-      { text: 'Políticas y límites de gastos personalizados por empleado' },
-      { text: 'Cierre y liquidación contable de carpetas de viáticos' },
-      { text: 'Formato listo para el Libro de Compras formal' },
-      { text: 'Asistencia técnica y onboarding personalizado' },
+      ...COMMON_PLAN_FEATURES,
     ],
   },
 ];

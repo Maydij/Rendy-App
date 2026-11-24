@@ -247,7 +247,7 @@ export function Step6PlanSelection({ formData, updateField, onNext, onBack }: St
                         />
                         <span
                           className={cn(
-                            f.emphasis === 'strong' && 'text-on-surface font-medium',
+                            f.emphasis === 'strong' && 'text-on-surface font-semibold',
                             f.emphasis === 'highlight' && 'text-primary font-semibold',
                           )}
                         >
