@@ -79,19 +79,19 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
               <ul className="flex flex-col gap-2.5 text-on-surface font-label-md text-label-md">
                 <li className="flex items-center gap-2">
                   <Icon name="check_circle" className="text-primary-container text-[18px]" />
-                  <span>Emisión y bloqueo de tarjetas globales</span>
+                  <span>Monitoreo total de los gastos de la organización</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Icon name="check_circle" className="text-primary-container text-[18px]" />
-                  <span>Aprobación de fondos y pagos a proveedores</span>
+                  <span>Aprobación de viáticos y reembolsos de colaboradores</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Icon name="check_circle" className="text-primary-container text-[18px]" />
-                  <span>Configuración de reglas contables y ERP</span>
+                  <span>Configuración de políticas y límites por categoría</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Icon name="check_circle" className="text-primary-container text-[18px]" />
-                  <span>Gestión de altas/bajas de colaboradores</span>
+                  <span>Gestión de altas y bajas de colaboradores</span>
                 </li>
               </ul>
             </div>
@@ -122,19 +122,19 @@ export function Step5TeamStructure({ onNext, onBack }: Step5Props) {
               <ul className="flex flex-col gap-2.5 text-on-surface-variant font-label-md text-label-md">
                 <li className="flex items-center gap-2">
                   <Icon name="check" className="text-secondary text-[18px]" />
-                  <span>Tarjeta virtual propia con límite asignado</span>
+                  <span>Registro de facturas y gastos vía WhatsApp con IA</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Icon name="check" className="text-secondary text-[18px]" />
-                  <span>Subida de facturas con foto o WhatsApp</span>
+                  <span>Consulta de sus viáticos, gastos y reembolsos propios</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Icon name="check" className="text-secondary text-[18px]" />
-                  <span>Rendición de cuentas y reembolsos</span>
+                  <span>Exportación en Excel (.xlsx) de sus propios reportes</span>
                 </li>
                 <li className="flex items-center gap-2 text-on-surface-variant/50">
                   <Icon name="block" className="text-[18px]" />
-                  <span>Sin acceso a fondos globales ni nómina</span>
+                  <span>Sin acceso a datos ni gastos de otros miembros</span>
                 </li>
               </ul>
             </div>

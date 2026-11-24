@@ -316,9 +316,9 @@ export function LoginForm() {
               </button>
             </div>
 
-            {/* Footer switch view & trust badge */}
+            {/* Footer switch view */}
             <div className="text-center pt-1">
-              <p className="font-body-md text-body-md text-on-surface-variant mb-4">
+              <p className="font-body-md text-body-md text-on-surface-variant">
                 ¿Todavía no tienes una cuenta?{' '}
                 <Link
                   href="/registro"
@@ -327,11 +327,6 @@ export function LoginForm() {
                   Regístrate
                 </Link>
               </p>
-
-              <div className="inline-flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm py-1.5 px-4 rounded-full bg-surface-container/60 border border-outline-variant/20">
-                <Icon name="lock" className="text-primary-container text-[14px]" />
-                <span>Conexión cifrada con certificación SOC 2 y TLS 1.3</span>
-              </div>
             </div>
           </div>
         </div>

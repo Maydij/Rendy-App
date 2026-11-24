@@ -208,7 +208,7 @@ export function AuthVisuals() {
       >
         <div className="flex items-center gap-2">
           <Icon name="verified_user" className="text-primary-container text-[16px]" />
-          <span>ISO 27001 &amp; SOC 2 Type II Verified</span>
+          <span>Infraestructura segura con cifrado TLS 1.3</span>
         </div>
         <span>v2.14.0 Enterprise</span>
       </div>

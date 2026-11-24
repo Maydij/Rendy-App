@@ -156,8 +156,8 @@ export function Step1CompanyInfo({ formData, updateField, onNext }: Step1Props) 
           <div className="flex items-center gap-3 p-3.5 rounded-xl bg-surface-container/60 border border-surface-container-high/50 mt-1 animate-enter-up [animation-delay:230ms]">
             <Icon name="verified_user" className="text-primary text-[18px] flex-shrink-0" />
             <p className="font-label-sm text-label-sm text-on-surface-variant leading-relaxed">
-              Datos cifrados mediante grado bancario. Rendy procesa y resguarda tu expediente contable de
-              conformidad con estándares SOC-2.
+              Datos protegidos con cifrado de grado bancario. Rendy resguarda tu expediente contable y
+              financiero con máxima seguridad y privacidad corporativa.
             </p>
           </div>
 
