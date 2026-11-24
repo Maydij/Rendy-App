@@ -5,7 +5,7 @@ const STEPS = [
     n: 1,
     badge: "bg-primary-container text-on-primary-fixed shadow-glow-sm",
     title: "Registra",
-    text: "Empleados o administradores registran gastos, solicitudes de anticipo o reembolsos desde la web o directamente vía WhatsApp con una foto.",
+    text: "Empleados y administradores registran gastos, solicitudes de viáticos o reembolsos directamente vía WhatsApp enviando una foto o mensaje al asistente.",
   },
   {
     n: 2,
@@ -23,7 +23,7 @@ const STEPS = [
     n: 4,
     badge: "bg-primary-fixed-dim text-on-primary-fixed shadow-glow-sm",
     title: "Controla",
-    text: "Accede a reportes centralizados e indicadores financieros para gobernar los recursos con sincronización directa hacia tu ERP contable.",
+    text: "Accede a reportes centralizados en Excel e indicadores financieros en tiempo real para gobernar los recursos de tu empresa.",
   },
 ];
 
@@ -129,7 +129,7 @@ const ROLES = [
     tag: "text-primary",
     hover: "hover:border-primary-container/40",
     title: "Finanzas y Contabilidad",
-    text: "Centraliza el control de flujos de salida, supervisa reembolsos pendientes y genera cierres mensuales en tiempo récord con exportación a tu ERP.",
+    text: "Centraliza el control de flujos de salida, supervisa reembolsos pendientes y genera cierres mensuales en tiempo récord con reportes contables en Excel.",
     points: [
       "Gastos centralizados sin papeles físicos",
       "Seguimiento automático de reembolsos",
@@ -148,7 +148,7 @@ const ROLES = [
     points: [
       "Monitoreo activo de viáticos y viajes",
       "Flujos de aprobación configurables",
-      "Supervisión por centros de costo",
+      "Supervisión por proyectos y categorías",
     ],
     footer: "Gobernanza clara de recursos",
   },
@@ -162,7 +162,7 @@ const ROLES = [
     text: "Despídete de guardar recibos de papel en la billetera. Reporta gastos en segundos desde tu teléfono y recibe reembolsos más rápido y sin fricciones.",
     points: [
       "Registro simple de gastos vía foto",
-      "Solicitudes de reembolso en 1 clic",
+      "Solicitudes de reembolso ágiles vía WhatsApp",
       "Visibilidad en vivo del estado del trámite",
     ],
     footer: "Reembolsos sin burocracia",
@@ -177,7 +177,15 @@ export function RolesSection() {
           className="max-w-2xl"
           eyebrow="Diseñado para Toda la Organización"
           eyebrowClassName="text-secondary"
-          title="Una plataforma. Diferentes perspectivas. Un mismo control."
+          title={
+            <>
+              Una plataforma.
+              <br />
+              Diferentes perspectivas.
+              <br />
+              Un mismo control.
+            </>
+          }
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {ROLES.map((r) => (

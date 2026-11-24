@@ -255,7 +255,7 @@ export function ConfigurarContrasenaClient({
       <header className="relative z-10 w-full bg-[#0b0e17]/80 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_1px_8px_rgba(0,0,0,0.4)] animate-enter-down">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           {/* Logo & Brand in Top-Left Corner */}
-          <Link href="/" className="flex items-center gap-2 transition-all duration-300 hover:opacity-90 hover:scale-[1.02]">
+          <Link href="/" scroll={true} className="flex items-center gap-2 transition-all duration-300 hover:opacity-90 hover:scale-[1.02]">
             <RendyLogo variant="full" theme="dark" className="h-8 w-auto" />
           </Link>
 
@@ -907,7 +907,7 @@ export function ConfigurarContrasenaClient({
       {/* Footer */}
       <footer className="relative z-10 w-full border-t border-slate-900 bg-[#0b0e17]/90 py-6 text-center text-xs text-slate-400 animate-enter-up" style={{ animationDelay: '360ms' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© 2025 Rendy Financial Technologies Inc. Todos los derechos reservados.</p>
+          <p>© 2026 Rendy by SWORC. Todos los derechos reservados.</p>
           <div className="flex items-center gap-6">
             <Link href="#" className="hover:text-slate-300 transition-colors">
               Privacidad

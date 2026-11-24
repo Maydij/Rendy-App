@@ -465,7 +465,7 @@ export function OnboardingWizard() {
       {/* Corporate Compliance Footer */}
       <footer className="relative z-10 w-full py-6 border-t border-surface-container-high/40 bg-surface-container-lowest/60">
         <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center font-label-sm text-label-sm text-on-surface-variant/70">
-          <div>© {new Date().getFullYear()} Rendy Financial Technologies Inc. Todos los derechos reservados.</div>
+          <div>© {new Date().getFullYear()} Rendy by SWORC. Todos los derechos reservados.</div>
           <div className="flex items-center gap-6">
             <Link href="#" className="hover:text-on-surface transition-colors">
               Privacidad

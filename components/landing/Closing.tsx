@@ -151,40 +151,18 @@ export function FinalCtaSection() {
 
 const FOOTER_COLUMNS = [
   {
-    title: "Producto",
-    links: [
-      ["Tarjetas Corporativas", "#funcionalidades"],
-      ["Anticipos de Viaje", "#funcionalidades"],
-      ["Automatización de Rendición", "#funcionalidades"],
-      ["Integraciones ERP", "#funcionalidades"],
-      ["Auditoría Fiscal", "#funcionalidades"],
-    ],
-  },
-  {
     title: "Compañía",
-    links: [
-      ["Sobre Rendy", "#inicio"],
-      ["Clientes & Casos", "#inicio"],
-      ["Carreras", "#inicio"],
-      ["Prensa & Medios", ""],
-    ],
+    links: [["Sobre Rendy", "#inicio"]],
   },
   {
     title: "Recursos",
-    links: [
-      ["Centro de Ayuda / FAQ", "#faq"],
-      ["Guías de Gestión", "#como-funciona"],
-      ["API para Desarrolladores", "#como-funciona"],
-      ["Calculadora de ROI", "#planes"],
-    ],
+    links: [["Centro de Ayuda / FAQ", "#faq"]],
   },
   {
     title: "Legal",
     links: [
       ["Privacidad de Datos", "#"],
       ["Términos del Servicio", "#"],
-      ["Seguridad SOC-2 & PCI", "#"],
-      ["Cumplimiento Normativo", "#"],
     ],
   },
 ] as const;
@@ -193,35 +171,37 @@ export function SiteFooter() {
   return (
     <footer className="w-full bg-surface-container-lowest text-on-surface-variant pt-12 pb-12">
       <div className="max-w-[1320px] mx-auto px-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-y-12 gap-x-8 pb-12">
-          <div className="col-span-2 flex flex-col gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-y-12 gap-x-8 pb-12">
+          <div className="lg:col-span-5 flex flex-col gap-4">
             <a href="/" className="flex items-center self-start" aria-label="Rendy — inicio">
               <RendyLogo className="h-8 w-auto" />
             </a>
             <p className="text-body-md text-on-surface-variant max-w-sm">
-              Plataforma B2B inteligente de control de gastos corporativos, anticipos de viaje y
+              Plataforma B2B inteligente de control de gastos corporativos, viáticos y
               gestión financiera en tiempo real para empresas de alto crecimiento.
             </p>
           </div>
-          {FOOTER_COLUMNS.map((col) => (
-            <div key={col.title} className="flex flex-col gap-3">
-              <span className="text-label-md font-semibold text-on-surface uppercase tracking-wider">
-                {col.title}
-              </span>
-              {col.links.map(([label, href]) => (
-                <a
-                  key={label}
-                  href={href}
-                  className="text-body-md text-on-surface-variant hover:text-on-surface transition-colors"
-                >
-                  {label}
-                </a>
-              ))}
-            </div>
-          ))}
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {FOOTER_COLUMNS.map((col) => (
+              <div key={col.title} className="flex flex-col gap-3">
+                <span className="text-label-md font-semibold text-on-surface uppercase tracking-wider">
+                  {col.title}
+                </span>
+                {col.links.map(([label, href]) => (
+                  <a
+                    key={label}
+                    href={href}
+                    className="text-body-md text-on-surface-variant hover:text-on-surface transition-colors"
+                  >
+                    {label}
+                  </a>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-body-md text-on-surface-variant/80">
-          <p>© 2026 Rendy. Todos los derechos reservados.</p>
+          <p>© 2026 Rendy by SWORC. Todos los derechos reservados.</p>
           <span className="text-label-sm text-on-surface-variant">
             Infraestructura financiera de grado bancario
           </span>

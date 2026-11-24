@@ -22,7 +22,7 @@ export function OnboardingHeader({ currentStep, onNavigateStage }: OnboardingHea
     <header className="relative z-20 w-full bg-surface-container-lowest/80 backdrop-blur-xl border-b border-surface-container-high/40 shadow-[0_1px_8px_rgba(0,0,0,0.4)]">
       <div className="max-w-7xl mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
         {/* Brand Lockup */}
-        <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-90">
+        <Link href="/" scroll={true} className="flex items-center gap-2 transition-opacity hover:opacity-90">
           <RendyLogo variant="full" theme="dark" className="h-8 w-auto" />
         </Link>
 
