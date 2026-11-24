@@ -80,7 +80,7 @@ export function AuthVisuals() {
 
       {/* Top Header: Brand Logo */}
       <div className="relative z-10 animate-enter-down">
-        <Link href="/" className="inline-block hover:opacity-90 transition-opacity">
+        <Link href="/" scroll={true} className="inline-block hover:opacity-90 transition-opacity">
           <RendyLogo className="h-8 w-auto" />
         </Link>
       </div>

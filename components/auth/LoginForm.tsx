@@ -60,7 +60,7 @@ export function LoginForm() {
       <header className="w-full flex items-center justify-between z-20 pb-4 animate-enter-down">
         {/* Mobile Brand Logo */}
         <div className="flex items-center gap-2 lg:hidden">
-          <Link href="/">
+          <Link href="/" scroll={true}>
             <RendyLogo className="h-7 w-auto" />
           </Link>
         </div>

@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "./primitives";
 
 export const NAV_ITEMS = [
-  { id: "/", label: "Inicio" },
+  { id: "inicio", label: "Inicio" },
   { id: "funcionalidades", label: "Funcionalidades" },
   { id: "como-funciona", label: "Cómo funciona" },
   { id: "beneficios", label: "Beneficios" },
@@ -40,6 +40,12 @@ function useActiveSection() {
 export function SiteHeader() {
   const active = useActiveSection();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!window.location.hash) {
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, []);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/85 backdrop-blur-md shadow-header">

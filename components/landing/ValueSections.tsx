@@ -75,8 +75,8 @@ const BEFORE = [
 const AFTER = [
   "Gestión centralizada y en tiempo real de todos los gastos corporativos.",
   "Flujos de reembolso organizados, automatizados y completamente transparentes.",
-  "Visibilidad financiera al instante con alertas predictivas de presupuesto.",
-  "Seguimiento estructurado de anticipos vinculados a centros de costo y proyectos.",
+  "Control de políticas por categoría con alertas automáticas al exceder límites diarios.",
+  "Control de viáticos asignados por proyecto y registro de facturas vía WhatsApp con IA.",
   "Estado de justificación claro con comprobantes digitales organizados y auditados.",
   "Información financiera consolidada para toma de decisiones ejecutivas en segundos.",
 ];
