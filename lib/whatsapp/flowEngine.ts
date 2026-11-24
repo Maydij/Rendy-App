@@ -1680,6 +1680,9 @@ async function manejarIngestaComprobanteEnFrio({
     impuesto_local_monto: fiscalResult.impuesto_local_monto,
     subtotal_local: fiscalResult.subtotal_local,
     folio_fiscal_uuid: fiscalResult.folio_fiscal_uuid,
+    tiene_validez_fiscal: fiscalResult.tiene_validez_fiscal,
+    tipo_documento: fiscalResult.tipo_documento,
+    motivo_no_fiscal: fiscalResult.motivo_no_fiscal,
     alerta_tax_usa: null,
   };
 
@@ -1898,6 +1901,9 @@ async function manejarComprobanteEnRutaGuiada({
     impuesto_local_monto: fiscalResult.impuesto_local_monto,
     subtotal_local: fiscalResult.subtotal_local,
     folio_fiscal_uuid: fiscalResult.folio_fiscal_uuid,
+    tiene_validez_fiscal: fiscalResult.tiene_validez_fiscal,
+    tipo_documento: fiscalResult.tipo_documento,
+    motivo_no_fiscal: fiscalResult.motivo_no_fiscal,
     alerta_tax_usa: null,
   };
 
@@ -2004,6 +2010,9 @@ async function manejarCorreccionTextoComprobante({
     impuesto_local_monto: fiscalResult.impuesto_local_monto,
     subtotal_local: fiscalResult.subtotal_local,
     folio_fiscal_uuid: fiscalResult.folio_fiscal_uuid,
+    tiene_validez_fiscal: fiscalResult.tiene_validez_fiscal,
+    tipo_documento: fiscalResult.tipo_documento,
+    motivo_no_fiscal: fiscalResult.motivo_no_fiscal,
     alerta_tax_usa: null,
   };
 
@@ -2056,7 +2065,10 @@ async function persistirGastoDefinitivo(
   const evaluacion = datos.evaluacion_saldo;
   const esSobregiro = evaluacion?.excede_limite || false;
   const excedeLimiteDiario = Boolean(datos.excede_limite);
-  const estadoFinal = (esSobregiro || excedeLimiteDiario) ? 'REQUIERE_APROBACION_ESPECIAL' : 'PENDIENTE';
+  const tieneValidezFiscal = ocr.tiene_validez_fiscal !== false;
+  const tipoDocumento = ocr.tipo_documento || (tieneValidezFiscal ? 'FACTURA_FISCAL' : 'NOTA_ENTREGA');
+  const requiereAprobacionFiscal = !tieneValidezFiscal && (ocr.pais_gasto === 'VE' || ocr.moneda === 'VES');
+  const estadoFinal = (esSobregiro || excedeLimiteDiario || requiereAprobacionFiscal) ? 'REQUIERE_APROBACION_ESPECIAL' : 'PENDIENTE';
   const targetViaticoId = datos.viatico_id || null;
 
   /**
@@ -2174,9 +2186,14 @@ async function persistirGastoDefinitivo(
     impuesto_local_monto: ocr.impuesto_local_monto || 0,
     subtotal_local: ocr.subtotal_local || 0,
     folio_fiscal_uuid: ocr.folio_fiscal_uuid || null,
+    tiene_validez_fiscal: tieneValidezFiscal,
+    tipo_documento: tipoDocumento,
     datos_ocr: {
       ...ocr,
       tiene_sales_tax: tieneSalesTax,
+      tiene_validez_fiscal: tieneValidezFiscal,
+      tipo_documento: tipoDocumento,
+      motivo_no_fiscal: ocr.motivo_no_fiscal || null,
       comercio: ocr.nombre_comercio,
       total: montoOriginal,
       monto_total: montoOriginal,
@@ -2211,6 +2228,8 @@ async function persistirGastoDefinitivo(
       errInsert.message?.includes('schema cache') ||
       errInsert.message?.includes('folio_fiscal_uuid') ||
       errInsert.message?.includes('tiene_sales_tax') ||
+      errInsert.message?.includes('tiene_validez_fiscal') ||
+      errInsert.message?.includes('tipo_documento') ||
       errInsert.message?.includes('nombre_impuesto_local') ||
       errInsert.message?.includes('tasa_impuesto_aplicada') ||
       errInsert.message?.includes('subtotal_local') ||
@@ -2218,6 +2237,8 @@ async function persistirGastoDefinitivo(
   ) {
     // Graceful fallback: strip newer optional fiscal/multi-jurisdiction columns if migration is pending
     delete insertPayload.tiene_sales_tax;
+    delete insertPayload.tiene_validez_fiscal;
+    delete insertPayload.tipo_documento;
     delete insertPayload.nombre_impuesto_local;
     delete insertPayload.tasa_impuesto_aplicada;
     delete insertPayload.impuesto_local_monto;
@@ -2273,6 +2294,40 @@ async function persistirGastoDefinitivo(
   let mensajeExito = '✅ *¡Comprobante guardado con éxito!*\nLos datos contables han sido registrados en la plataforma web.';
   if (esSobregiro) {
     mensajeExito += `\n\n⚠️ *Nota de Auditoría:* Debido al sobregiro de *$${evaluacion?.sobregiro_usd.toFixed(2)} USD*, el comprobante ha sido marcado como *Requiere Aprobación Especial* para liquidación.`;
+  }
+  if (requiereAprobacionFiscal) {
+    const docNombre = tipoDocumento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo sin validez fiscal';
+    mensajeExito += `\n\n⚠️ *Aviso de Validez Fiscal (Venezuela):* Registrado como *${docNombre}* (no deduce IVA fiscal). Ha sido derivado a *Revisión y Aprobación Especial* de administración.`;
+  }
+
+  // Multi-Tenant Isolation: Notify active admins strictly belonging to this company
+  if (requiereAprobacionFiscal) {
+    try {
+      const { data: activeAdmins } = await supabase
+        .from('usuarios')
+        .select('id, nombre, telefono_whatsapp')
+        .eq('empresa_id', empresaId)
+        .or('role.eq.ADMIN,rol.eq.ADMIN')
+        .eq('activo', true);
+
+      if (activeAdmins && activeAdmins.length > 0) {
+        const docTipoStr = tipoDocumento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo sin validez fiscal';
+        const montoStr = ocr.moneda === 'VES'
+          ? `${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs (equiv. $${ocr.monto_usd.toFixed(2)} USD)`
+          : `$${ocr.monto_usd.toFixed(2)} USD`;
+        const adminMsg = `🔔 *Alerta de Control Fiscal Rendy*\n\nSe ha registrado un gasto que *requiere aprobación especial*:\n• *Tipo:* ${docTipoStr}\n• *Comercio:* ${ocr.nombre_comercio}\n• *Monto:* ${montoStr}\n• *Motivo:* Sin validez fiscal SENIAT (no genera crédito fiscal de IVA).\n\nPuedes revisarlo y gestionarlo en el panel web de Rendy.`;
+
+        for (const admin of activeAdmins) {
+          if (admin.telefono_whatsapp) {
+            await enviarMensajeWhatsApp(admin.telefono_whatsapp, adminMsg).catch((err) =>
+              console.error(`⚠️ Failed to notify admin ${admin.id} via WhatsApp:`, err)
+            );
+          }
+        }
+      }
+    } catch (notifyErr) {
+      console.warn('⚠️ Error notifying admins of non-fiscal receipt:', notifyErr);
+    }
   }
 
   await enviarMensajeWhatsApp(telefono, mensajeExito);
@@ -2482,6 +2537,15 @@ async function enviarConfirmacionGastoInteractiva(
     cuerpo += `\n${contexto.dailyLimitAlert}\n`;
   }
 
+  // Fiscal validity warning for Venezuela
+  if (
+    (ocr.pais_gasto === 'VE' || ocr.moneda === 'VES') &&
+    ocr.tiene_validez_fiscal === false
+  ) {
+    const docDesc = ocr.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo sin validez fiscal';
+    cuerpo += `\n⚠️ *AVISO DE VALIDEZ FISCAL (VENEZUELA)*\nEste documento fue detectado como *${docDesc}* (no cumple requisitos SENIAT).\n• No genera crédito fiscal de IVA.\n• Será enviado a *revisión y aprobación* del administrador.\n`;
+  }
+
   // Fiscal details footnote (adapted strictly by jurisdiction)
   if (ocr.pais_gasto === 'US') {
     if (ocr.numero_factura) {
@@ -2492,7 +2556,10 @@ async function enviarConfirmacionGastoInteractiva(
       cuerpo += `\n\n📄 _RFC: ${ocr.rif_comercio || 'N/A'} • Folio: ${ocr.numero_factura || 'N/A'}_`;
     }
   } else if (ocr.pais_gasto === 'VE') {
-    if (ocr.rif_comercio || ocr.numero_factura) {
+    if (ocr.tiene_validez_fiscal === false) {
+      const docNom = ocr.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo';
+      cuerpo += `\n\n📄 _Documento: ${docNom} (Sin Validez Fiscal SENIAT)_`;
+    } else if (ocr.rif_comercio || ocr.numero_factura) {
       cuerpo += `\n\n📄 _RIF: ${ocr.rif_comercio || 'N/A'} • Factura: ${ocr.numero_factura || 'N/A'}_`;
     }
   } else {

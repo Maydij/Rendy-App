@@ -59,6 +59,23 @@ REGLAS DE EXTRACCIÓN FISCAL:
     * tasa_impuesto_aplicada: Tasa porcentual numérica impresa (ej. 16.0, 8.0, 21.0) o 0.0 si no aplica.
     * impuesto_local_monto: Monto monetario exacto del impuesto en la moneda original.
     * folio_fiscal_uuid: Folio fiscal / UUID CFDI del SAT en México o código de autorización internacional.
+13. Validación Fiscal para Venezuela (Detección de Notas de Entrega y Recibos No Fiscales):
+    - Si el comprobante corresponde a Venezuela (moneda VES, o país VE, o comercio con RIF/dirección en Venezuela):
+      * Evalúa estrictamente si cumple los requisitos formales de Factura Fiscal del SENIAT:
+        - Encabezado formal con la palabra 'FACTURA' o 'FACTURA FISCAL'.
+        - RIF fiscal legal del emisor (iniciando con J, V, E, G).
+        - Número de Factura.
+        - Número de Control fiscal (ej. 'N° de Control', 'Control 00-XXXXX').
+      * Si el documento dice 'Nota de Entrega', 'Nota de Despacho', 'Presupuesto', 'Orden de Entrega', 'Recibo', 'Cotización', 'Proforma', 'Sin derecho a crédito fiscal', o carece de Número de Control fiscal o RIF legal SENIAT:
+        - tipo_documento: 'NOTA_ENTREGA' (o 'RECIBO_NO_FISCAL' si es un recibo genérico).
+        - tiene_validez_fiscal: false.
+        - motivo_no_fiscal: Explicación breve (ej. 'Documento titulado Nota de Entrega sin validez fiscal SENIAT', 'Carece de Número de Control fiscal', 'Recibo sin validez tributaria').
+      * Si cumple cabalmente con todos los requisitos SENIAT (palabra FACTURA, RIF, N° Factura, N° Control, desglose fiscal):
+        - tipo_documento: 'FACTURA_FISCAL'.
+        - tiene_validez_fiscal: true.
+        - motivo_no_fiscal: null.
+    - Para otros países (US, MX, OTRO):
+      * tipo_documento: 'FACTURA_FISCAL' (o 'RECIBO_NO_FISCAL' si es un comprobante informal), tiene_validez_fiscal: true, motivo_no_fiscal: null.
 
 Devuelve estrictamente un objeto JSON con la estructura solicitada, sin rodeos ni Markdown adicional.`;
 
@@ -152,11 +169,27 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
       description: 'CFDI UUID or authorization voucher code',
       nullable: true,
     },
+    tipo_documento: {
+      type: SchemaType.STRING,
+      format: 'enum',
+      description: 'Document classification: FACTURA_FISCAL, NOTA_ENTREGA, RECIBO_NO_FISCAL',
+      enum: ['FACTURA_FISCAL', 'NOTA_ENTREGA', 'RECIBO_NO_FISCAL'],
+    },
+    tiene_validez_fiscal: {
+      type: SchemaType.BOOLEAN,
+      description: 'True if document has legal tax validity (e.g. SENIAT invoice in VE with RIF, Invoice Number, and Control Number). False for delivery notes (Nota de Entrega), budgets, or informal receipts.',
+    },
+    motivo_no_fiscal: {
+      type: SchemaType.STRING,
+      description: 'Reason if not tax-valid (e.g. Nota de Entrega, missing control number, etc.)',
+      nullable: true,
+    },
   },
   required: [
     'nombre_comercio', 'rif_comercio', 'numero_factura', 'fecha_emision',
     'moneda', 'base_imponible', 'iva', 'exento', 'igtf', 'total', 'categoria_gasto',
     'pais_detectado', 'subtotal_usd', 'sales_tax_usd', 'propina_usd',
+    'tipo_documento', 'tiene_validez_fiscal',
   ],
 };
 
@@ -244,6 +277,14 @@ export async function procesarFacturaConIA(
     }
     if (parsed.tasa_impuesto_aplicada === undefined || parsed.tasa_impuesto_aplicada === null) {
       parsed.tasa_impuesto_aplicada = 0;
+    }
+
+    // Normalize Fiscal Validity & Document Type
+    if (parsed.tiene_validez_fiscal === undefined || parsed.tiene_validez_fiscal === null) {
+      parsed.tiene_validez_fiscal = true;
+    }
+    if (!parsed.tipo_documento) {
+      parsed.tipo_documento = parsed.tiene_validez_fiscal ? 'FACTURA_FISCAL' : 'NOTA_ENTREGA';
     }
 
     return parsed;
@@ -506,6 +547,14 @@ export async function procesarFacturaPDFConIA(
     }
     if (parsed.tasa_impuesto_aplicada === undefined || parsed.tasa_impuesto_aplicada === null) {
       parsed.tasa_impuesto_aplicada = 0;
+    }
+
+    // Normalize Fiscal Validity & Document Type
+    if (parsed.tiene_validez_fiscal === undefined || parsed.tiene_validez_fiscal === null) {
+      parsed.tiene_validez_fiscal = true;
+    }
+    if (!parsed.tipo_documento) {
+      parsed.tipo_documento = parsed.tiene_validez_fiscal ? 'FACTURA_FISCAL' : 'NOTA_ENTREGA';
     }
 
     return parsed;

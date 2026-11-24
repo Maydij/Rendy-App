@@ -272,6 +272,11 @@ export async function exportAccountingReportAction(
           exento_ves: g.exento_ves,
           igtf_ves: g.igtf_ves,
           rif_comercio: g.rif_comercio,
+          tiene_validez_fiscal: (g as Record<string, unknown>).tiene_validez_fiscal != null
+            ? Boolean((g as Record<string, unknown>).tiene_validez_fiscal)
+            : (g.datos_ocr as Record<string, unknown>)?.tiene_validez_fiscal != null
+            ? Boolean((g.datos_ocr as Record<string, unknown>).tiene_validez_fiscal)
+            : true,
         }
       );
 
@@ -322,6 +327,14 @@ export async function exportAccountingReportAction(
           ((g.datos_ocr as Record<string, unknown>)?.tiene_sales_tax) ??
           (Number(g.sales_tax_usd ?? ((g.datos_ocr as Record<string, unknown>)?.sales_tax_usd ?? 0)) > 0)
         ),
+        hasFiscalValidity: (g as Record<string, unknown>).tiene_validez_fiscal != null
+          ? Boolean((g as Record<string, unknown>).tiene_validez_fiscal)
+          : (g.datos_ocr as Record<string, unknown>)?.tiene_validez_fiscal != null
+          ? Boolean((g.datos_ocr as Record<string, unknown>).tiene_validez_fiscal)
+          : true,
+        documentType: (g as Record<string, unknown>).tipo_documento as string ||
+          ((g.datos_ocr as Record<string, unknown>)?.tipo_documento as string) ||
+          'FACTURA_FISCAL',
       });
     }
 

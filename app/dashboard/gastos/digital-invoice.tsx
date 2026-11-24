@@ -575,7 +575,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                 >
                   🇻🇪 Venezuela • SENIAT
                 </span>
-                {gasto.es_deducible_fiscal !== false ? (
+                {gasto.tiene_validez_fiscal !== false && gasto.es_deducible_fiscal !== false ? (
                   <span
                     style={{
                       fontSize: '10.5px',
@@ -587,7 +587,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                       borderRadius: '9999px',
                     }}
                   >
-                    Factura Fiscal
+                    Factura Fiscal SENIAT
                   </span>
                 ) : (
                   <span
@@ -601,7 +601,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                       borderRadius: '9999px',
                     }}
                   >
-                    Nota de Entrega (No Deducible)
+                    ⚠️ Sin Validez Fiscal (Nota de Entrega / Recibo)
                   </span>
                 )}
               </>
@@ -845,6 +845,11 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
             {/* Venezuela Fiscal Identification: RIF, N° Factura, N° Control, Tasa BCV */}
             {jurisdiccion === 'VE' && (
               <>
+                {gasto.tiene_validez_fiscal === false && (
+                  <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 600 }}>
+                    ⚠️ Documento sin validez fiscal ({gasto.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo'})
+                  </div>
+                )}
                 {Boolean(gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>)?.rif) && (
                   <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
                     RIF: {gasto.rif_comercio || String((gasto.datos_ocr as Record<string, unknown>).rif)}

@@ -82,7 +82,31 @@ export default function GastosEmpresaClient({ gastos }: { gastos: Gasto[] }) {
                           {g.categoria}
                         </span>
                       </td>
-                      <td style={{ verticalAlign: 'middle' }}>{g.comercio}</td>
+                      <td style={{ verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span>{g.comercio}</span>
+                          {g.tiene_validez_fiscal === false && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                width: 'fit-content',
+                                background: 'rgba(245, 158, 11, 0.12)',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                color: '#f59e0b',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                borderRadius: '4px',
+                                padding: '1px 6px',
+                              }}
+                              title="Documento sin validez fiscal SENIAT (Nota de Entrega / Recibo)"
+                            >
+                              ⚠️ Sin Validez Fiscal
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       
                       {/* Monto Original */}
                       <td style={{ verticalAlign: 'middle', fontWeight: 700, color: 'var(--text-primary)' }}>

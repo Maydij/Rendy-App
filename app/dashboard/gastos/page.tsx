@@ -94,6 +94,12 @@ async function getGastosEmpresaData(empresaId: string, role: string, userId: str
         ? Number((g.datos_ocr as any)?.subtotal_local)
         : null,
       folio_fiscal_uuid: (g as any).folio_fiscal_uuid ?? (g.datos_ocr as any)?.folio_fiscal_uuid ?? null,
+      tiene_validez_fiscal: (g as any).tiene_validez_fiscal != null
+        ? Boolean((g as any).tiene_validez_fiscal)
+        : (g.datos_ocr as any)?.tiene_validez_fiscal != null
+        ? Boolean((g.datos_ocr as any)?.tiene_validez_fiscal)
+        : true,
+      tipo_documento: (g as any).tipo_documento ?? (g.datos_ocr as any)?.tipo_documento ?? 'FACTURA_FISCAL',
       es_deducible_fiscal: (g as any).es_deducible_fiscal != null
         ? Boolean((g as any).es_deducible_fiscal)
         : true,

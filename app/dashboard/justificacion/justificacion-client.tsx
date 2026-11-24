@@ -64,6 +64,8 @@ export type GastoJustificacion = {
   subtotal_local?: number | null;
   folio_fiscal_uuid?: string | null;
   es_deducible_fiscal?: boolean | null;
+  tiene_validez_fiscal?: boolean | null;
+  tipo_documento?: string | null;
 };
 
 export type JustificacionItem = {
@@ -723,6 +725,21 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                                 >
                                   {gasto.categoria}
                                 </span>
+                                {gasto.tiene_validez_fiscal === false && (
+                                  <span
+                                    style={{
+                                      fontSize: '10.5px',
+                                      fontWeight: 700,
+                                      background: 'rgba(245, 158, 11, 0.12)',
+                                      color: '#f59e0b',
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    }}
+                                  >
+                                    ⚠️ Sin Validez Fiscal
+                                  </span>
+                                )}
                               </div>
 
                               {gasto.concepto && (
@@ -818,6 +835,8 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                                       subtotal_local: gasto.subtotal_local,
                                       folio_fiscal_uuid: gasto.folio_fiscal_uuid,
                                       es_deducible_fiscal: gasto.es_deducible_fiscal,
+                                      tiene_validez_fiscal: gasto.tiene_validez_fiscal,
+                                      tipo_documento: gasto.tipo_documento,
                                     })
                                   }
                                   style={{

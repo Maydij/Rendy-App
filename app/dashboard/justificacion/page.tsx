@@ -142,6 +142,12 @@ async function getJustificacionData(
         ? Number(ocrMap.subtotal_local)
         : null,
       folio_fiscal_uuid: (rawG.folio_fiscal_uuid as string | undefined) ?? (ocrMap.folio_fiscal_uuid as string | undefined) ?? null,
+      tiene_validez_fiscal: rawG.tiene_validez_fiscal != null
+        ? Boolean(rawG.tiene_validez_fiscal)
+        : ocrMap.tiene_validez_fiscal != null
+        ? Boolean(ocrMap.tiene_validez_fiscal)
+        : true,
+      tipo_documento: (rawG.tipo_documento as string | undefined) ?? (ocrMap.tipo_documento as string | undefined) ?? 'FACTURA_FISCAL',
       es_deducible_fiscal: rawG.es_deducible_fiscal != null
         ? Boolean(rawG.es_deducible_fiscal)
         : true,
