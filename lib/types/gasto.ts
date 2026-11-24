@@ -67,4 +67,9 @@ export type Gasto = {
   impuesto_local_monto?: number | null;
   subtotal_local?: number | null;
   folio_fiscal_uuid?: string | null;
+
+  // ── Fiscal Validity & Delivery Notes (Venezuela & Global) ──
+  tiene_validez_fiscal?: boolean | null;
+  tipo_documento?: 'FACTURA_FISCAL' | 'NOTA_ENTREGA' | 'RECIBO_NO_FISCAL' | string | null;
+  motivo_no_fiscal?: string | null;
 };

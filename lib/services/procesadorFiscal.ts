@@ -55,6 +55,11 @@ export interface GeminiFiscalExtraction {
   impuesto_local_monto?: number | null;
   subtotal_local?: number | null;
   folio_fiscal_uuid?: string | null;
+
+  // ── Fiscal Validity & Delivery Notes (Venezuela & Global) ──
+  tipo_documento?: 'FACTURA_FISCAL' | 'NOTA_ENTREGA' | 'RECIBO_NO_FISCAL' | string;
+  tiene_validez_fiscal?: boolean;
+  motivo_no_fiscal?: string | null;
 }
 
 /**
@@ -90,6 +95,11 @@ export interface ResultadoContable {
   impuesto_local_monto: number;
   subtotal_local: number;
   folio_fiscal_uuid: string | null;
+
+  // ── Fiscal Validity & Delivery Notes ──
+  tipo_documento: 'FACTURA_FISCAL' | 'NOTA_ENTREGA' | 'RECIBO_NO_FISCAL' | string;
+  tiene_validez_fiscal: boolean;
+  motivo_no_fiscal: string | null;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -134,6 +144,11 @@ export async function normalizarGastoFiscal(
   } = datosGemini;
 
   const monedaNorm = normalizeMoneda(moneda);
+  const tieneValidezFiscal = datosGemini.tiene_validez_fiscal !== false;
+  const tipoDocumento = datosGemini.tipo_documento || (tieneValidezFiscal ? 'FACTURA_FISCAL' : 'NOTA_ENTREGA');
+  const motivoNoFiscal = !tieneValidezFiscal
+    ? (datosGemini.motivo_no_fiscal || 'Comprobante sin validez fiscal (Nota de Entrega / Recibo)')
+    : null;
 
   // ── Step 1: Exchange Rates & Conversion ──
   let tasaFinal = tasa_impresa && tasa_impresa > 0 ? tasa_impresa : 0;
@@ -154,10 +169,18 @@ export async function normalizarGastoFiscal(
       );
     }
     montoVes = total;
-    baseVes = base_imponible;
-    ivaVes = iva;
-    exentoVes = exento;
-    igtfVes = igtf;
+    if (!tieneValidezFiscal) {
+      // Delivery notes / non-fiscal receipts in Venezuela generate zero deductible VAT credit
+      baseVes = total;
+      ivaVes = 0;
+      exentoVes = total;
+      igtfVes = 0;
+    } else {
+      baseVes = base_imponible;
+      ivaVes = iva;
+      exentoVes = exento;
+      igtfVes = igtf;
+    }
     montoUsd = Number((total / tasaFinal).toFixed(2));
   } else if (monedaNorm === 'USD') {
     // Universal baseline currency: parity with VES is completely omitted
@@ -295,6 +318,9 @@ export async function normalizarGastoFiscal(
     impuesto_local_monto: impuestoLocalMonto,
     subtotal_local: subtotalLocal,
     folio_fiscal_uuid: folioFiscalUuid,
+    tipo_documento: tipoDocumento,
+    tiene_validez_fiscal: tieneValidezFiscal,
+    motivo_no_fiscal: motivoNoFiscal,
   };
 }
 
@@ -345,6 +371,15 @@ export function formatearConfirmacionFiscalWhatsApp(
     ``,
     `🏢 *Comercio:* ${datosGemini.nombre_comercio || 'No detectado'}`,
   ];
+
+  if (resultado.pais_gasto === 'VE' && !resultado.tiene_validez_fiscal) {
+    lineas.unshift(
+      `⚠️ *AVISO DE VALIDEZ FISCAL (VENEZUELA)*\n` +
+      `Este documento fue detectado como *Nota de Entrega / Recibo sin validez fiscal* (no cumple requisitos SENIAT).\n` +
+      `• No genera crédito fiscal de IVA.\n` +
+      `• Será enviado a *revisión y aprobación* del administrador.\n`
+    );
+  }
 
   if (resultado.pais_gasto === 'US') {
     if (datosGemini.numero_factura) {

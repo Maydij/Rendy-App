@@ -74,6 +74,8 @@ export interface ReembolsoItem {
   impuesto_local_monto?: number | null;
   subtotal_local?: number | null;
   folio_fiscal_uuid?: string | null;
+  tiene_validez_fiscal?: boolean | null;
+  tipo_documento?: string | null;
 }
 
 export interface ReembolsosPaginadosResponse {
@@ -209,7 +211,13 @@ export async function obtenerReembolsosPaginados(
 
   if (error) {
     console.error('❌ [ReembolsosService] Error fetching reembolsos:', error);
-    throw new Error(`No se pudieron cargar los reembolsos: ${error.message}`);
+    return {
+      reembolsos: [],
+      totalCount: 0,
+      totalPages: 0,
+      currentPage: page,
+      pageSize,
+    };
   }
 
   type RawJoinRow = {
@@ -253,6 +261,8 @@ export async function obtenerReembolsosPaginados(
     impuesto_local_monto?: number | null;
     subtotal_local?: number | null;
     folio_fiscal_uuid?: string | null;
+    tiene_validez_fiscal?: boolean | null;
+    tipo_documento?: string | null;
     usuarios: {
       id: string;
       nombre: string;
@@ -359,6 +369,16 @@ export async function obtenerReembolsosPaginados(
         r.folio_fiscal_uuid ||
         ((r.datos_ocr as Record<string, unknown>)?.folio_fiscal_uuid as string | null) ||
         null,
+      tiene_validez_fiscal:
+        r.tiene_validez_fiscal != null
+          ? Boolean(r.tiene_validez_fiscal)
+          : (r.datos_ocr as Record<string, unknown>)?.tiene_validez_fiscal != null
+          ? Boolean((r.datos_ocr as Record<string, unknown>).tiene_validez_fiscal)
+          : true,
+      tipo_documento:
+        r.tipo_documento ||
+        ((r.datos_ocr as Record<string, unknown>)?.tipo_documento as string | null) ||
+        'FACTURA_FISCAL',
       usuario: {
         id: r.usuarios?.id || r.usuario_id || 'unknown',
         nombre: r.usuarios?.nombre || 'Usuario Desconocido',

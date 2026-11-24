@@ -235,6 +235,7 @@ export function computeFiscalBreakdown(
     exento_ves?: number | null;
     igtf_ves?: number | null;
     rif_comercio?: string | null;
+    tiene_validez_fiscal?: boolean | null;
   }
 ): ComputedFiscalBreakdown {
   const jurisdiction = detectTaxJurisdiction(
@@ -249,8 +250,18 @@ export function computeFiscalBreakdown(
   let specialTaxAmount = 0;
   let exemptAmount = 0;
 
+  // 0. Venezuelan Non-Fiscal Document (Nota de Entrega / Recibo): Zero deductible VAT credit
+  if (
+    jurisdiction.currency === 'VES' &&
+    (dbFiscalData?.tiene_validez_fiscal === false || ocrData?.tiene_validez_fiscal === false)
+  ) {
+    taxBase = nominalTotal;
+    vatAmount = 0;
+    specialTaxAmount = 0;
+    exemptAmount = nominalTotal;
+  }
   // 1. Check if Venezuelan SENIAT explicit stored fields apply
-  if (jurisdiction.currency === 'VES' && dbFiscalData?.base_imponible_ves && dbFiscalData.base_imponible_ves > 0) {
+  else if (jurisdiction.currency === 'VES' && dbFiscalData?.base_imponible_ves && dbFiscalData.base_imponible_ves > 0) {
     taxBase = Number(dbFiscalData.base_imponible_ves);
     vatAmount = Number(dbFiscalData.iva_ves || 0);
     specialTaxAmount = Number(dbFiscalData.igtf_ves || 0);

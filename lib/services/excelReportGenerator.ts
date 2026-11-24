@@ -69,6 +69,10 @@ export interface ReportExpenseItem {
   subtotalUsd?: number;
   salesTaxUsd?: number;
   tipUsd?: number;
+
+  // ── Fiscal Validity & Document Classification ──
+  hasFiscalValidity?: boolean;
+  documentType?: string;
 }
 
 export interface GenerateExcelReportOptions {
@@ -308,6 +312,11 @@ function buildSummarySheet(
     const totalIgtfVes = vesExpenses.reduce((sum, e) => sum + e.specialTaxLocal, 0);
     const totalExemptVes = vesExpenses.reduce((sum, e) => sum + e.exemptLocal, 0);
 
+    const fiscalExpensesVes = vesExpenses.filter((e) => e.hasFiscalValidity !== false);
+    const nonFiscalExpensesVes = vesExpenses.filter((e) => e.hasFiscalValidity === false);
+    const totalFiscalVes = fiscalExpensesVes.reduce((sum, e) => sum + e.totalLocal, 0);
+    const totalNonFiscalVes = nonFiscalExpensesVes.reduce((sum, e) => sum + e.totalLocal, 0);
+
     sheet.getCell(`B${currentRow}`).value = '2. RESUMEN FISCAL VENEZUELA (SENIAT)';
     sheet.getCell(`B${currentRow}`).font = { name: 'Calibri', size: 11, bold: true, color: { argb: COLORS.headerBg } };
     sheet.getRow(currentRow).height = 22;
@@ -318,10 +327,12 @@ function buildSummarySheet(
       ['Impuesto al Valor Agregado (IVA 16%)', totalIvaVes, '#,##0.00', 'Débito/crédito fiscal liquidado a favor del SENIAT.'],
       ['Impuesto a Grandes Transacciones Financieras (IGTF 3%)', totalIgtfVes, '#,##0.00', 'Tributo por operaciones en divisas o moneda extranjera.'],
       ['Monto Exento / Exonerado', totalExemptVes, '#,##0.00', 'Operaciones sin incidencia impositiva de IVA.'],
+      ['Total Facturas Fiscales SENIAT (Deducible)', totalFiscalVes, '#,##0.00', 'Gastos con factura legal y crédito fiscal de IVA.'],
+      ['Total Notas de Entrega / Recibos (No Deducible)', totalNonFiscalVes, '#,##0.00', 'Gastos sin factura legal SENIAT (sin derecho a crédito fiscal).'],
       ['Total Consolidado en Bolívares (VES)', totalVes, '#,##0.00', 'Suma total facturada en moneda legal venezolana.'],
     ]);
 
-    currentRow += 7;
+    currentRow += 9;
   }
 
   // Render Mexico (SAT) if MXN is present in the report
@@ -583,6 +594,8 @@ function buildExpenseDetailSheet(
     { header: 'N° Factura / Control', key: 'invoiceNumber', width: 18, align: 'center' },
     { header: 'Concepto', key: 'concept', width: 30, align: 'left' },
     { header: 'Jurisdicción Fiscal', key: 'jurisdictionName', width: 22, align: 'left' },
+    { header: 'Validez Fiscal', key: 'hasFiscalValidityLabel', width: 22, align: 'center' },
+    { header: 'Tipo Documento', key: 'documentTypeLabel', width: 22, align: 'center' },
     { header: 'Estado (USA)', key: 'stateRegion', width: 14, align: 'center' },
     { header: 'Subtotal USD', key: 'subtotalUsd', width: 16, align: 'right', format: '$#,##0.00' },
     { header: 'Sales Tax USD', key: 'salesTaxUsd', width: 16, align: 'right', format: '$#,##0.00' },
@@ -635,7 +648,8 @@ function buildExpenseDetailSheet(
     const rowNumber = index + 2;
     const isZebra = index % 2 === 1;
     const isLeakage = item.usaTaxStatus === 'FUGA_FISCAL_RECUPERABLE';
-    const rowFill: ExcelJS.Fill = isLeakage
+    const isNonFiscalVe = item.hasFiscalValidity === false && (item.countryCode === 'VE' || item.originalCurrency === 'VES');
+    const rowFill: ExcelJS.Fill = (isLeakage || isNonFiscalVe)
       ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.amberLeakageBg } }
       : isZebra
       ? { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.zebraRow } }
@@ -643,6 +657,19 @@ function buildExpenseDetailSheet(
 
     const row = sheet.getRow(rowNumber);
     row.height = 20;
+
+    const hasFiscal = item.hasFiscalValidity !== false;
+    const isVeOrVes = item.countryCode === 'VE' || item.originalCurrency === 'VES';
+    const hasFiscalValidityLabel = isVeOrVes
+      ? (hasFiscal ? 'Factura Fiscal SENIAT' : 'Sin Validez Fiscal')
+      : 'Válido';
+    const documentTypeLabel = item.documentType === 'NOTA_ENTREGA'
+      ? 'Nota de Entrega'
+      : item.documentType === 'RECIBO_NO_FISCAL'
+      ? 'Recibo sin validez fiscal'
+      : item.documentType === 'FACTURA_FISCAL'
+      ? 'Factura Fiscal'
+      : (item.documentType || 'Factura');
 
     const rowData: Record<string, unknown> = {
       index: index + 1,
@@ -656,6 +683,8 @@ function buildExpenseDetailSheet(
       invoiceNumber: item.invoiceNumber || '—',
       concept: item.concept || '—',
       jurisdictionName: item.jurisdictionName,
+      hasFiscalValidityLabel,
+      documentTypeLabel,
       stateRegion: item.stateRegion || '—',
       subtotalUsd: item.subtotalUsd ?? item.totalUsd,
       salesTaxUsd: item.salesTaxUsd ?? 0,
