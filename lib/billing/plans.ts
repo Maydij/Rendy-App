@@ -13,6 +13,7 @@ export interface SubscriptionPlanDefinition {
   tagline: string;
   minEmployees: number;
   maxEmployees: number | null;
+  maxInvoicesPerMonth: number;
   monthlyPriceUsd: number;
   annualMonthlyEquivalentUsd: number;
   annualTotalUsd: number;
@@ -24,7 +25,7 @@ export interface SubscriptionPlanDefinition {
 /**
  * @name SUBSCRIPTION_PLANS
  * @description [Business Logic]: Canonical server-side pricing authority for Rendy B2B plans.
- * Aligned with commercial tiers (Starter up to 5 users, Growth up to 15 users, Enterprise up to 40+ users)
+ * Aligned with commercial tiers (Starter up to 5 users, Growth up to 15 users, Enterprise up to 40 users)
  * and 7-day Netflix-style free trial ($0.00 due today, automatic billing on Day 8).
  */
 export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlanDefinition> = {
@@ -35,6 +36,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlanDefinition> = {
     tagline: 'Para pequeños negocios y equipos de calle que necesitan centralizar facturas sin papeleos.',
     minEmployees: 1,
     maxEmployees: 5,
+    maxInvoicesPerMonth: 150,
     monthlyPriceUsd: 49,
     annualMonthlyEquivalentUsd: 39,
     annualTotalUsd: 468, // $39 * 12
@@ -49,6 +51,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlanDefinition> = {
     tagline: 'Para organizaciones con fuerza de ventas, logística o proyectos que requieren control financiero estricto.',
     minEmployees: 6,
     maxEmployees: 15,
+    maxInvoicesPerMonth: 500,
     monthlyPriceUsd: 119,
     annualMonthlyEquivalentUsd: 95,
     annualTotalUsd: 1140, // $95 * 12
@@ -62,7 +65,8 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlanDefinition> = {
     name: 'Corporativo & Auditoría',
     tagline: 'Para medianas empresas con alto volumen de gastos, múltiples departamentos y supervisión gerencial.',
     minEmployees: 16,
-    maxEmployees: null,
+    maxEmployees: 40,
+    maxInvoicesPerMonth: 1500,
     monthlyPriceUsd: 249,
     annualMonthlyEquivalentUsd: 199,
     annualTotalUsd: 2388, // $199 * 12
