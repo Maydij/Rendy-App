@@ -82,7 +82,7 @@ export interface ExtraccionOcrSesion {
 
   // ── Fiscal Validity & Delivery Notes (Venezuela & Global) ──
   tiene_validez_fiscal?: boolean;
-  tipo_documento?: 'FACTURA_FISCAL' | 'NOTA_ENTREGA' | 'RECIBO_NO_FISCAL' | string;
+  tipo_documento?: 'FACTURA_FISCAL' | 'VOUCHER_POS' | 'NOTA_ENTREGA' | 'RECIBO_NO_FISCAL' | string;
   motivo_no_fiscal?: string | null;
 }
 

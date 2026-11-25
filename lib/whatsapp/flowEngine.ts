@@ -1579,6 +1579,9 @@ async function manejarIngestaComprobanteEnFrio({
     subtotal_usd: Number(raw.subtotal_usd || 0),
     sales_tax_usd: Number(raw.sales_tax_usd || 0),
     propina_usd: Number(raw.propina_usd || 0),
+    tiene_validez_fiscal: raw.tiene_validez_fiscal,
+    tipo_documento: raw.tipo_documento,
+    motivo_no_fiscal: raw.motivo_no_fiscal,
   });
 
   const { data: empTaxData } = await supabase
@@ -1830,6 +1833,9 @@ async function manejarComprobanteEnRutaGuiada({
     subtotal_usd: Number(raw.subtotal_usd || 0),
     sales_tax_usd: Number(raw.sales_tax_usd || 0),
     propina_usd: Number(raw.propina_usd || 0),
+    tiene_validez_fiscal: raw.tiene_validez_fiscal,
+    tipo_documento: raw.tipo_documento,
+    motivo_no_fiscal: raw.motivo_no_fiscal,
   });
 
   const { data: empTaxData } = await supabase
@@ -1980,6 +1986,9 @@ async function manejarCorreccionTextoComprobante({
     exento: Number(correccion.exento ?? ocrPrevio.exento_ves),
     igtf: Number(correccion.igtf ?? ocrPrevio.igtf_ves),
     total: Number(correccion.monto_total ?? correccion.total ?? ocrPrevio.monto_original ?? (ocrPrevio.moneda === 'VES' ? ocrPrevio.monto_ves : ocrPrevio.monto_usd)),
+    tiene_validez_fiscal: ocrPrevio.tiene_validez_fiscal,
+    tipo_documento: ocrPrevio.tipo_documento,
+    motivo_no_fiscal: ocrPrevio.motivo_no_fiscal,
   });
 
   const extraccionActualizada: ExtraccionOcrSesion = {
@@ -2067,7 +2076,13 @@ async function persistirGastoDefinitivo(
   const excedeLimiteDiario = Boolean(datos.excede_limite);
   const tieneValidezFiscal = ocr.tiene_validez_fiscal !== false;
   const tipoDocumento = ocr.tipo_documento || (tieneValidezFiscal ? 'FACTURA_FISCAL' : 'NOTA_ENTREGA');
-  const requiereAprobacionFiscal = !tieneValidezFiscal && (ocr.pais_gasto === 'VE' || ocr.moneda === 'VES');
+  const requiereAprobacionFiscal = !tieneValidezFiscal && (
+    ocr.pais_gasto === 'VE' ||
+    ocr.moneda === 'VES' ||
+    tipoDocumento === 'VOUCHER_POS' ||
+    tipoDocumento === 'NOTA_ENTREGA' ||
+    tipoDocumento === 'RECIBO_NO_FISCAL'
+  );
   const estadoFinal = (esSobregiro || excedeLimiteDiario || requiereAprobacionFiscal) ? 'REQUIERE_APROBACION_ESPECIAL' : 'PENDIENTE';
   const targetViaticoId = datos.viatico_id || null;
 
@@ -2296,7 +2311,12 @@ async function persistirGastoDefinitivo(
     mensajeExito += `\n\n⚠️ *Nota de Auditoría:* Debido al sobregiro de *$${evaluacion?.sobregiro_usd.toFixed(2)} USD*, el comprobante ha sido marcado como *Requiere Aprobación Especial* para liquidación.`;
   }
   if (requiereAprobacionFiscal) {
-    const docNombre = tipoDocumento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo sin validez fiscal';
+    let docNombre = 'Recibo sin validez fiscal';
+    if (tipoDocumento === 'VOUCHER_POS') {
+      docNombre = 'Voucher de Punto de Venta';
+    } else if (tipoDocumento === 'NOTA_ENTREGA') {
+      docNombre = 'Nota de Entrega';
+    }
     mensajeExito += `\n\n⚠️ *Aviso de Validez Fiscal (Venezuela):* Registrado como *${docNombre}* (no deduce IVA fiscal). Ha sido derivado a *Revisión y Aprobación Especial* de administración.`;
   }
 
@@ -2311,7 +2331,12 @@ async function persistirGastoDefinitivo(
         .eq('activo', true);
 
       if (activeAdmins && activeAdmins.length > 0) {
-        const docTipoStr = tipoDocumento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo sin validez fiscal';
+        let docTipoStr = 'Recibo sin validez fiscal';
+        if (tipoDocumento === 'VOUCHER_POS') {
+          docTipoStr = 'Voucher de Punto de Venta';
+        } else if (tipoDocumento === 'NOTA_ENTREGA') {
+          docTipoStr = 'Nota de Entrega';
+        }
         const montoStr = ocr.moneda === 'VES'
           ? `${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs (equiv. $${ocr.monto_usd.toFixed(2)} USD)`
           : `$${ocr.monto_usd.toFixed(2)} USD`;
@@ -2479,13 +2504,14 @@ async function enviarConfirmacionGastoInteractiva(
   if (ocr.categoria) {
     cuerpo += `🏷️ *Categoría:* ${ocr.categoria}\n`;
   }
+  const tituloMonto = ocr.tiene_validez_fiscal === false ? 'Total Comprobante' : 'Total Factura';
   if (ocr.moneda === 'VES') {
-    cuerpo += `💵 *Total Factura:* ${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa ${ocr.tasa_cambio})\n`;
+    cuerpo += `💵 *${tituloMonto}:* ${ocr.monto_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa ${ocr.tasa_cambio})\n`;
   } else if (ocr.moneda === 'USD') {
-    cuerpo += `💵 *Total Factura:* $${ocr.monto_usd.toFixed(2)} USD\n`;
+    cuerpo += `💵 *${tituloMonto}:* $${ocr.monto_usd.toFixed(2)} USD\n`;
   } else {
     const nominal = (ocr.monto_original ?? ocr.monto_usd).toLocaleString('es-VE', { minimumFractionDigits: 2 });
-    cuerpo += `💵 *Total Factura:* ${nominal} ${ocr.moneda} (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa 1 USD = ${ocr.tasa_cambio} ${ocr.moneda})\n`;
+    cuerpo += `💵 *${tituloMonto}:* ${nominal} ${ocr.moneda} (equiv. $${ocr.monto_usd.toFixed(2)} USD a tasa 1 USD = ${ocr.tasa_cambio} ${ocr.moneda})\n`;
   }
 
   // USA Tax & Geographic Breakdown
@@ -2537,17 +2563,25 @@ async function enviarConfirmacionGastoInteractiva(
     cuerpo += `\n${contexto.dailyLimitAlert}\n`;
   }
 
-  // Fiscal validity warning for Venezuela
-  if (
-    (ocr.pais_gasto === 'VE' || ocr.moneda === 'VES') &&
-    ocr.tiene_validez_fiscal === false
-  ) {
-    const docDesc = ocr.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo sin validez fiscal';
-    cuerpo += `\n⚠️ *AVISO DE VALIDEZ FISCAL (VENEZUELA)*\nEste documento fue detectado como *${docDesc}* (no cumple requisitos SENIAT).\n• No genera crédito fiscal de IVA.\n• Será enviado a *revisión y aprobación* del administrador.\n`;
+  // Fiscal validity warning for Venezuela / Non-fiscal documents
+  if (ocr.tiene_validez_fiscal === false) {
+    const docDesc = ocr.tipo_documento === 'VOUCHER_POS'
+      ? 'Voucher de Punto de Venta'
+      : ocr.tipo_documento === 'NOTA_ENTREGA'
+      ? 'Nota de Entrega'
+      : 'Recibo sin validez fiscal';
+    cuerpo += `\n⚠️ *AVISO DE VALIDEZ FISCAL (VENEZUELA)*\nEste comprobante fue detectado como *${docDesc}* (no cumple requisitos SENIAT).\n• No genera crédito fiscal de IVA.\n• Será enviado a *revisión y aprobación* del administrador.\n`;
   }
 
   // Fiscal details footnote (adapted strictly by jurisdiction)
-  if (ocr.pais_gasto === 'US') {
+  if (ocr.tiene_validez_fiscal === false) {
+    const docNom = ocr.tipo_documento === 'VOUCHER_POS'
+      ? 'Voucher Punto de Venta'
+      : ocr.tipo_documento === 'NOTA_ENTREGA'
+      ? 'Nota de Entrega'
+      : 'Recibo';
+    cuerpo += `\n\n📄 _Documento: ${docNom} (Sin Validez Fiscal SENIAT)_`;
+  } else if (ocr.pais_gasto === 'US') {
     if (ocr.numero_factura) {
       cuerpo += `\n\n📄 _Factura / Doc: #${ocr.numero_factura}_`;
     }
@@ -2556,10 +2590,7 @@ async function enviarConfirmacionGastoInteractiva(
       cuerpo += `\n\n📄 _RFC: ${ocr.rif_comercio || 'N/A'} • Folio: ${ocr.numero_factura || 'N/A'}_`;
     }
   } else if (ocr.pais_gasto === 'VE') {
-    if (ocr.tiene_validez_fiscal === false) {
-      const docNom = ocr.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo';
-      cuerpo += `\n\n📄 _Documento: ${docNom} (Sin Validez Fiscal SENIAT)_`;
-    } else if (ocr.rif_comercio || ocr.numero_factura) {
+    if (ocr.rif_comercio || ocr.numero_factura) {
       cuerpo += `\n\n📄 _RIF: ${ocr.rif_comercio || 'N/A'} • Factura: ${ocr.numero_factura || 'N/A'}_`;
     }
   } else {

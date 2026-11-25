@@ -59,18 +59,36 @@ REGLAS DE EXTRACCIÓN FISCAL:
     * tasa_impuesto_aplicada: Tasa porcentual numérica impresa (ej. 16.0, 8.0, 21.0) o 0.0 si no aplica.
     * impuesto_local_monto: Monto monetario exacto del impuesto en la moneda original.
     * folio_fiscal_uuid: Folio fiscal / UUID CFDI del SAT en México o código de autorización internacional.
-13. Validación Fiscal para Venezuela (Detección de Notas de Entrega y Recibos No Fiscales):
-    - Si el comprobante corresponde a Venezuela (moneda VES, o país VE, o comercio con RIF/dirección en Venezuela):
-      * Evalúa estrictamente si cumple los requisitos formales de Factura Fiscal del SENIAT:
-        - Encabezado formal con la palabra 'FACTURA' o 'FACTURA FISCAL'.
-        - RIF fiscal legal del emisor (iniciando con J, V, E, G).
-        - Número de Factura.
-        - Número de Control fiscal (ej. 'N° de Control', 'Control 00-XXXXX').
-      * Si el documento dice 'Nota de Entrega', 'Nota de Despacho', 'Presupuesto', 'Orden de Entrega', 'Recibo', 'Cotización', 'Proforma', 'Sin derecho a crédito fiscal', o carece de Número de Control fiscal o RIF legal SENIAT:
-        - tipo_documento: 'NOTA_ENTREGA' (o 'RECIBO_NO_FISCAL' si es un recibo genérico).
+13. Validación Fiscal para Venezuela (Detección de Vouchers POS, Notas de Entrega y Recibos No Fiscales):
+    - Si el comprobante corresponde a Venezuela (moneda VES, o país VE, o comercio con RIF/dirección en Venezuela, o emitido por bancos venezolanos como Banesco, Mercantil, Provincial, BNC, Banco de Venezuela, Credicard, etc.):
+      * VOUCHERS DE PUNTO DE VENTA BANCARIO (VOUCHER_POS):
+        - Documentos impresos por terminales de punto de venta (POS) bancarios que contengan palabras como:
+          'COMPRA', 'DEBIT', 'DEBITO', 'CREDIT', 'CREDITO', 'MASTERCARD', 'VISA', 'MAESTRO', 'AFIL', 'TERM', 'LOTE', 'REF', 'APROB', 'APROBACION', 'NRO CTA', 'COPIA DEL COMERCIO', 'COPIA DEL CLIENTE', 'PUNTO DE VENTA'.
+        - Estos comprobantes solo certifican el pago con tarjeta bancaria, NO son facturas fiscales y NO generan crédito fiscal de IVA.
+        - ¡REGLA CRÍTICA!: En un voucher POS, el campo 'REF: XX', 'LOTE: XX' o 'APROB: XXXXXX' es una referencia bancaria, NUNCA un número de factura fiscal. Deja 'numero_factura' como vacío ("") o null.
+        - tipo_documento: 'VOUCHER_POS'.
         - tiene_validez_fiscal: false.
-        - motivo_no_fiscal: Explicación breve (ej. 'Documento titulado Nota de Entrega sin validez fiscal SENIAT', 'Carece de Número de Control fiscal', 'Recibo sin validez tributaria').
-      * Si cumple cabalmente con todos los requisitos SENIAT (palabra FACTURA, RIF, N° Factura, N° Control, desglose fiscal):
+        - motivo_no_fiscal: 'Voucher de punto de venta bancario (sin factura fiscal SENIAT)'.
+        - iva: 0, igtf: 0, exento: total, base_imponible: total.
+      * NOTAS DE ENTREGA Y PRESUPUESTOS (NOTA_ENTREGA):
+        - Documentos que digan 'Nota de Entrega', 'Nota de Despacho', 'Orden de Entrega', 'Presupuesto', 'Cotización', 'Proforma'.
+        - tipo_documento: 'NOTA_ENTREGA'.
+        - tiene_validez_fiscal: false.
+        - motivo_no_fiscal: 'Documento emitido como Nota de Entrega / Presupuesto sin validez fiscal SENIAT'.
+        - iva: 0, igtf: 0, exento: total, base_imponible: total.
+      * RECIBOS NO FISCALES (RECIBO_NO_FISCAL):
+        - Documentos que digan 'Sin derecho a crédito fiscal', 'No válido como factura', recibos de comanda, o que carezcan de la denominación FACTURA y Número de Control.
+        - tipo_documento: 'RECIBO_NO_FISCAL'.
+        - tiene_validez_fiscal: false.
+        - motivo_no_fiscal: 'Comprobante sin validez tributaria SENIAT'.
+        - iva: 0, igtf: 0, exento: total, base_imponible: total.
+      * FACTURA FISCAL SENIAT (FACTURA_FISCAL):
+        - Solo si el documento contiene simultáneamente:
+          1. Denominación formal 'FACTURA' o 'FACTURA FISCAL' (o 'MH' de máquina fiscal registrada).
+          2. RIF legal del comercio emisor (J, V, E, G).
+          3. Número de Factura legal.
+          4. Número de Control fiscal (ej. 'N° de Control 00-XXXXX' o registro fiscal de máquina).
+          5. Desglose de Base Imponible e IVA (16%).
         - tipo_documento: 'FACTURA_FISCAL'.
         - tiene_validez_fiscal: true.
         - motivo_no_fiscal: null.
@@ -172,8 +190,8 @@ const FISCAL_RESPONSE_SCHEMA: ResponseSchema = {
     tipo_documento: {
       type: SchemaType.STRING,
       format: 'enum',
-      description: 'Document classification: FACTURA_FISCAL, NOTA_ENTREGA, RECIBO_NO_FISCAL',
-      enum: ['FACTURA_FISCAL', 'NOTA_ENTREGA', 'RECIBO_NO_FISCAL'],
+      description: 'Document classification: FACTURA_FISCAL, VOUCHER_POS, NOTA_ENTREGA, RECIBO_NO_FISCAL',
+      enum: ['FACTURA_FISCAL', 'VOUCHER_POS', 'NOTA_ENTREGA', 'RECIBO_NO_FISCAL'],
     },
     tiene_validez_fiscal: {
       type: SchemaType.BOOLEAN,
@@ -280,7 +298,16 @@ export async function procesarFacturaConIA(
     }
 
     // Normalize Fiscal Validity & Document Type
-    if (parsed.tiene_validez_fiscal === undefined || parsed.tiene_validez_fiscal === null) {
+    if (parsed.tipo_documento === 'VOUCHER_POS') {
+      parsed.tiene_validez_fiscal = false;
+      parsed.iva = 0;
+      parsed.igtf = 0;
+      parsed.exento = parsed.total;
+      parsed.base_imponible = parsed.total;
+      if (!parsed.motivo_no_fiscal) {
+        parsed.motivo_no_fiscal = 'Voucher de punto de venta bancario (sin factura fiscal SENIAT)';
+      }
+    } else if (parsed.tiene_validez_fiscal === undefined || parsed.tiene_validez_fiscal === null) {
       parsed.tiene_validez_fiscal = true;
     }
     if (!parsed.tipo_documento) {
@@ -550,7 +577,16 @@ export async function procesarFacturaPDFConIA(
     }
 
     // Normalize Fiscal Validity & Document Type
-    if (parsed.tiene_validez_fiscal === undefined || parsed.tiene_validez_fiscal === null) {
+    if (parsed.tipo_documento === 'VOUCHER_POS') {
+      parsed.tiene_validez_fiscal = false;
+      parsed.iva = 0;
+      parsed.igtf = 0;
+      parsed.exento = parsed.total;
+      parsed.base_imponible = parsed.total;
+      if (!parsed.motivo_no_fiscal) {
+        parsed.motivo_no_fiscal = 'Voucher de punto de venta bancario (sin factura fiscal SENIAT)';
+      }
+    } else if (parsed.tiene_validez_fiscal === undefined || parsed.tiene_validez_fiscal === null) {
       parsed.tiene_validez_fiscal = true;
     }
     if (!parsed.tipo_documento) {

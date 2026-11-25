@@ -663,7 +663,9 @@ function buildExpenseDetailSheet(
     const hasFiscalValidityLabel = isVeOrVes
       ? (hasFiscal ? 'Factura Fiscal SENIAT' : 'Sin Validez Fiscal')
       : 'Válido';
-    const documentTypeLabel = item.documentType === 'NOTA_ENTREGA'
+    const documentTypeLabel = item.documentType === 'VOUCHER_POS'
+      ? 'Voucher Punto de Venta'
+      : item.documentType === 'NOTA_ENTREGA'
       ? 'Nota de Entrega'
       : item.documentType === 'RECIBO_NO_FISCAL'
       ? 'Recibo sin validez fiscal'
