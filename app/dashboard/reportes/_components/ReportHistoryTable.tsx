@@ -158,15 +158,19 @@ export function ReportHistoryTable({
             <tbody>
               {history.map((item) => {
                 const dateObj = new Date(item.createdAt);
-                const formattedDate = dateObj.toLocaleDateString('es-VE', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                });
-                const formattedTime = dateObj.toLocaleTimeString('es-VE', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+                const formattedDate = dateObj
+                  .toLocaleDateString('es-VE', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                  .replace(/[\u202F\u00A0]/g, ' ');
+                const formattedTime = dateObj
+                  .toLocaleTimeString('es-VE', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                  .replace(/[\u202F\u00A0]/g, ' ');
 
                 return (
                   <tr
@@ -177,9 +181,9 @@ export function ReportHistoryTable({
                     }}
                   >
                     {/* Timestamp */}
-                    <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formattedDate}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formattedTime}</div>
+                    <td style={{ padding: '12px', whiteSpace: 'nowrap' }} suppressHydrationWarning>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }} suppressHydrationWarning>{formattedDate}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} suppressHydrationWarning>{formattedTime}</div>
                     </td>
 
                     {/* Report Name */}
@@ -289,11 +293,11 @@ export function ReportHistoryTable({
                     </td>
 
                     {/* Totals */}
-                    <td style={{ padding: '12px', textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700, color: 'var(--rendy-primary-light)' }}>
+                    <td style={{ padding: '12px', textAlign: 'right' }} suppressHydrationWarning>
+                      <div style={{ fontWeight: 700, color: 'var(--rendy-primary-light)' }} suppressHydrationWarning>
                         ${item.totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} suppressHydrationWarning>
                         Bs. {item.totalVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </td>

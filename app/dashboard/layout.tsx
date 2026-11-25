@@ -171,7 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <div className="sidebar-footer">
             <div className="sidebar-org-pill">
-              <div className="sidebar-org-avatar">
+              <div className="sidebar-org-avatar" suppressHydrationWarning>
                 {userProfile?.nombre
                   ? userProfile.nombre
                       .split(' ')
@@ -184,8 +184,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   : 'AD'}
               </div>
               <div className="sidebar-org-info">
-                <div className="sidebar-org-name">{userProfile?.nombre || (isEmployee ? 'Colaborador' : 'Administrador')}</div>
-                <div className="sidebar-org-role">{isEmployee ? 'Empleado · Rendy' : 'Admin · Rendy'}</div>
+                <div className="sidebar-org-name" suppressHydrationWarning>{userProfile?.nombre || (isEmployee ? 'Colaborador' : 'Administrador')}</div>
+                <div className="sidebar-org-role" suppressHydrationWarning>{isEmployee ? 'Empleado · Rendy' : 'Admin · Rendy'}</div>
               </div>
             </div>
           </div>
@@ -220,7 +220,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <LogOut size={16} />
               </button>
-              <div className="topbar-avatar">
+              <div className="topbar-avatar" suppressHydrationWarning>
                 {userProfile?.nombre ? userProfile.nombre.charAt(0).toUpperCase() : isEmployee ? 'E' : 'A'}
               </div>
             </div>
