@@ -100,7 +100,7 @@ export default function GastosEmpresaClient({ gastos }: { gastos: Gasto[] }) {
                                 borderRadius: '4px',
                                 padding: '1px 6px',
                               }}
-                              title="Documento sin validez fiscal SENIAT (Nota de Entrega / Recibo)"
+                              title="Documento sin validez fiscal SENIAT (Voucher POS / Nota de Entrega / Recibo)"
                             >
                               ⚠️ Sin Validez Fiscal
                             </span>

@@ -601,7 +601,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
                       borderRadius: '9999px',
                     }}
                   >
-                    ⚠️ Sin Validez Fiscal (Nota de Entrega / Recibo)
+                    ⚠️ Sin Validez Fiscal ({gasto.tipo_documento === 'VOUCHER_POS' ? 'Voucher POS' : gasto.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo'})
                   </span>
                 )}
               </>
@@ -847,7 +847,7 @@ function ReceiptBody({ gasto }: { gasto: Gasto }) {
               <>
                 {gasto.tiene_validez_fiscal === false && (
                   <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 600 }}>
-                    ⚠️ Documento sin validez fiscal ({gasto.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo'})
+                    ⚠️ Documento sin validez fiscal ({gasto.tipo_documento === 'VOUCHER_POS' ? 'Voucher de Punto de Venta' : gasto.tipo_documento === 'NOTA_ENTREGA' ? 'Nota de Entrega' : 'Recibo'})
                   </div>
                 )}
                 {Boolean(gasto.rif_comercio || (gasto.datos_ocr as Record<string, unknown>)?.rif) && (
