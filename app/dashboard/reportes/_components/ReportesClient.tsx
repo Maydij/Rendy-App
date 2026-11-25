@@ -184,7 +184,7 @@ export function ReportesClient({
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Comprobantes Registrados
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }} suppressHydrationWarning>
               {totalExpensesInDb.toLocaleString('en-US')}
             </div>
           </div>
@@ -222,7 +222,7 @@ export function ReportesClient({
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Volumen Consolidado (USD)
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--rendy-primary-light)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--rendy-primary-light)' }} suppressHydrationWarning>
               ${totalUsdInDb.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
@@ -260,7 +260,7 @@ export function ReportesClient({
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Volumen Fiscal (VES)
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }} suppressHydrationWarning>
               Bs. {totalVesInDb.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>

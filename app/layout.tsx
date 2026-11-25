@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es" className="dark" suppressHydrationWarning>
       <head>
         {/* Favicons & Brand Icons */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -42,8 +42,15 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block"
           rel="stylesheet"
         />
+
+        {/* Third-party extension DOM sanitizer (e.g. Urban VPN bis_skin_checked / bis_register) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var o=new MutationObserver(function(m){for(var i=0;i<m.length;i++){var a=m[i].attributeName;if(a&&(a==='bis_skin_checked'||a==='bis_register'||a.indexOf('__processed_')===0)){m[i].target.removeAttribute(a);}}});o.observe(document.documentElement,{attributes:true,subtree:true});}catch(e){}})();`,
+          }}
+        />
       </head>
-      <body className="bg-surface-container-lowest text-on-surface antialiased">
+      <body className="bg-surface-container-lowest text-on-surface antialiased" suppressHydrationWarning>
         {children}
       </body>
     </html>
