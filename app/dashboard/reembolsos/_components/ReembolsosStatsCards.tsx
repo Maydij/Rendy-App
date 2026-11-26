@@ -51,9 +51,9 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
       amount: formatUsdValue(kpis.pendientesMontoUsd),
       icon: Clock,
       glowBg: 'bg-tertiary-container/10',
-      hoverBorder: 'hover:border-tertiary-fixed-dim/40',
-      activeRing: 'ring-1 ring-tertiary-fixed-dim/50 border-tertiary-fixed-dim/50',
-      iconBox: 'bg-tertiary-container/20 border-tertiary-container/30 text-tertiary-fixed-dim',
+      hoverBg: 'hover:bg-surface-container',
+      activeRing: 'ring-1 ring-tertiary-fixed-dim/50 bg-surface-container',
+      iconBox: 'bg-tertiary-container/20 text-tertiary-fixed-dim',
       dotColor: 'bg-tertiary-fixed-dim',
       countText: 'text-tertiary-fixed-dim',
       subtext: 'Por auditar',
@@ -65,9 +65,9 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
       amount: formatUsdValue(kpis.procesadosMontoUsd),
       icon: CheckCircle2,
       glowBg: 'bg-primary-container/10',
-      hoverBorder: 'hover:border-primary/40',
-      activeRing: 'ring-1 ring-primary/50 border-primary/50',
-      iconBox: 'bg-primary-container/20 border-primary-container/30 text-primary-container',
+      hoverBg: 'hover:bg-surface-container',
+      activeRing: 'ring-1 ring-primary/50 bg-surface-container',
+      iconBox: 'bg-primary-container/20 text-primary-container',
       dotColor: 'bg-primary-container',
       countText: 'text-primary',
       subtext: 'Aprobados contablemente',
@@ -79,9 +79,9 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
       amount: formatUsdValue(kpis.transferidosMontoUsd),
       icon: SendHorizontal,
       glowBg: 'bg-secondary/10',
-      hoverBorder: 'hover:border-secondary/40',
-      activeRing: 'ring-1 ring-secondary/50 border-secondary/50',
-      iconBox: 'bg-secondary/20 border-secondary/30 text-secondary',
+      hoverBg: 'hover:bg-surface-container',
+      activeRing: 'ring-1 ring-secondary/50 bg-surface-container',
+      iconBox: 'bg-secondary/20 text-secondary',
       dotColor: 'bg-secondary',
       countText: 'text-secondary',
       subtext: 'Fondos liquidados con éxito',
@@ -93,9 +93,9 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
       amount: formatUsdValue(kpis.totalMontoUsd),
       icon: Wallet,
       glowBg: 'bg-primary/10',
-      hoverBorder: 'hover:border-primary/40',
-      activeRing: 'ring-1 ring-outline/50 border-outline/40',
-      iconBox: 'bg-surface-container-highest border-outline-variant/30 text-primary',
+      hoverBg: 'hover:bg-surface-container',
+      activeRing: 'ring-1 ring-outline/40 bg-surface-container',
+      iconBox: 'bg-surface-container-highest text-primary',
       dotColor: 'bg-primary',
       countText: 'text-on-surface',
       subtext: `${kpis.rechazadosCount} rechazado${kpis.rechazadosCount === 1 ? '' : 's'}`,
@@ -114,10 +114,8 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
             key={card.id}
             type="button"
             onClick={() => handleFilterClick(card.id)}
-            className={`text-left relative overflow-hidden rounded-2xl bg-surface-container-low border p-5 flex flex-col justify-between shadow-md transition-all cursor-pointer group ${
-              isActive
-                ? card.activeRing
-                : `border-outline-variant/30 ${card.hoverBorder}`
+            className={`text-left relative overflow-hidden rounded-2xl bg-surface-container-low p-5 flex flex-col justify-between shadow-md transition-all cursor-pointer group ${
+              isActive ? card.activeRing : card.hoverBg
             }`}
           >
             <div
@@ -129,7 +127,7 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
                 {card.label}
               </span>
               <div
-                className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${card.iconBox}`}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${card.iconBox}`}
               >
                 <IconComponent className="w-[18px] h-[18px]" />
               </div>
@@ -145,7 +143,7 @@ export function ReembolsosStatsCards({ kpis }: ReembolsosStatsCardsProps) {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-1.5 border-t border-outline-variant/20">
+              <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-1.5 border-t border-surface-container-highest/20">
                 <span
                   className={`${card.countText} font-semibold inline-flex items-center gap-1.5 truncate`}
                 >

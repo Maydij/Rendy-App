@@ -133,7 +133,7 @@ export function ReembolsosFilters({
   ];
 
   return (
-    <div className="flex flex-col gap-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/30 p-4 shadow-sm relative z-10">
+    <div className="flex flex-col gap-3.5 rounded-2xl bg-surface-container-low p-4 shadow-sm relative z-10">
       {/* Top Row: Search Input & Dropdown / Date Selectors */}
       <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         {/* Search Bar */}
@@ -145,7 +145,7 @@ export function ReembolsosFilters({
             placeholder="Buscar por comercio, RIF o # factura…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full h-10 pl-10 pr-9 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs sm:text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+            className="w-full h-10 pl-10 pr-9 rounded-xl bg-surface-container-lowest text-xs sm:text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
           />
           {searchTerm && (
             <button
@@ -169,7 +169,7 @@ export function ReembolsosFilters({
                 id="reembolsos-empleado-filter"
                 value={currentEmpleado}
                 onChange={(e) => updateParams({ empleado: e.target.value })}
-                className="w-full h-10 pl-9 pr-8 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs font-medium text-on-surface appearance-none focus:outline-none focus:border-primary cursor-pointer transition-all [color-scheme:dark]"
+                className="w-full h-10 pl-9 pr-8 rounded-xl bg-surface-container-lowest text-xs font-medium text-on-surface appearance-none focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer transition-all [color-scheme:dark]"
               >
                 <option value="TODOS">Todos los empleados</option>
                 {empleados.map((emp) => (
@@ -189,7 +189,7 @@ export function ReembolsosFilters({
               id="reembolsos-moneda-filter"
               value={currentMoneda}
               onChange={(e) => updateParams({ moneda: e.target.value })}
-              className="w-full h-10 pl-9 pr-8 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs font-medium text-on-surface appearance-none focus:outline-none focus:border-primary cursor-pointer transition-all [color-scheme:dark]"
+              className="w-full h-10 pl-9 pr-8 rounded-xl bg-surface-container-lowest text-xs font-medium text-on-surface appearance-none focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer transition-all [color-scheme:dark]"
             >
               <option value="TODOS">Todas divisas</option>
               <option value="VES">VES (Bs.)</option>
@@ -201,7 +201,7 @@ export function ReembolsosFilters({
           </div>
 
           {/* Date Range: Desde */}
-          <div className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant/30 px-3 rounded-xl h-10">
+          <div className="flex items-center gap-1.5 bg-surface-container-lowest px-3 rounded-xl h-10">
             <span className="text-[11px] font-medium text-on-surface-variant">Desde:</span>
             <input
               id="reembolsos-desde-filter"
@@ -213,7 +213,7 @@ export function ReembolsosFilters({
           </div>
 
           {/* Date Range: Hasta */}
-          <div className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant/30 px-3 rounded-xl h-10">
+          <div className="flex items-center gap-1.5 bg-surface-container-lowest px-3 rounded-xl h-10">
             <span className="text-[11px] font-medium text-on-surface-variant">Hasta:</span>
             <input
               id="reembolsos-hasta-filter"
@@ -229,7 +229,7 @@ export function ReembolsosFilters({
             <button
               type="button"
               onClick={clearAllFilters}
-              className="inline-flex items-center gap-1.5 px-3 h-10 rounded-xl bg-error-container/20 border border-error/30 text-error text-xs font-semibold hover:bg-error-container/30 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 h-10 rounded-xl bg-error-container/20 text-error text-xs font-semibold hover:bg-error-container/30 transition-colors cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>Limpiar</span>
@@ -239,8 +239,8 @@ export function ReembolsosFilters({
       </div>
 
       {/* Bottom Row: Status Pill Tabs & Visible Count Telemetry */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-outline-variant/20">
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface-container-lowest border border-outline-variant/30 overflow-x-auto max-w-full">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-surface-container-highest/20">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface-container-lowest overflow-x-auto max-w-full">
           {statusOptions.map((opt) => {
             const isActive = currentEstado === opt.id;
             return (
@@ -250,7 +250,7 @@ export function ReembolsosFilters({
                 onClick={() => updateParams({ estado: opt.id })}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                   isActive
-                    ? 'bg-surface-container-high text-primary border border-primary/25 shadow-sm'
+                    ? 'bg-surface-container-high text-primary shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
                 }`}
               >

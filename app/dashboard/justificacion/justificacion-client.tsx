@@ -337,7 +337,7 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
           className="xl:col-span-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-3.5"
         >
           {filteredItems.length === 0 ? (
-            <div className="md:col-span-2 xl:col-span-1 p-10 rounded-2xl bg-surface-container text-center flex flex-col items-center justify-center gap-3 border border-surface-container-high/50">
+            <div className="md:col-span-2 xl:col-span-1 p-10 rounded-2xl bg-surface-container-low text-center flex flex-col items-center justify-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
                 <ClipboardCheck className="w-6 h-6" />
               </div>
@@ -370,14 +370,13 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
               const prefix = getCurrencyPrefix(item.moneda);
               const initial = (item.empleado?.charAt(0) || 'U').toUpperCase();
 
-              let activeRingClass =
-                'border border-surface-container-high/50 hover:bg-surface-container-high hover:border-surface-container-highest';
+              let activeRingClass = 'hover:bg-surface-container';
               if (isSelected) {
                 activeRingClass = m.isComplete
-                  ? 'border-l-4 border-l-primary ring-1 ring-primary/35 bg-surface-container-high'
+                  ? 'border-l-4 border-l-primary ring-1 ring-primary/35 bg-surface-container'
                   : m.isEmpty
-                  ? 'border-l-4 border-l-tertiary-container ring-1 ring-tertiary-container/35 bg-surface-container-high'
-                  : 'border-l-4 border-l-secondary ring-1 ring-secondary/35 bg-surface-container-high';
+                  ? 'border-l-4 border-l-tertiary-container ring-1 ring-tertiary-container/35 bg-surface-container'
+                  : 'border-l-4 border-l-secondary ring-1 ring-secondary/35 bg-surface-container';
               }
 
               return (
@@ -385,7 +384,7 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                   key={item.id}
                   id={`justificacion-${item.id}`}
                   onClick={() => handleSelectCard(item.id)}
-                  className={`relative flex flex-col justify-between rounded-2xl bg-surface-container p-4 shadow-md transition-all cursor-pointer ${activeRingClass}`}
+                  className={`relative flex flex-col justify-between rounded-2xl bg-surface-container-low p-4 shadow-md transition-all cursor-pointer ${activeRingClass}`}
                 >
                   {/* Card Top Row */}
                   <div className="flex items-start justify-between gap-2.5 mb-3 min-w-0">
@@ -442,7 +441,7 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                   </div>
 
                   {/* Calibrated Financial Triad Box */}
-                  <div className="grid grid-cols-3 gap-1.5 p-2.5 rounded-xl bg-surface-container-lowest mb-3 text-center border border-surface-container-high/40">
+                  <div className="grid grid-cols-3 gap-1.5 p-2.5 rounded-xl bg-surface-container-lowest mb-3 text-center">
                     <div className="flex flex-col items-center justify-center min-w-0 px-0.5">
                       <span className="text-[10px] text-on-surface-variant font-semibold tracking-wider uppercase mb-0.5 truncate w-full">
                         Otorgado
@@ -452,7 +451,7 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                       </span>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center border-l border-surface-container-high/60 min-w-0 px-0.5">
+                    <div className="flex flex-col items-center justify-center border-l border-surface-container-highest/20 min-w-0 px-0.5">
                       <span
                         className={`text-[10px] font-semibold tracking-wider uppercase mb-0.5 truncate w-full ${
                           m.isComplete ? 'text-primary' : 'text-secondary'
@@ -469,7 +468,7 @@ export default function JustificacionClient({ items }: { items: JustificacionIte
                       </span>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center border-l border-surface-container-high/60 min-w-0 px-0.5">
+                    <div className="flex flex-col items-center justify-center border-l border-surface-container-highest/20 min-w-0 px-0.5">
                       <span
                         className={`text-[10px] font-semibold tracking-wider uppercase mb-0.5 truncate w-full ${
                           m.remaining > 0 ? 'text-tertiary-container' : 'text-on-surface-variant'

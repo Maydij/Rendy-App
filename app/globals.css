@@ -666,14 +666,14 @@
   top: 0;
   bottom: 0;
   width: var(--sidebar-width);
-  background: var(--bg-surface);
-  border-right: 1px solid var(--bg-border);
+  background: var(--bg-base);
+  border-right: 1px solid oklch(1 0 0 / 4%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transition: width var(--transition-base);
   z-index: 50;
-  box-shadow: 4px 0 24px oklch(0 0 0 / 30%);
+  box-shadow: 0 1px 8px oklch(0 0 0 / 25%);
 }
 
 .sidebar.collapsed {
@@ -685,7 +685,6 @@
   align-items: center;
   gap: 12px;
   padding: 20px 18px;
-  border-bottom: 1px solid var(--bg-border);
   min-height: 72px;
   overflow: hidden;
 }
@@ -749,7 +748,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all var(--transition-fast);
   position: relative;
@@ -761,25 +760,14 @@
 }
 
 .nav-item:hover {
-  background: color-mix(in oklab, var(--rendy-primary) 10%, transparent);
+  background: var(--surface-container-high);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background: color-mix(in oklab, var(--rendy-primary) 18%, transparent);
-  color: var(--rendy-primary-light);
-}
-
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  background: var(--rendy-primary);
-  border-radius: 0 4px 4px 0;
+  background: var(--surface-container-high);
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .nav-item-icon {
@@ -823,7 +811,6 @@
 
 .sidebar-footer {
   padding: 12px 10px;
-  border-top: 1px solid var(--bg-border);
 }
 
 .sidebar-org-pill {
@@ -831,10 +818,9 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--bg-elevated);
-  border-radius: 10px;
+  background: var(--surface-container-low);
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--bg-border);
 }
 
 .sidebar-org-avatar {
@@ -898,8 +884,9 @@
 /* TOPBAR */
 .topbar {
   height: 64px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--bg-border);
+  background: color-mix(in oklab, var(--surface-container-lowest) 85%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid oklch(1 0 0 / 4%);
   display: flex;
   align-items: center;
   padding: 0 28px;
@@ -916,18 +903,18 @@
 
 .topbar-breadcrumb-root {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--on-surface-variant);
 }
 
 .topbar-breadcrumb-sep {
-  color: var(--text-muted);
+  color: var(--outline);
   font-size: 12px;
 }
 
 .topbar-breadcrumb-page {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--primary);
 }
 
 .topbar-actions {
@@ -942,19 +929,18 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--bg-border);
+  border-radius: 12px;
+  background: var(--surface-container-low);
+  border: none;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--on-surface-variant);
   transition: all var(--transition-fast);
   position: relative;
 }
 
 .topbar-btn:hover {
-  background: color-mix(in oklab, var(--rendy-primary) 12%, transparent);
-  color: var(--text-primary);
-  border-color: color-mix(in oklab, var(--rendy-primary) 30%, transparent);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
 }
 
 .topbar-btn-dot {
@@ -963,29 +949,29 @@
   right: 7px;
   width: 7px;
   height: 7px;
-  background: var(--rendy-danger);
+  background: var(--primary);
   border-radius: 50%;
-  border: 1.5px solid var(--bg-surface);
+  border: 2px solid var(--surface-container-lowest);
 }
 
 .topbar-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light));
+  border-radius: 12px;
+  background: var(--surface-container-high);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
-  color: var(--surface-container-lowest);
+  color: var(--primary);
   cursor: pointer;
-  border: 2px solid color-mix(in oklab, var(--rendy-primary) 40%, transparent);
-  transition: border-color var(--transition-fast);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent);
+  transition: background var(--transition-fast);
 }
 
 .topbar-avatar:hover {
-  border-color: var(--rendy-primary-light);
+  background: var(--surface-container-highest);
 }
 
 /* PAGE HEADER */
@@ -1019,8 +1005,8 @@
 
 .kpi-card {
   background: var(--bg-surface);
-  border: 1px solid var(--bg-border);
-  border-radius: 14px;
+  border: none;
+  border-radius: 16px;
   padding: 20px 22px;
   position: relative;
   overflow: hidden;
@@ -1028,7 +1014,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .kpi-card::before {
@@ -1041,6 +1027,7 @@
 
 .kpi-card:hover {
   transform: translateY(-2px);
+  background: var(--bg-elevated);
   box-shadow: var(--shadow-glow);
 }
 
@@ -1093,8 +1080,8 @@
 /* CARDS, TABLES, BADGES & BUTTONS */
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--bg-border);
-  border-radius: 14px;
+  border: none;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -1156,8 +1143,8 @@
   padding: 13px 16px;
   vertical-align: middle;
   text-align: left;
-  border-bottom: 1px solid var(--bg-border);
-  background: oklch(1 0 0 / 1.5%);
+  border-bottom: 1px solid oklch(1 0 0 / 5%);
+  background: var(--surface-container-lowest);
   white-space: nowrap;
 }
 
@@ -1165,7 +1152,7 @@
   padding: 13px 16px;
   font-size: 13.5px;
   color: var(--text-secondary);
-  border-bottom: 1px solid color-mix(in oklab, var(--bg-border) 40%, transparent);
+  border-bottom: 1px solid oklch(1 0 0 / 4%);
   vertical-align: middle;
 }
 
@@ -1225,13 +1212,13 @@
 }
 
 .btn-ghost {
-  background: transparent;
+  background: var(--surface-container-high);
   color: var(--text-secondary);
-  border: 1px solid var(--bg-border);
+  border: none;
 }
 
 .btn-ghost:hover {
-  background: var(--bg-elevated);
+  background: var(--surface-container-highest);
   color: var(--text-primary);
 }
 
@@ -1319,9 +1306,9 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--bg-border);
+  border-radius: 12px;
+  background: var(--surface-container-low);
+  border: none;
   color: var(--text-primary);
   cursor: pointer;
   margin-right: 8px;

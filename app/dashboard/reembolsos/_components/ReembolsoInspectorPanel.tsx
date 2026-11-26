@@ -63,7 +63,7 @@ export function InspectorStatusPill({ estado }: { estado: string }) {
     case 'REQUIERE_APROBACION_ESPECIAL':
     case 'REVISION_DUPLICADO':
       return (
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-tertiary-container/15 text-tertiary-fixed-dim border border-tertiary-fixed-dim/30 inline-flex items-center gap-1.5 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-tertiary-container/15 text-tertiary-fixed-dim inline-flex items-center gap-1.5 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-tertiary-container" />
           Pendiente
         </span>
@@ -71,21 +71,21 @@ export function InspectorStatusPill({ estado }: { estado: string }) {
     case 'PROCESADO':
     case 'APROBADO':
       return (
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary-container/20 text-primary border border-primary-container/30 inline-flex items-center gap-1.5 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary-container/20 text-primary inline-flex items-center gap-1.5 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-primary-container" />
           Procesado
         </span>
       );
     case 'TRANSFERIDO':
       return (
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary/20 text-secondary border border-secondary/30 inline-flex items-center gap-1.5 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary/20 text-secondary inline-flex items-center gap-1.5 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
           Transferido
         </span>
       );
     case 'RECHAZADO':
       return (
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-error-container/25 text-error border border-error/30 inline-flex items-center gap-1.5 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-error-container/25 text-error inline-flex items-center gap-1.5 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-error" />
           Rechazado
         </span>
@@ -115,7 +115,7 @@ export function ReembolsoInspectorPanel({
     return (
       <div
         id="reembolso-inspector-panel"
-        className="xl:col-span-5 flex flex-col items-center justify-center text-center gap-3 rounded-2xl bg-surface-container-low border border-outline-variant/30 p-8 shadow-xl min-h-[340px]"
+        className="xl:col-span-5 flex flex-col items-center justify-center text-center gap-3 rounded-2xl bg-surface-container-low p-8 shadow-xl min-h-[340px]"
       >
         <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
           <ReceiptText className="w-6 h-6" />
@@ -147,9 +147,9 @@ export function ReembolsoInspectorPanel({
       id="reembolso-inspector-panel"
       className="xl:col-span-5 xl:sticky xl:top-6 flex flex-col gap-4"
     >
-      <div className="rounded-2xl bg-surface-container-low border border-outline-variant/30 p-5 shadow-xl flex flex-col gap-4">
+      <div className="rounded-2xl bg-surface-container-low p-5 shadow-xl flex flex-col gap-4">
         {/* Inspector Header */}
-        <div className="flex items-start justify-between gap-2 pb-3 border-b border-outline-variant/20 flex-wrap">
+        <div className="flex items-start justify-between gap-2 pb-3 border-b border-surface-container-highest/20 flex-wrap">
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               {onScrollToList && (
@@ -211,7 +211,7 @@ export function ReembolsoInspectorPanel({
         </div>
 
         {/* Highlighted Net Reimbursement Amount */}
-        <div className="p-4 rounded-xl bg-surface-container-lowest border border-primary/20 flex flex-col gap-1.5 relative overflow-hidden">
+        <div className="p-4 rounded-xl bg-surface-container-lowest flex flex-col gap-1.5 relative overflow-hidden">
           <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-primary-container/10 blur-xl pointer-events-none" />
           <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold">
             Monto Neto a Reembolsar
@@ -222,7 +222,7 @@ export function ReembolsoInspectorPanel({
             </span>
             <span className="text-xs text-primary/80 font-bold">USD</span>
           </div>
-          <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2 border-t border-outline-variant/20 flex-wrap">
+          <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2 border-t border-surface-container-highest/20 flex-wrap">
             <span className="font-semibold text-secondary font-mono">
               {formatNominalDisplay(selectedItem)}
             </span>
@@ -241,7 +241,7 @@ export function ReembolsoInspectorPanel({
         </div>
 
         {/* Collaborator Info Card */}
-        <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container border border-outline-variant/20">
+        <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container">
           <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold flex items-center gap-1.5">
             <User className="w-3.5 h-3.5 text-primary" />
             Datos del Solicitante
@@ -264,7 +264,7 @@ export function ReembolsoInspectorPanel({
         </div>
 
         {/* Validated Fiscal Metadata Card */}
-        <div className="flex flex-col gap-2.5 p-3.5 rounded-xl bg-surface-container border border-outline-variant/20">
+        <div className="flex flex-col gap-2.5 p-3.5 rounded-xl bg-surface-container">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold flex items-center gap-1.5">
               {selectedItem.requiere_revision_fiscal ||
@@ -318,7 +318,7 @@ export function ReembolsoInspectorPanel({
           {(selectedItem.iva_ves != null ||
             selectedItem.sales_tax_usd != null ||
             selectedItem.impuesto_local_monto != null) && (
-            <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[11px] text-on-surface-variant flex-wrap gap-2">
+            <div className="pt-2 border-t border-surface-container-highest/20 flex items-center justify-between text-[11px] text-on-surface-variant flex-wrap gap-2">
               {selectedItem.iva_ves != null && (
                 <span>
                   Base: <strong className="text-on-surface font-mono">{formatNum(selectedItem.base_imponible_ves || 0)} Bs</strong> · IVA:{' '}
@@ -346,7 +346,7 @@ export function ReembolsoInspectorPanel({
         </div>
 
         {/* Interactive Fiscal Receipt Preview Box */}
-        <div className="p-3 rounded-xl bg-surface-container-lowest border border-dashed border-outline-variant/50 flex items-center justify-between gap-2 group hover:border-primary/50 transition-colors">
+        <div className="p-3 rounded-xl bg-surface-container-lowest flex items-center justify-between gap-2 group hover:bg-surface-container transition-colors">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary shrink-0">
               <ReceiptText className="w-5 h-5" />
@@ -375,7 +375,7 @@ export function ReembolsoInspectorPanel({
 
         {/* Transfer Receipt Banner if Transferred with Proof */}
         {isTransferido && selectedItem.url_comprobante_pago && (
-          <div className="p-3 rounded-xl bg-primary-container/10 border border-primary/30 flex items-center justify-between gap-2">
+          <div className="p-3 rounded-xl bg-primary-container/10 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <Landmark className="w-4 h-4 text-primary shrink-0" />
               <div className="flex flex-col min-w-0">
@@ -403,7 +403,7 @@ export function ReembolsoInspectorPanel({
 
         {/* Rejection Comment Alert */}
         {isRechazado && selectedItem.comentario_rechazo && (
-          <div className="p-3 rounded-xl bg-error-container/20 border border-error/30 flex items-start gap-2.5">
+          <div className="p-3 rounded-xl bg-error-container/20 flex items-start gap-2.5">
             <XCircle className="w-4 h-4 text-error shrink-0 mt-0.5" />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-error">Motivo del Rechazo</span>
@@ -532,7 +532,7 @@ export function ReembolsoInspectorPanel({
 
         {/* Administrative Action Controls */}
         {!isEmployee && (
-          <div className="pt-3 border-t border-outline-variant/30 flex flex-col gap-2">
+          <div className="pt-3 border-t border-surface-container-highest/20 flex flex-col gap-2">
             {isPendiente && (
               <>
                 <button
@@ -548,7 +548,7 @@ export function ReembolsoInspectorPanel({
                   type="button"
                   disabled={isPending}
                   onClick={() => onOpenRejectionModal(selectedItem)}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-surface-container-high hover:bg-error-container/25 text-on-surface-variant hover:text-error text-xs font-semibold border border-outline-variant/30 transition-all disabled:opacity-50 cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-surface-container-high hover:bg-error-container/25 text-on-surface-variant hover:text-error text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                   <span>Rechazar Comprobante</span>
@@ -572,7 +572,7 @@ export function ReembolsoInspectorPanel({
                     type="button"
                     disabled={isPending}
                     onClick={() => onRevertirEstado(selectedItem, 'PENDIENTE')}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface text-xs font-semibold border border-outline-variant/30 transition-all disabled:opacity-50 cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>A Pendiente</span>
@@ -581,7 +581,7 @@ export function ReembolsoInspectorPanel({
                     type="button"
                     disabled={isPending}
                     onClick={() => onOpenRejectionModal(selectedItem)}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container-high hover:bg-error-container/25 text-on-surface-variant hover:text-error text-xs font-semibold border border-outline-variant/30 transition-all disabled:opacity-50 cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container-high hover:bg-error-container/25 text-on-surface-variant hover:text-error text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                   >
                     <XCircle className="w-3.5 h-3.5" />
                     <span>Rechazar</span>
@@ -595,7 +595,7 @@ export function ReembolsoInspectorPanel({
                 type="button"
                 disabled={isPending}
                 onClick={() => onRevertirEstado(selectedItem, 'PROCESADO')}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface text-xs font-semibold border border-outline-variant/30 transition-all disabled:opacity-50 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Revertir a Procesado</span>
@@ -607,7 +607,7 @@ export function ReembolsoInspectorPanel({
                 type="button"
                 disabled={isPending}
                 onClick={() => onRevertirEstado(selectedItem, 'PENDIENTE')}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-tertiary-container/20 hover:bg-tertiary-container/30 text-tertiary-fixed-dim border border-tertiary-fixed-dim/30 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-tertiary-container/20 hover:bg-tertiary-container/30 text-tertiary-fixed-dim text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Reabrir a Pendiente</span>

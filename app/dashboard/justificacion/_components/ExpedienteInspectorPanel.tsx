@@ -50,7 +50,7 @@ export function ExpedienteInspectorPanel({
     return (
       <div
         id="detail-inspector-panel"
-        className="xl:col-span-7 flex flex-col items-center justify-center text-center gap-3 rounded-2xl bg-surface-container p-8 sm:p-12 shadow-xl border border-surface-container-high/60 min-h-[320px]"
+        className="xl:col-span-7 flex flex-col items-center justify-center text-center gap-3 rounded-2xl bg-surface-container-low p-8 sm:p-12 shadow-xl min-h-[320px]"
       >
         <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
           <ClipboardCheck className="w-6 h-6" />
@@ -72,10 +72,10 @@ export function ExpedienteInspectorPanel({
   return (
     <div
       id="detail-inspector-panel"
-      className="xl:col-span-7 flex flex-col gap-5 rounded-2xl bg-surface-container p-5 sm:p-6 shadow-xl xl:sticky xl:top-6 border border-surface-container-high/60"
+      className="xl:col-span-7 flex flex-col gap-5 rounded-2xl bg-surface-container-low p-5 sm:p-6 shadow-xl xl:sticky xl:top-6"
     >
       {/* Inspector Header */}
-      <div className="flex flex-col gap-4 pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col gap-4 pb-4 border-b border-surface-container-highest/20">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5 flex-wrap min-w-0">
             {onScrollToMaster && (
@@ -142,7 +142,7 @@ export function ExpedienteInspectorPanel({
         </div>
 
         {/* Collaborator Profile Mini Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/40">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-surface-container-lowest">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-primary-container text-on-primary-container font-bold text-base flex items-center justify-center shrink-0">
               {initial}
@@ -168,7 +168,7 @@ export function ExpedienteInspectorPanel({
       </div>
 
       {/* Calibrated Financial Status Triad */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-surface-container-lowest border border-surface-container-high/40">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-surface-container-lowest">
         <div className="flex flex-col gap-1 min-w-0">
           <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold">
             Otorgado
@@ -186,7 +186,7 @@ export function ExpedienteInspectorPanel({
           </span>
         </div>
 
-        <div className="flex flex-col gap-1 sm:border-l sm:border-surface-container-high/60 sm:pl-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-high/40 min-w-0">
+        <div className="flex flex-col gap-1 sm:border-l sm:border-surface-container-highest/20 sm:pl-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-highest/20 min-w-0">
           <span className="text-[11px] text-secondary font-semibold uppercase tracking-wider">
             WhatsApp Justificado
           </span>
@@ -203,7 +203,7 @@ export function ExpedienteInspectorPanel({
           </span>
         </div>
 
-        <div className="flex flex-col gap-1 sm:border-l sm:border-surface-container-high/60 sm:pl-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-high/40 min-w-0">
+        <div className="flex flex-col gap-1 sm:border-l sm:border-surface-container-highest/20 sm:pl-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-highest/20 min-w-0">
           <span className="text-[11px] text-tertiary-container font-semibold uppercase tracking-wider">
             Saldo Pendiente
           </span>
@@ -307,7 +307,7 @@ export function ExpedienteInspectorPanel({
               return (
                 <div
                   key={gasto.id || idx}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high/60 transition-colors border border-surface-container-high/40 hover:border-surface-container-highest group"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high/60 transition-colors group"
                 >
                   {/* Left: Merchant & Metadata */}
                   <div className="flex items-start gap-3 min-w-0">
@@ -360,7 +360,7 @@ export function ExpedienteInspectorPanel({
                   </div>
 
                   {/* Right: Monetary Breakdown & Inspection Buttons */}
-                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-high/40">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-highest/20">
                     <div className="flex flex-col sm:items-end">
                       <div className="flex items-baseline gap-1 whitespace-nowrap">
                         <span className="text-sm font-extrabold text-primary font-mono">

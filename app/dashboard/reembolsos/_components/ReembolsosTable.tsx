@@ -450,7 +450,7 @@ export function ReembolsosTable({
         {/* Left Column: High-Density Reimbursement Cards + Pagination */}
         <div id="reembolsos-master-list" className="xl:col-span-7 flex flex-col gap-3">
           {data.length === 0 ? (
-            <div className="rounded-2xl bg-surface-container-low border border-outline-variant/30 p-10 text-center flex flex-col items-center justify-center gap-3">
+            <div className="rounded-2xl bg-surface-container-low p-10 text-center flex flex-col items-center justify-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
                 <Receipt className="w-6 h-6" />
               </div>
@@ -472,18 +472,18 @@ export function ReembolsosTable({
                   onClick={() => handleSelectCard(r.id)}
                   className={`group relative rounded-2xl p-4 transition-all cursor-pointer flex flex-col gap-3 ${
                     isSelected
-                      ? 'bg-surface-container border-2 border-primary/50 shadow-[0_0_20px_rgba(0,229,153,0.12)]'
-                      : 'bg-surface-container-low border border-outline-variant/30 hover:bg-surface-container hover:border-outline-variant/60 shadow-sm'
+                      ? 'bg-surface-container ring-1 ring-primary/45 shadow-[0_0_20px_rgba(0,229,153,0.12)]'
+                      : 'bg-surface-container-low hover:bg-surface-container shadow-sm'
                   }`}
                 >
                   {/* Top Row: Avatar, Collaborator, Merchant Info & Status Pill */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <div
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-bold shrink-0 ${
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
                           isSelected
-                            ? 'bg-secondary/15 text-secondary border-secondary/30'
-                            : 'bg-surface-container-highest text-primary border-primary/20'
+                            ? 'bg-secondary/15 text-secondary'
+                            : 'bg-surface-container-highest text-primary'
                         }`}
                       >
                         {initials}
@@ -527,7 +527,7 @@ export function ReembolsosTable({
                             e.stopPropagation();
                             openActionMenu(r.id, e.currentTarget);
                           }}
-                          className={`p-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer ${
+                          className={`p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer ${
                             actionMenu?.id === r.id
                               ? 'bg-surface-container-highest text-on-surface'
                               : 'bg-surface-container hover:bg-surface-container-high'
@@ -541,9 +541,9 @@ export function ReembolsosTable({
                   </div>
 
                   {/* Bottom Row: Category, Date, Amount & Inspection Buttons */}
-                  <div className="flex items-center justify-between pt-2.5 border-t border-outline-variant/25 flex-wrap gap-2.5 text-[11px] text-on-surface-variant">
+                  <div className="flex items-center justify-between pt-2.5 border-t border-surface-container-highest/20 flex-wrap gap-2.5 text-[11px] text-on-surface-variant">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md font-semibold bg-surface-container-high text-primary border border-outline-variant/30 truncate max-w-[150px]">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md font-semibold bg-surface-container-high text-primary truncate max-w-[150px]">
                         {r.categoria}
                       </span>
                       <span className="whitespace-nowrap">· {r.fecha_gasto}</span>
@@ -576,7 +576,7 @@ export function ReembolsosTable({
                           className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-primary-container text-on-primary-container hover:bg-primary-fixed shadow-sm'
-                              : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant/30'
+                              : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface'
                           }`}
                           title="Inspeccionar factura digital y foto"
                         >
@@ -590,7 +590,7 @@ export function ReembolsosTable({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="px-2.5 py-1.5 rounded-lg bg-primary-container/15 border border-primary/30 text-primary hover:bg-primary-container/25 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                            className="px-2.5 py-1.5 rounded-lg bg-primary-container/15 text-primary hover:bg-primary-container/25 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                             title="Ver comprobante de transferencia bancaria"
                           >
                             <ReceiptText className="w-3.5 h-3.5" />
@@ -608,7 +608,7 @@ export function ReembolsosTable({
 
           {/* Server-Side Pagination Footer */}
           {totalCount > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-on-surface-variant text-xs">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-surface-container-low text-on-surface-variant text-xs">
               <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
                 <span className="font-medium text-on-surface">
                   Mostrando {(currentPage - 1) * pageSize + 1} a{' '}

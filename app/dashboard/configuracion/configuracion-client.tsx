@@ -100,31 +100,31 @@ function resolveSubscriptionPill(sub: SubscriptionInfo | null): {
   if (!sub) {
     return {
       label: 'Plan Corporativo',
-      className: 'bg-primary/10 text-primary border border-primary/25',
+      className: 'bg-primary/10 text-primary',
     };
   }
   const status = sub.status.toUpperCase();
   if (status === 'ACTIVE') {
     return {
       label: `Suscripción Activa · ${sub.plan_id}`,
-      className: 'bg-primary/15 text-primary border border-primary/30',
+      className: 'bg-primary/15 text-primary',
     };
   }
   if (status === 'TRIALING') {
     return {
       label: `Prueba Gratuita · ${sub.plan_id}`,
-      className: 'bg-secondary/15 text-secondary border border-secondary/30',
+      className: 'bg-secondary/15 text-secondary',
     };
   }
   if (status === 'PAST_DUE' || status === 'UNPAID') {
     return {
       label: 'Pago Pendiente',
-      className: 'bg-tertiary-container/30 text-tertiary-fixed border border-tertiary-fixed/30',
+      className: 'bg-tertiary-container/30 text-tertiary-fixed',
     };
   }
   return {
     label: status === 'CANCELED' ? 'Suscripción Cancelada' : status,
-    className: 'bg-error-container/25 text-error border border-error/30',
+    className: 'bg-error-container/25 text-error',
   };
 }
 
@@ -678,7 +678,7 @@ export default function ConfiguracionClient({
       {/* ── Header Banner ── */}
       <div className="flex flex-col gap-1.5 pt-2 relative z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-sm ring-1 ring-outline-variant/25 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-sm shrink-0">
             <Building2 className="w-5 h-5" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
@@ -691,13 +691,13 @@ export default function ConfiguracionClient({
       </div>
 
       {/* ── Organization Hero Overview Card ── */}
-      <section className="relative z-10 rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 shadow-sm overflow-hidden">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/35 to-transparent" />
+      <section className="relative z-10 rounded-2xl bg-surface-container-low p-5 sm:p-6 shadow-sm overflow-hidden">
+        <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           {/* Identity & Metadata */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-surface-container-high to-surface-container flex items-center justify-center text-primary font-bold text-xl sm:text-2xl ring-1 ring-primary/35 shadow-[0_0_24px_rgba(0,229,153,0.12)] shrink-0">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-surface-container-high to-surface-container flex items-center justify-center text-primary font-bold text-xl sm:text-2xl ring-1 ring-primary/30 shadow-[0_0_24px_rgba(0,229,153,0.12)] shrink-0">
               {getCompanyMonogram(empresa?.nombre || 'Rendy')}
             </div>
 
@@ -712,7 +712,7 @@ export default function ConfiguracionClient({
                   <span className="w-1.5 h-1.5 rounded-full bg-current" />
                   {subPill.label}
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-secondary/10 text-secondary border border-secondary/20">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-secondary/10 text-secondary">
                   <Lock className="w-3 h-3" />
                   Multi-tenant Seguro
                 </span>
@@ -745,7 +745,7 @@ export default function ConfiguracionClient({
           </div>
 
           {/* Primary Operating Currency Selector */}
-          <div className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-surface-container border border-outline-variant/30 w-full lg:w-auto lg:min-w-[260px] shrink-0">
+          <div className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-surface-container-lowest shadow-inner w-full lg:w-auto lg:min-w-[260px] shrink-0">
             <label
               htmlFor="select-moneda-empresa"
               className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant"
@@ -758,7 +758,7 @@ export default function ConfiguracionClient({
               value={moneda}
               disabled={isPending}
               onChange={(e) => handleCurrencyChange(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest border border-outline-variant/35 text-xs sm:text-sm font-semibold text-on-surface [color-scheme:dark] focus:outline-none focus:border-primary transition-colors cursor-pointer disabled:opacity-60"
+              className="w-full px-3 py-2 rounded-lg bg-surface-container text-xs sm:text-sm font-semibold text-on-surface [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-primary transition-colors cursor-pointer disabled:opacity-60"
             >
               {CURRENCY_OPTIONS.map((curr) => (
                 <option key={curr.code} value={curr.code}>
@@ -773,7 +773,7 @@ export default function ConfiguracionClient({
       {/* ── Scrollable Navigation Tabs ── */}
       <nav
         aria-label="Secciones de configuración de organización"
-        className="relative z-10 flex items-center gap-2 overflow-x-auto pb-2 border-b border-outline-variant/25"
+        className="relative z-10 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar"
       >
         {tabs.map((tab) => {
           const IconComp = tab.icon;
@@ -785,10 +785,10 @@ export default function ConfiguracionClient({
               id={`config-tab-${tab.id}`}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
                 isActive
-                  ? 'bg-surface-container-high text-primary border-primary/40 shadow-[0_0_16px_rgba(0,229,153,0.1)]'
-                  : 'bg-surface-container-low/60 text-on-surface-variant border-outline-variant/15 hover:text-on-surface hover:bg-surface-container'
+                  ? 'bg-surface-container-high text-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
               }`}
             >
               <IconComp
@@ -890,7 +890,7 @@ export default function ConfiguracionClient({
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 rounded-xl bg-surface-container-highest border border-outline-variant/40 text-xs sm:text-sm font-medium text-on-surface shadow-2xl flex items-center gap-2.5"
+          className="fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 rounded-xl bg-surface-container-highest text-xs sm:text-sm font-medium text-on-surface shadow-2xl flex items-center gap-2.5"
         >
           {feedback.startsWith('❌') ? (
             <AlertCircle className="w-4 h-4 text-error shrink-0" />

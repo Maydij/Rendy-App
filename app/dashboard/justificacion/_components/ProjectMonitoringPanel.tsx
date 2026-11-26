@@ -39,9 +39,9 @@ export function ProjectMonitoringPanel({
   );
 
   return (
-    <div className="w-full rounded-2xl bg-surface-container p-5 shadow-md border border-surface-container-high/60 flex flex-col gap-4 relative z-10">
+    <div className="w-full rounded-2xl bg-surface-container-low p-5 shadow-md flex flex-col gap-4 relative z-10">
       {/* Header & Legend */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-surface-container-high/60 pb-3.5">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-surface-container-highest/20 pb-3.5">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-[0_0_12px_rgba(0,229,153,0.25)] shrink-0">
             <BarChart3 className="w-5 h-5" />
@@ -101,10 +101,8 @@ export function ProjectMonitoringPanel({
               onClick={() =>
                 onSelectProject(isActiveFilter ? 'all' : project.name)
               }
-              className={`text-left flex flex-col justify-between p-4 rounded-xl bg-surface-container-lowest border transition-all cursor-pointer ${
-                isActiveFilter
-                  ? 'border-secondary/60 ring-1 ring-secondary/30'
-                  : 'border-surface-container-high/50 hover:border-surface-container-highest'
+              className={`text-left flex flex-col justify-between p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all cursor-pointer ${
+                isActiveFilter ? 'ring-1 ring-secondary/50 bg-surface-container-high' : ''
               }`}
             >
               {/* Card Title + Status Pill */}
@@ -167,7 +165,7 @@ export function ProjectMonitoringPanel({
               </div>
 
               {/* Card Bottom Metrics */}
-              <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-high/60">
+              <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-highest/20">
                 <span className="shrink-0">
                   Justificado:{' '}
                   <strong className="text-on-surface font-mono font-bold">

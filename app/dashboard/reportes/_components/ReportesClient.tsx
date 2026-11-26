@@ -135,7 +135,7 @@ export function ReportesClient({
       {/* 1. Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 relative z-10">
         <div className="flex items-start gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 via-surface-container to-surface-container-low flex items-center justify-center text-primary shadow-[0_0_24px_rgba(0,229,153,0.15)] border border-primary/20 shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 via-surface-container to-surface-container-low flex items-center justify-center text-primary shadow-[0_0_24px_rgba(0,229,153,0.15)] shrink-0">
             <BookOpen className="w-6 h-6" />
           </div>
           <div className="flex flex-col min-w-0">
@@ -143,7 +143,7 @@ export function ReportesClient({
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-on-surface">
                 Reportes Contables y Exportación
               </h1>
-              <span className="text-[11px] text-primary uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 shrink-0">
+              <span className="text-[11px] text-primary uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 shrink-0">
                 Bimonetario Fiscal
               </span>
             </div>
@@ -154,7 +154,7 @@ export function ReportesClient({
         </div>
 
         {/* Last Audit / Compliance Sync Pill */}
-        <div className="flex items-center gap-3 bg-surface-container-low border border-outline-variant/25 px-4 py-2.5 rounded-xl self-start md:self-auto shrink-0">
+        <div className="flex items-center gap-3 bg-surface-container-low px-4 py-2.5 rounded-xl self-start md:self-auto shrink-0 shadow-sm">
           <div className="flex flex-col text-left md:text-right">
             <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">
               {historyList[0] ? 'Última Exportación' : 'Estándar Contable'}
@@ -175,7 +175,7 @@ export function ReportesClient({
       {/* 2. Calibrated 3-Column KPI Metrics Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 relative z-10">
         {/* KPI 1: Comprobantes Auditados */}
-        <div className="bg-surface-container-low border border-outline-variant/25 rounded-2xl p-5 lg:p-6 flex flex-col justify-between hover:bg-surface-container hover:border-outline-variant/50 transition-all group">
+        <div className="bg-surface-container-low rounded-2xl p-5 lg:p-6 flex flex-col justify-between hover:bg-surface-container shadow-md transition-all group">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-[11px] text-on-surface-variant tracking-wider uppercase font-semibold truncate">
               Comprobantes Auditados
@@ -207,7 +207,7 @@ export function ReportesClient({
         </div>
 
         {/* KPI 2: Volumen Consolidado (USD) */}
-        <div className="bg-surface-container-low border border-outline-variant/25 rounded-2xl p-5 lg:p-6 flex flex-col justify-between hover:bg-surface-container hover:border-outline-variant/50 transition-all group">
+        <div className="bg-surface-container-low rounded-2xl p-5 lg:p-6 flex flex-col justify-between hover:bg-surface-container shadow-md transition-all group">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-[11px] text-on-surface-variant tracking-wider uppercase font-semibold truncate">
               Volumen Consolidado
@@ -241,7 +241,7 @@ export function ReportesClient({
         </div>
 
         {/* KPI 3: Volumen Fiscal Local (VES) */}
-        <div className="bg-surface-container-low border border-outline-variant/25 rounded-2xl p-5 lg:p-6 flex flex-col justify-between hover:bg-surface-container hover:border-outline-variant/50 transition-all group">
+        <div className="bg-surface-container-low rounded-2xl p-5 lg:p-6 flex flex-col justify-between hover:bg-surface-container shadow-md transition-all group">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-[11px] text-on-surface-variant tracking-wider uppercase font-semibold truncate">
               Volumen Fiscal Local

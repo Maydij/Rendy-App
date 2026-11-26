@@ -375,11 +375,10 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-[0_0_16px_rgba(0,229,153,0.15)]"
               style={{
-                background: 'color-mix(in oklab, var(--primary-container) 15%, transparent)',
-                color: 'var(--primary-container)',
-                border: '1px solid color-mix(in oklab, var(--primary-container) 30%, transparent)',
+                background: 'color-mix(in oklab, var(--primary-container) 12%, transparent)',
+                color: 'var(--primary)',
               }}
             >
               <Receipt size={22} strokeWidth={2.2} />
@@ -402,10 +401,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Card 1: Gastos Totales */}
         <div
-          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden"
+          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden shadow-md hover:bg-surface-container"
           style={{
             background: 'var(--surface-container-low)',
-            border: '1px solid var(--outline-variant)',
           }}
         >
           <div className="flex items-start justify-between">
@@ -448,10 +446,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
 
         {/* Card 2: Comprobantes Digitalizados */}
         <div
-          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden"
+          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden shadow-md hover:bg-surface-container"
           style={{
             background: 'var(--surface-container-low)',
-            border: '1px solid var(--outline-variant)',
           }}
         >
           <div className="flex items-start justify-between">
@@ -493,13 +490,12 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
 
         {/* Card 3: Observaciones Fiscales */}
         <div
-          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden cursor-pointer group"
+          className={`rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden cursor-pointer group shadow-md hover:bg-surface-container ${
+            selectedFiscalStatus === 'NON_FISCAL' ? 'ring-1 ring-tertiary-container/60' : ''
+          }`}
           onClick={() => setSelectedFiscalStatus((prev) => (prev === 'NON_FISCAL' ? 'ALL' : 'NON_FISCAL'))}
           style={{
             background: 'var(--surface-container-low)',
-            border: selectedFiscalStatus === 'NON_FISCAL'
-              ? '1px solid var(--tertiary-container)'
-              : '1px solid var(--outline-variant)',
           }}
           title="Haz clic para filtrar comprobantes sin validez fiscal"
         >
@@ -542,10 +538,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
 
         {/* Card 4: Colaboradores Activos */}
         <div
-          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden"
+          className="rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden shadow-md hover:bg-surface-container"
           style={{
             background: 'var(--surface-container-low)',
-            border: '1px solid var(--outline-variant)',
           }}
         >
           <div className="flex items-start justify-between">
@@ -594,7 +589,6 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
         className="rounded-2xl p-5 shadow-lg transition-all"
         style={{
           background: 'var(--surface-container-low)',
-          border: '1px solid var(--outline-variant)',
         }}
       >
         <div
@@ -643,11 +637,10 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
             className="mt-4 pt-4 rounded-xl p-4 transition-all"
             style={{
               background: 'color-mix(in oklab, var(--surface-container-lowest) 60%, transparent)',
-              border: '1px solid var(--outline-variant)',
             }}
           >
             {/* Tabs switcher */}
-            <div className="flex items-center justify-between flex-wrap gap-3 pb-3 mb-4 border-b" style={{ borderColor: 'var(--outline-variant)' }}>
+            <div className="flex items-center justify-between flex-wrap gap-3 pb-3 mb-4 border-b border-surface-container-highest/25">
               <div className="flex items-center p-1 rounded-xl" style={{ background: 'var(--surface-container-high)' }}>
                 <button
                   type="button"
@@ -738,7 +731,7 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
                     <div
                       key={idx}
                       className="p-3 rounded-xl flex flex-col gap-1.5"
-                      style={{ background: 'var(--surface-container-low)', border: '1px solid var(--outline-variant)' }}
+                      style={{ background: 'var(--surface-container-low)' }}
                     >
                       <div className="flex items-center justify-between text-xs font-semibold">
                         <span className="flex items-center gap-2" style={{ color: 'var(--on-surface)' }}>
@@ -768,7 +761,7 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
                   <div
                     key={idx}
                     className="p-4 rounded-xl flex flex-col gap-2.5"
-                    style={{ background: 'var(--surface-container-low)', border: '1px solid var(--outline-variant)' }}
+                    style={{ background: 'var(--surface-container-low)' }}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-bold truncate max-w-[180px]" style={{ color: 'var(--on-surface)' }}>
@@ -809,7 +802,7 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
                     Promedio: ${dailyFlow.avgVal.toFixed(2)} USD/día
                   </span>
                 </div>
-                <div className="h-32 w-full flex items-end gap-2 pt-6 pb-2 border-b" style={{ borderColor: 'var(--outline-variant)' }}>
+                <div className="h-32 w-full flex items-end gap-2 pt-6 pb-2 border-b border-surface-container-highest/25">
                   {dailyFlow.points.map(([date, val], idx) => {
                     const heightPct = Math.min(100, Math.max(12, (val / dailyFlow.maxVal) * 100));
                     return (
@@ -852,10 +845,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               placeholder="Buscar por comercio, empleado, concepto o RIF..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs font-medium transition-all focus:outline-none"
+              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs font-medium transition-all focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
               style={{
                 background: 'var(--surface-container-low)',
-                border: '1px solid var(--outline-variant)',
                 color: 'var(--on-surface)',
               }}
             />
@@ -877,10 +869,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               <select
                 value={selectedProject}
                 onChange={(e) => setSelectedProject(e.target.value)}
-                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer shadow-sm [color-scheme:dark]"
                 style={{
                   background: 'var(--surface-container-low)',
-                  border: '1px solid var(--outline-variant)',
                   color: selectedProject !== 'ALL' ? 'var(--primary-container)' : 'var(--on-surface)',
                 }}
               >
@@ -898,10 +889,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               <select
                 value={selectedEmployee}
                 onChange={(e) => setSelectedEmployee(e.target.value)}
-                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer shadow-sm [color-scheme:dark]"
                 style={{
                   background: 'var(--surface-container-low)',
-                  border: '1px solid var(--outline-variant)',
                   color: selectedEmployee !== 'ALL' ? 'var(--primary-container)' : 'var(--on-surface)',
                 }}
               >
@@ -919,10 +909,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer shadow-sm [color-scheme:dark]"
                 style={{
                   background: 'var(--surface-container-low)',
-                  border: '1px solid var(--outline-variant)',
                   color: selectedCategory !== 'ALL' ? 'var(--primary-container)' : 'var(--on-surface)',
                 }}
               >
@@ -940,10 +929,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               <select
                 value={selectedCurrency}
                 onChange={(e) => setSelectedCurrency(e.target.value)}
-                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+                className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer shadow-sm [color-scheme:dark]"
                 style={{
                   background: 'var(--surface-container-low)',
-                  border: '1px solid var(--outline-variant)',
                   color: selectedCurrency !== 'ALL' ? 'var(--primary-container)' : 'var(--on-surface)',
                 }}
               >
@@ -960,10 +948,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+              className="px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer shadow-sm [color-scheme:dark]"
               style={{
                 background: 'var(--surface-container-low)',
-                border: '1px solid var(--outline-variant)',
                 color: 'var(--on-surface)',
               }}
             >
@@ -976,10 +963,9 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
 
           {/* View Mode Toggle */}
           <div
-            className="flex items-center p-1 rounded-xl shrink-0"
+            className="flex items-center p-1 rounded-xl shrink-0 shadow-inner"
             style={{
               background: 'var(--surface-container-low)',
-              border: '1px solid var(--outline-variant)',
             }}
           >
             <button
@@ -1289,7 +1275,6 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               className="overflow-x-auto rounded-2xl shadow-md"
               style={{
                 background: 'var(--surface-container-low)',
-                border: '1px solid var(--outline-variant)',
               }}
             >
               <table className="w-full text-left text-xs">
@@ -1312,7 +1297,7 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
                     <th className="p-3.5 text-center">Acción</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y" style={{ borderColor: 'var(--outline-variant)' }}>
+                <tbody className="divide-y divide-surface-container-highest/20">
                   {filteredGastos.map((g) => {
                     const isSelected = selectedGasto?.id === g.id && isDrawerOpen;
                     const convertedUsd = Number(g.monto_convertido ?? g.monto_usd ?? (g.moneda === 'USD' ? g.monto : (g.tasa_cambio ? g.monto / g.tasa_cambio : 0)));
@@ -1400,11 +1385,10 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
             className="lg:col-span-4 sticky top-20 rounded-2xl p-5 shadow-2xl flex flex-col gap-4 animate-in fade-in slide-in-from-right-4 duration-200"
             style={{
               background: 'var(--surface-container-low)',
-              border: '1px solid var(--outline-variant)',
             }}
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--outline-variant)' }}>
+            <div className="flex items-center justify-between pb-3 border-b border-surface-container-highest/25">
               <div className="flex items-center gap-2">
                 <span
                   className="w-2.5 h-2.5 rounded-full"
@@ -1444,7 +1428,6 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               className="p-4 rounded-xl relative overflow-hidden"
               style={{
                 background: 'linear-gradient(135deg, var(--surface-container) 0%, var(--surface-container-high) 100%)',
-                border: '1px solid var(--outline-variant)',
               }}
             >
               <div className="flex items-center justify-between">
@@ -1491,8 +1474,7 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
                 </span>
               </div>
               <div
-                className="mt-3 pt-3 grid grid-cols-2 gap-2 text-xs border-t"
-                style={{ borderColor: 'var(--outline-variant)' }}
+                className="mt-3 pt-3 grid grid-cols-2 gap-2 text-xs border-t border-surface-container-highest/25"
               >
                 <div>
                   <span className="block text-[10px]" style={{ color: 'var(--outline)' }}>
@@ -1630,11 +1612,10 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
               <button
                 type="button"
                 onClick={() => setModalGasto(selectedGasto)}
-                className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors hover:brightness-110"
                 style={{
                   background: 'var(--surface-container)',
                   color: 'var(--primary-container)',
-                  border: '1px solid var(--outline-variant)',
                 }}
               >
                 <Maximize2 size={14} />
@@ -1646,11 +1627,10 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
                   href={selectedGasto.url_comprobante}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                  className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors hover:brightness-110"
                   style={{
                     background: 'var(--surface-container)',
                     color: 'var(--secondary)',
-                    border: '1px solid var(--outline-variant)',
                   }}
                 >
                   <ExternalLink size={14} />
@@ -1673,7 +1653,7 @@ export default function GastosEmpresaClient({ gastos }: GastosEmpresaClientProps
             </div>
 
             {/* Accounting Metadata Details */}
-            <div className="flex flex-col gap-2 text-xs pt-2 border-t" style={{ borderColor: 'var(--outline-variant)' }}>
+            <div className="flex flex-col gap-2 text-xs pt-2 border-t border-surface-container-highest/25">
               <div className="flex items-center justify-between py-0.5">
                 <span style={{ color: 'var(--outline)' }}>Colaborador:</span>
                 <span className="font-semibold" style={{ color: 'var(--on-surface)' }}>
