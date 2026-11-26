@@ -26,19 +26,28 @@ async function getSolicitudesData(empresaId: string, role: string, userId: strin
   ]);
 
   const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
+  const usuEmailMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.email ?? '']));
   const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
 
   return {
     solicitudes: (solicitudes ?? []).map((s) => ({
       ...s,
       empleado: usuMap[s.usuario_id] ?? 'Usuario desconocido',
+      empleadoEmail: usuEmailMap[s.usuario_id] ?? '',
       proyecto: s.proyecto_id ? (proyMap[s.proyecto_id] ?? 'Sin proyecto') : 'Sin proyecto',
     })),
+    proyectosList: (proyectos ?? []).map((p) => p.nombre),
   };
 }
 
 export default async function SolicitudesPage() {
   const session = await requireAuthenticatedSession();
-  const { solicitudes } = await getSolicitudesData(session.empresaId, session.role, session.userId);
-  return <SolicitudesClient solicitudes={solicitudes} userRole={session.role} />;
+  const { solicitudes, proyectosList } = await getSolicitudesData(session.empresaId, session.role, session.userId);
+  return (
+    <SolicitudesClient
+      solicitudes={solicitudes}
+      proyectosList={proyectosList}
+      userRole={session.role}
+    />
+  );
 }
