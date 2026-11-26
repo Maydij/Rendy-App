@@ -1,916 +1,571 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+/**
+ * @name JustificacionClient
+ * @description [UI Component]: Interactive executive dashboard for tracking travel allowance
+ * justification progress, cost-center distribution monitoring, WhatsApp OCR receipt inspection,
+ * and adaptive digital e-receipt auditing (`DigitalInvoice`) in real time.
+ */
+
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
-  ClipboardCheck,
-  AlertTriangle,
-  Receipt,
-  ReceiptText,
-  ExternalLink,
-  Eye,
-  X,
-  Search,
   CheckCircle2,
-  Calendar,
-  Tag,
-  ArrowRight,
-  TrendingUp,
-  FileQuestion,
+  ClipboardCheck,
+  FolderKanban,
+  ReceiptText,
+  RefreshCw,
+  Search,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { useEscapeClose } from '@/lib/hooks/use-escape-close';
 import type { Gasto } from '@/lib/types/gasto';
 import DigitalInvoice from '../gastos/digital-invoice';
+import { JustificacionKpiGrid } from './_components/JustificacionKpiGrid';
+import { ProjectMonitoringPanel } from './_components/ProjectMonitoringPanel';
+import { ExpedienteInspectorPanel } from './_components/ExpedienteInspectorPanel';
+import {
+  computeProgressMetrics,
+  formatMoney,
+  getCurrencyPrefix,
+  type GastoJustificacion,
+  type JustificacionFilterStatus,
+  type JustificacionItem,
+  type ProjectMonitoringSummary,
+} from './_components/types';
 
-export type GastoJustificacion = {
-  id: string;
-  categoria: string;
-  comercio: string;
-  monto: number;
-  moneda: string;
-  tasa_cambio: number | null;
-  monto_convertido: number | null;
-  monto_efectivo: number;
-  fecha_gasto: string;
-  url_comprobante: string | null;
-  concepto: string | null;
-  estado: string;
-  creado_en: string;
-
-  // ── Sprint 2: Fiscal Tax Breakdown & Dual-Currency ──
-  moneda_original?: string | null;
-  origen_tasa?: string | null;
-  base_imponible_ves?: number | null;
-  iva_ves?: number | null;
-  exento_ves?: number | null;
-  igtf_ves?: number | null;
-  monto_ves?: number | null;
-  monto_usd?: number | null;
-  rif_comercio?: string | null;
-  numero_factura?: string | null;
-  requiere_revision_fiscal?: boolean | null;
-
-  // ── Multi-Jurisdiction Adaptive E-Receipt Fields ──
-  pais_gasto?: string | null;
-  estado_region?: string | null;
-  ciudad?: string | null;
-  codigo_postal?: string | null;
-  tiene_sales_tax?: boolean | null;
-  subtotal_usd?: number | null;
-  sales_tax_usd?: number | null;
-  propina_usd?: number | null;
-  nombre_impuesto_local?: string | null;
-  tasa_impuesto_aplicada?: number | null;
-  impuesto_local_monto?: number | null;
-  subtotal_local?: number | null;
-  folio_fiscal_uuid?: string | null;
-  es_deducible_fiscal?: boolean | null;
-  tiene_validez_fiscal?: boolean | null;
-  tipo_documento?: string | null;
-};
-
-export type JustificacionItem = {
-  id: string;
-  empleado: string;
-  proyecto: string;
-  monto_otorgado: number;
-  monto_gastado: number;
-  moneda: string;
-  gastos_count: number;
-  fecha_aprobacion: string;
-  gastos: GastoJustificacion[];
-};
+export type { GastoJustificacion, JustificacionItem };
 
 export default function JustificacionClient({ items }: { items: JustificacionItem[] }) {
   const [search, setSearch] = useState('');
-  const [filtro, setFiltro] = useState<'TODOS' | 'COMPLETOS' | 'EN_PROGRESO' | 'SIN_COMPROBANTES'>('TODOS');
-  
-  // Modal de Detalle de Gastos
-  const [selectedSolicitud, setSelectedSolicitud] = useState<JustificacionItem | null>(null);
-
-  // Modal de Factura Digital (eReceipt) — uses the unified Gasto type
+  const [filtro, setFiltro] = useState<JustificacionFilterStatus>('TODOS');
+  const [filterProject, setFilterProject] = useState<string>('all');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedGastoInvoice, setSelectedGastoInvoice] = useState<Gasto | null>(null);
+  const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Escape key: invoice modal takes priority, then solicitud modal
   const handleCloseInvoice = useCallback(() => setSelectedGastoInvoice(null), []);
-  const handleCloseSolicitud = useCallback(() => setSelectedSolicitud(null), []);
-
   useEscapeClose(handleCloseInvoice, selectedGastoInvoice !== null);
-  useEscapeClose(handleCloseSolicitud, selectedGastoInvoice === null && selectedSolicitud !== null);
 
-  // Mantener actualizado el viático seleccionado si la lista cambia
   useEffect(() => {
-    if (selectedSolicitud) {
-      const updated = items.find((i) => i.id === selectedSolicitud.id);
-      if (updated) setSelectedSolicitud(updated);
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const showToast = useCallback((msg: string, ok = true) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setFeedback({ msg, ok });
+    toastTimerRef.current = setTimeout(() => setFeedback(null), 3200);
+  }, []);
+
+  const handleCopyText = useCallback(
+    (text: string, label: string) => {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
+        showToast(`${label} copiado al portapapeles.`, true);
+      }
+    },
+    [showToast]
+  );
+
+  // Aggregate executive KPIs & project breakdown
+  const stats = useMemo(() => {
+    let completados = 0;
+    let enProgreso = 0;
+    let sinComprobantes = 0;
+    let totalOtorgado = 0;
+    let totalPendiente = 0;
+    let topPendingItem: JustificacionItem | null = null;
+
+    const projectMap: Record<
+      string,
+      { otorgado: number; justificado: number; count: number; currency: string }
+    > = {};
+
+    for (const item of items) {
+      const m = computeProgressMetrics(item);
+      totalOtorgado += Number(item.monto_otorgado || 0);
+      totalPendiente += m.remaining;
+
+      if (m.isComplete) {
+        completados += 1;
+      } else if (m.isEmpty) {
+        sinComprobantes += 1;
+      } else {
+        enProgreso += 1;
+      }
+
+      if (!m.isComplete && !topPendingItem) {
+        topPendingItem = item;
+      }
+
+      const projName = item.proyecto || 'Sin proyecto';
+      if (!projectMap[projName]) {
+        projectMap[projName] = {
+          otorgado: 0,
+          justificado: 0,
+          count: 0,
+          currency: item.moneda || 'USD',
+        };
+      }
+      projectMap[projName].otorgado += Number(item.monto_otorgado || 0);
+      projectMap[projName].justificado += Number(item.monto_gastado || 0);
+      projectMap[projName].count += 1;
     }
-  }, [items, selectedSolicitud]);
 
-  const completados = items.filter((j) => j.monto_gastado >= j.monto_otorgado && j.monto_otorgado > 0).length;
-  const alertas = items.filter((j) => j.gastos_count === 0).length;
-  const enProgreso = items.filter((j) => j.monto_gastado < j.monto_otorgado && j.gastos_count > 0).length;
+    const projectSummaries: ProjectMonitoringSummary[] = Object.entries(projectMap)
+      .map(([name, d]) => {
+        const pendiente = Math.max(0, Number((d.otorgado - d.justificado).toFixed(2)));
+        const pct = d.otorgado > 0 ? Math.min(Math.round((d.justificado / d.otorgado) * 100), 100) : 0;
+        return {
+          name,
+          otorgado: Number(d.otorgado.toFixed(2)),
+          justificado: Number(d.justificado.toFixed(2)),
+          pendiente,
+          pct,
+          count: d.count,
+          currency: d.currency,
+        };
+      })
+      .sort((a, b) => b.otorgado - a.otorgado);
 
-  const filteredItems = items.filter((item) => {
-    const matchesSearch =
-      item.empleado.toLowerCase().includes(search.toLowerCase()) ||
-      item.proyecto.toLowerCase().includes(search.toLowerCase()) ||
-      item.id.toLowerCase().includes(search.toLowerCase());
+    const primaryCurrency = items[0]?.moneda || 'USD';
 
-    const isCompleto = item.monto_gastado >= item.monto_otorgado && item.monto_otorgado > 0;
-    const isSinComprobantes = item.gastos_count === 0;
-    const isEnProgreso = !isCompleto && !isSinComprobantes;
+    return {
+      completados,
+      enProgreso,
+      sinComprobantes,
+      totalOtorgado: Number(totalOtorgado.toFixed(2)),
+      totalPendiente: Number(totalPendiente.toFixed(2)),
+      topPendingItem,
+      projectSummaries,
+      primaryCurrency,
+    };
+  }, [items]);
 
-    if (!matchesSearch) return false;
+  // Filtered expedientes
+  const filteredItems = useMemo(() => {
+    const query = search.toLowerCase().trim();
+    return items.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.empleado.toLowerCase().includes(query) ||
+        (item.empleadoEmail && item.empleadoEmail.toLowerCase().includes(query)) ||
+        item.proyecto.toLowerCase().includes(query) ||
+        item.id.toLowerCase().includes(query);
 
-    if (filtro === 'COMPLETOS') return isCompleto;
-    if (filtro === 'EN_PROGRESO') return isEnProgreso;
-    if (filtro === 'SIN_COMPROBANTES') return isSinComprobantes;
-    return true;
-  });
+      if (!matchesSearch) return false;
+
+      if (filterProject !== 'all' && item.proyecto !== filterProject) {
+        return false;
+      }
+
+      const m = computeProgressMetrics(item);
+      if (filtro === 'COMPLETOS') return m.isComplete;
+      if (filtro === 'EN_PROGRESO') return m.isInProgress;
+      if (filtro === 'SIN_COMPROBANTES') return m.isEmpty;
+      return true;
+    });
+  }, [items, search, filtro, filterProject]);
+
+  // Resolved selected item synced with live items
+  const selectedItem = useMemo(() => {
+    if (selectedId) {
+      const inFiltered = filteredItems.find((i) => i.id === selectedId);
+      if (inFiltered) return inFiltered;
+    }
+    return filteredItems[0] ?? null;
+  }, [selectedId, filteredItems]);
+
+  function handleSelectCard(id: string) {
+    setSelectedId(id);
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      document
+        .getElementById('detail-inspector-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function handleScrollToMaster() {
+    if (typeof window !== 'undefined') {
+      document
+        .getElementById('viaticos-grid')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   return (
-    <>
-      <div className="page-header">
-        <h1 className="page-title">
-          <ClipboardCheck size={24} strokeWidth={2} />
-          Progreso de Justificación
-        </h1>
-        <p className="page-subtitle">
-          Monitoreo en tiempo real del avance de viáticos otorgados y comprobantes registrados vía WhatsApp.
-        </p>
-      </div>
+    <div
+      className="relative w-full flex flex-col gap-6 text-on-surface pb-12 select-text"
+      suppressHydrationWarning
+    >
+      {/* Ambient Background Glows */}
+      <div className="absolute -top-24 -right-16 w-96 h-96 rounded-full bg-primary-container/5 blur-3xl pointer-events-none" />
+      <div className="absolute top-64 -left-20 w-80 h-80 rounded-full bg-secondary/5 blur-3xl pointer-events-none" />
 
-      {/* KPI GRID */}
-      <div className="kpi-grid">
-        <div
-          className="kpi-card"
-          onClick={() => setFiltro('TODOS')}
-          style={{ cursor: 'pointer', border: filtro === 'TODOS' ? '1px solid var(--rendy-primary)' : undefined }}
-        >
-          <div className="kpi-card-label">Viáticos Activos</div>
-          <div className="kpi-card-value">{items.length}</div>
-          <div className="kpi-card-delta up">En seguimiento</div>
-        </div>
-        <div
-          className="kpi-card"
-          onClick={() => setFiltro('COMPLETOS')}
-          style={{ cursor: 'pointer', border: filtro === 'COMPLETOS' ? '1px solid var(--rendy-accent)' : undefined }}
-        >
-          <div className="kpi-card-label">100% Justificados</div>
-          <div className="kpi-card-value" style={{ color: 'var(--rendy-accent)' }}>{completados}</div>
-          <div className="kpi-card-delta up">Comprobados</div>
-        </div>
-        <div
-          className="kpi-card"
-          onClick={() => setFiltro('SIN_COMPROBANTES')}
-          style={{ cursor: 'pointer', border: filtro === 'SIN_COMPROBANTES' ? '1px solid var(--rendy-warning)' : undefined }}
-        >
-          <div className="kpi-card-label">Sin Comprobantes</div>
-          <div className="kpi-card-value" style={{ color: 'var(--rendy-warning)' }}>{alertas}</div>
-          <div className="kpi-card-delta down">Requieren rendición</div>
-        </div>
-      </div>
-
-      {/* SEARCH AND FILTERS */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-          <Search
-            size={15}
-            style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
+      {/* Floating Feedback Toast */}
+      {feedback && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-surface-container-highest border border-primary/25 shadow-2xl text-xs font-semibold text-on-surface animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <CheckCircle2
+            className={`w-4 h-4 shrink-0 ${feedback.ok ? 'text-primary' : 'text-error'}`}
           />
+          <span>{feedback.msg}</span>
+        </div>
+      )}
+
+      {/* Section Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 relative z-10 pt-2">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-[0_0_24px_-4px_rgba(0,229,153,0.3)] shrink-0">
+              <ClipboardCheck className="w-5 h-5" />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-on-surface">
+              Progreso de Justificación
+            </h1>
+            {stats.enProgreso + stats.sinComprobantes > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs bg-secondary/15 text-secondary font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+                {stats.enProgreso + stats.sinComprobantes} en curso
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-on-surface-variant max-w-2xl sm:pl-[52px]">
+            Monitoreo en tiempo real del ciclo de justificación, conciliación fiscal y comprobantes registrados vía WhatsApp por colaborador.
+          </p>
+        </div>
+      </div>
+
+      {/* Top 3 Calibrated Executive KPI Cards */}
+      <JustificacionKpiGrid
+        totalItems={items.length}
+        completadosCount={stats.completados}
+        enProgresoCount={stats.enProgreso}
+        sinComprobantesCount={stats.sinComprobantes}
+        totalOtorgado={stats.totalOtorgado}
+        totalPendiente={stats.totalPendiente}
+        primaryCurrency={stats.primaryCurrency}
+        topPendingItem={stats.topPendingItem}
+        activeFilter={filtro}
+        onSelectFilter={setFiltro}
+      />
+
+      {/* Analytical Monitoring Panel by Cost Center */}
+      <ProjectMonitoringPanel
+        projects={stats.projectSummaries}
+        selectedProject={filterProject}
+        onSelectProject={setFilterProject}
+      />
+
+      {/* Search, Filter Tabs & Project Selector */}
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 p-3 rounded-2xl bg-surface-container-low shadow-sm relative z-10">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
           <input
             id="justificacion-search"
-            type="search"
-            placeholder="Buscar por empleado, proyecto o ID de viático…"
+            type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: '100%',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--bg-border)',
-              borderRadius: '8px',
-              padding: '9px 12px 9px 36px',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              outline: 'none',
-            }}
+            placeholder="Buscar por colaborador, centro de costos o ID de expediente..."
+            className="w-full h-10 pl-10 pr-9 rounded-xl bg-surface-container text-xs font-medium text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:bg-surface-container-high transition-colors"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+              title="Limpiar búsqueda"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {[
-            { id: 'TODOS', label: 'Todos' },
-            { id: 'EN_PROGRESO', label: `En Progreso (${enProgreso})` },
-            { id: 'COMPLETOS', label: `100% Listos (${completados})` },
-            { id: 'SIN_COMPROBANTES', label: `Sin Comprobantes (${alertas})` },
-          ].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFiltro(f.id as any)}
-              className="btn btn-sm"
-              style={{
-                background: filtro === f.id ? 'var(--rendy-primary)' : 'var(--bg-elevated)',
-                color: filtro === f.id ? 'white' : 'var(--text-secondary)',
-                border: '1px solid',
-                borderColor: filtro === f.id ? 'var(--rendy-primary)' : 'var(--bg-border)',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-surface-container rounded-xl w-full sm:w-auto">
+            {(
+              [
+                { id: 'TODOS', label: `Todos (${items.length})` },
+                { id: 'EN_PROGRESO', label: `En Progreso (${stats.enProgreso})` },
+                { id: 'COMPLETOS', label: `100% Justificados (${stats.completados})` },
+                { id: 'SIN_COMPROBANTES', label: `Sin Comprobantes (${stats.sinComprobantes})` },
+              ] as const
+            ).map((tab) => {
+              const isActive = filtro === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFiltro(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? 'bg-primary-container text-on-primary-container shadow-[0_0_14px_rgba(0,229,153,0.3)]'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {stats.projectSummaries.length > 1 && (
+            <select
+              id="filter-justificacion-project"
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              className="h-9 px-3 rounded-xl bg-surface-container text-on-surface text-xs font-medium focus:outline-none cursor-pointer shrink-0"
             >
-              {f.label}
-            </button>
-          ))}
+              <option value="all">Todos los Proyectos</option>
+              {stats.projectSummaries.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
-      {/* CARDS LIST */}
-      {filteredItems.length === 0 ? (
-        <div className="card">
-          <div className="empty-state">
-            <div className="empty-state-icon"><ClipboardCheck size={22} /></div>
-            <div className="empty-state-title">No se encontraron viáticos</div>
-            <div className="empty-state-desc">
-              {search ? 'No hay resultados que coincidan con la búsqueda.' : 'Los viáticos aprobados aparecerán aquí.'}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: '16px' }}>
-          {filteredItems.map((item) => {
-            const pct = item.monto_otorgado > 0
-              ? Math.min(Math.round((item.monto_gastado / item.monto_otorgado) * 100), 100)
-              : 0;
-            const restante = Math.max(0, item.monto_otorgado - item.monto_gastado);
-            const isCompleto = pct >= 100;
-            const isAlerta = pct < 40 && item.gastos_count === 0;
-
-            let barClass = '';
-            if (isCompleto) barClass = 'accent';
-            else if (isAlerta) barClass = 'warning';
-
-            const mStr = item.moneda;
-
-            return (
-              <div
-                key={item.id}
-                className="card"
-                id={`justificacion-${item.id}`}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ padding: '20px 24px' }}>
-                  {/* Card Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '13px',
-                          fontWeight: 700,
-                          color: 'white',
-                          boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
-                        }}
-                      >
-                        {item.empleado.charAt(0)}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>{item.empleado}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{item.proyecto}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {isAlerta && (
-                        <span
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: 'rgba(245, 158, 11, 0.1)',
-                            color: 'var(--rendy-warning)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                          }}
-                        >
-                          <AlertTriangle size={12} /> Sin justificar
-                        </span>
-                      )}
-                      {isCompleto && (
-                        <span
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            color: 'var(--rendy-accent)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                          }}
-                        >
-                          <CheckCircle2 size={12} /> 100% Justificado
-                        </span>
-                      )}
-                      <span style={{ fontFamily: 'monospace', fontSize: '10px', color: 'var(--text-muted)' }}>
-                        {item.id.slice(0, 8)}…
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Financial Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', marginBottom: '16px' }}>
-                    {[
-                      {
-                        label: 'Monto Otorgado',
-                        value: `${item.monto_otorgado.toLocaleString('es-VE', { minimumFractionDigits: 2 })} ${mStr}`,
-                        color: 'var(--text-primary)',
-                      },
-                      {
-                        label: 'Justificado (WhatsApp)',
-                        value: `${item.monto_gastado.toLocaleString('es-VE', { minimumFractionDigits: 2 })} ${mStr}`,
-                        color: 'var(--rendy-accent)',
-                      },
-                      {
-                        label: 'Restante',
-                        value: `${restante.toLocaleString('es-VE', { minimumFractionDigits: 2 })} ${mStr}`,
-                        color: restante > 0 ? 'var(--rendy-warning)' : 'var(--rendy-accent)',
-                      },
-                    ].map((m) => (
-                      <div
-                        key={m.label}
-                        style={{
-                          background: 'var(--bg-elevated)',
-                          borderRadius: '8px',
-                          padding: '10px 12px',
-                          border: '1px solid var(--bg-border)',
-                        }}
-                      >
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 500 }}>
-                          {m.label}
-                        </div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: m.color, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{m.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Progress bar */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {item.gastos_count} comprobante{item.gastos_count !== 1 ? 's' : ''} registrado{item.gastos_count !== 1 ? 's' : ''}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 700,
-                          color: isCompleto ? 'var(--rendy-accent)' : isAlerta ? 'var(--rendy-warning)' : 'var(--text-primary)',
-                        }}
-                      >
-                        {pct}% justificado
-                      </span>
-                    </div>
-                    <div
-                      className="progress-track"
-                      role="progressbar"
-                      aria-valuenow={pct}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={`${item.empleado}: ${pct}% justificado`}
-                    >
-                      <div className={`progress-fill ${barClass}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                      Aprobado el {item.fecha_aprobacion}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Footer: Action Button */}
-                <div
-                  style={{
-                    padding: '12px 24px',
-                    borderTop: '1px solid var(--bg-border)',
-                    background: 'rgba(255, 255, 255, 0.01)',
-                  }}
-                >
-                  <button
-                    id={`ver-justificacion-${item.id}`}
-                    onClick={() => setSelectedSolicitud(item)}
-                    className="btn"
-                    style={{
-                      width: '100%',
-                      justifyContent: 'center',
-                      background: item.gastos_count > 0 ? 'var(--bg-elevated)' : 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid',
-                      borderColor: item.gastos_count > 0 ? 'var(--bg-border)' : 'transparent',
-                      color: item.gastos_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
-                      gap: '8px',
-                      padding: '9px 14px',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (item.gastos_count > 0) {
-                        e.currentTarget.style.borderColor = 'var(--rendy-primary)';
-                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
-                        e.currentTarget.style.color = 'var(--rendy-primary-light)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (item.gastos_count > 0) {
-                        e.currentTarget.style.borderColor = 'var(--bg-border)';
-                        e.currentTarget.style.background = 'var(--bg-elevated)';
-                        e.currentTarget.style.color = 'var(--text-primary)';
-                      }
-                    }}
-                  >
-                    <ReceiptText size={15} style={{ color: item.gastos_count > 0 ? 'var(--rendy-primary-light)' : 'var(--text-muted)' }} />
-                    <span>
-                      {item.gastos_count > 0
-                        ? `Ver desglose de gastos (${item.gastos_count})`
-                        : 'Ver detalle de solicitud'}
-                    </span>
-                    <ArrowRight size={13} style={{ marginLeft: 'auto', opacity: 0.7 }} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* =========================================================
-          MODAL FLOTANTE: DETALLE DE GASTOS Y COMPROBANTES
-          ========================================================= */}
-      {selectedSolicitud && (
+      {/* Master-Detail Operational Split */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start relative z-10">
+        {/* Left Panel: Master List of Expedientes */}
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(5, 7, 15, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '16px',
-            animation: 'fadeIn 0.2s ease',
-          }}
-          onClick={() => setSelectedSolicitud(null)}
+          id="viaticos-grid"
+          className="xl:col-span-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-3.5"
         >
-          <div
-            id="modal-detalle-justificacion"
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid rgba(99, 102, 241, 0.25)',
-              borderRadius: '18px',
-              width: '100%',
-              maxWidth: '680px',
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(99, 102, 241, 0.15)',
-              overflow: 'hidden',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '20px 24px',
-                borderBottom: '1px solid var(--bg-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'var(--bg-elevated)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: 'rgba(99, 102, 241, 0.15)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--rendy-primary-light)',
+          {filteredItems.length === 0 ? (
+            <div className="md:col-span-2 xl:col-span-1 p-10 rounded-2xl bg-surface-container text-center flex flex-col items-center justify-center gap-3 border border-surface-container-high/50">
+              <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+                <ClipboardCheck className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-on-surface">
+                No se encontraron viáticos
+              </h3>
+              <p className="text-xs text-on-surface-variant max-w-sm">
+                {search || filtro !== 'TODOS' || filterProject !== 'all'
+                  ? 'No hay expedientes que coincidan con la búsqueda o filtros activos.'
+                  : 'Los viáticos aprobados aparecerán aquí para dar seguimiento a su rendición.'}
+              </p>
+              {(search || filtro !== 'TODOS' || filterProject !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setFiltro('TODOS');
+                    setFilterProject('all');
                   }}
+                  className="mt-1 px-4 py-2 rounded-xl bg-surface-container-high text-xs font-semibold text-primary hover:bg-surface-container-highest transition-colors"
                 >
-                  <Receipt size={20} />
-                </div>
-                <div>
-                  <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                    Comprobantes Justificativos
-                  </h2>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span>{selectedSolicitud.empleado}</span>
-                    <span>•</span>
-                    <span>{selectedSolicitud.proyecto}</span>
-                    <span>•</span>
-                    <span style={{ fontFamily: 'monospace' }}>#{selectedSolicitud.id.slice(0, 8)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                id="close-modal-justificacion"
-                onClick={() => setSelectedSolicitud(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background 0.15s, color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                  e.currentTarget.style.color = 'var(--text-primary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = 'var(--text-muted)';
-                }}
-                aria-label="Cerrar modal"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
-              {/* Financial Progress Summary Banner */}
-              <div
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  marginBottom: '20px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <TrendingUp size={16} style={{ color: 'var(--rendy-accent)' }} />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Progreso de la Rendición
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      color: selectedSolicitud.monto_gastado >= selectedSolicitud.monto_otorgado ? 'var(--rendy-accent)' : 'var(--text-primary)',
-                      background: selectedSolicitud.monto_gastado >= selectedSolicitud.monto_otorgado ? 'rgba(16, 185, 129, 0.12)' : 'rgba(99, 102, 241, 0.12)',
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                    }}
-                  >
-                    {selectedSolicitud.monto_otorgado > 0
-                      ? Math.min(Math.round((selectedSolicitud.monto_gastado / selectedSolicitud.monto_otorgado) * 100), 100)
-                      : 0}% Justificado
-                  </span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="progress-track" style={{ height: '8px', marginBottom: '14px' }}>
-                  <div
-                    className={`progress-fill ${selectedSolicitud.monto_gastado >= selectedSolicitud.monto_otorgado ? 'accent' : ''}`}
-                    style={{
-                      width: `${selectedSolicitud.monto_otorgado > 0
-                        ? Math.min(Math.round((selectedSolicitud.monto_gastado / selectedSolicitud.monto_otorgado) * 100), 100)
-                        : 0}%`,
-                    }}
-                  />
-                </div>
-
-                {/* 3 Metric Pills */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                  <div style={{ background: 'var(--bg-surface)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--bg-border)' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Monto Otorgado</div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {selectedSolicitud.monto_otorgado.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {selectedSolicitud.moneda}
-                    </div>
-                  </div>
-                  <div style={{ background: 'var(--bg-surface)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--bg-border)' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Total Justificado</div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--rendy-accent)', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {selectedSolicitud.monto_gastado.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {selectedSolicitud.moneda}
-                    </div>
-                  </div>
-                  <div style={{ background: 'var(--bg-surface)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--bg-border)' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Restante</div>
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        wordBreak: 'break-word',
-                        overflowWrap: 'anywhere',
-                        color: selectedSolicitud.monto_otorgado - selectedSolicitud.monto_gastado > 0 ? 'var(--rendy-warning)' : 'var(--rendy-accent)',
-                      }}
-                    >
-                      {Math.max(0, selectedSolicitud.monto_otorgado - selectedSolicitud.monto_gastado).toLocaleString('es-VE', { minimumFractionDigits: 2 })} {selectedSolicitud.moneda}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Title of Section */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Gastos Justificados ({selectedSolicitud.gastos.length})
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  Registrados vía WhatsApp
-                </div>
-              </div>
-
-              {/* List of expenses */}
-              {selectedSolicitud.gastos.length === 0 ? (
-                <div
-                  style={{
-                    background: 'var(--bg-elevated)',
-                    border: '1px dashed var(--bg-border)',
-                    borderRadius: '12px',
-                    padding: '36px 20px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <FileQuestion size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 12px' }} />
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    Sin comprobantes asociados todavía
-                  </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '340px', margin: '0 auto' }}>
-                    Cuando el empleado rinda viáticos enviando fotos de sus facturas al bot de WhatsApp y seleccione este viático, aparecerán listados aquí con su cálculo y comprobante.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {selectedSolicitud.gastos.map((gasto, idx) => {
-                    const tieneConversion = gasto.tasa_cambio && gasto.tasa_cambio !== 1 && gasto.monto_convertido != null;
-
-                    return (
-                      <div
-                        key={gasto.id || idx}
-                        style={{
-                          background: 'var(--bg-elevated)',
-                          border: '1px solid var(--bg-border)',
-                          borderRadius: '12px',
-                          padding: '14px 16px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          transition: 'border-color 0.15s ease',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
-                            <div
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '8px',
-                                background: 'rgba(99, 102, 241, 0.1)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--rendy-primary-light)',
-                                flexShrink: 0,
-                                marginTop: '2px',
-                              }}
-                            >
-                              <Tag size={16} />
-                            </div>
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>
-                                  {gasto.comercio}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    background: 'var(--bg-surface)',
-                                    color: 'var(--text-accent)',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--bg-border)',
-                                  }}
-                                >
-                                  {gasto.categoria}
-                                </span>
-                                {gasto.tiene_validez_fiscal === false && (
-                                  <span
-                                    style={{
-                                      fontSize: '10.5px',
-                                      fontWeight: 700,
-                                      background: 'rgba(245, 158, 11, 0.12)',
-                                      color: '#f59e0b',
-                                      padding: '2px 8px',
-                                      borderRadius: '4px',
-                                      border: '1px solid rgba(245, 158, 11, 0.3)',
-                                    }}
-                                  >
-                                    ⚠️ Sin Validez Fiscal
-                                  </span>
-                                )}
-                              </div>
-
-                              {gasto.concepto && (
-                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                  {gasto.concepto}
-                                </div>
-                              )}
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Calendar size={12} /> {gasto.fecha_gasto}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Amounts */}
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              {gasto.monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {gasto.moneda}
-                            </div>
-                            {tieneConversion && (
-                              <div style={{ fontSize: '11px', color: 'var(--rendy-accent)', marginTop: '2px' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Tasa {gasto.tasa_cambio} → </span>
-                                <strong>{gasto.monto_convertido?.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {selectedSolicitud.moneda}</strong>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Comprobante Action Bar */}
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            paddingTop: '8px',
-                            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                          }}
-                        >
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            Deduce del viático:{' '}
-                            <strong style={{ color: 'var(--text-primary)' }}>
-                              {gasto.monto_efectivo.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {selectedSolicitud.moneda}
-                            </strong>
-                          </span>
-
-                          <div>
-                            {gasto.url_comprobante ? (
-                              <div style={{ display: 'flex', gap: '6px' }}>
-                                <button
-                                  className="btn btn-sm"
-                                  onClick={() =>
-                                    setSelectedGastoInvoice({
-                                      id: gasto.id,
-                                      empleado: selectedSolicitud.empleado,
-                                      categoria: gasto.categoria,
-                                      comercio: gasto.comercio,
-                                      monto: gasto.monto,
-                                      moneda: gasto.moneda,
-                                      tasa_cambio: gasto.tasa_cambio,
-                                      monto_convertido: gasto.monto_convertido,
-                                      moneda_viatico: selectedSolicitud.moneda,
-                                      fecha_gasto: gasto.fecha_gasto,
-                                      creado_en: gasto.creado_en,
-                                      proyecto: selectedSolicitud.proyecto,
-                                      metodo_pago: 'Rendición de Viáticos',
-                                      estado: gasto.estado,
-                                      url_comprobante: gasto.url_comprobante,
-                                      concepto: gasto.concepto,
-                                      moneda_original: gasto.moneda_original,
-                                      origen_tasa: gasto.origen_tasa,
-                                      base_imponible_ves: gasto.base_imponible_ves,
-                                      iva_ves: gasto.iva_ves,
-                                      exento_ves: gasto.exento_ves,
-                                      igtf_ves: gasto.igtf_ves,
-                                      monto_ves: gasto.monto_ves,
-                                      monto_usd: gasto.monto_usd,
-                                      rif_comercio: gasto.rif_comercio,
-                                      numero_factura: gasto.numero_factura,
-                                      requiere_revision_fiscal: gasto.requiere_revision_fiscal,
-                                      pais_gasto: gasto.pais_gasto,
-                                      estado_region: gasto.estado_region,
-                                      ciudad: gasto.ciudad,
-                                      codigo_postal: gasto.codigo_postal,
-                                      tiene_sales_tax: gasto.tiene_sales_tax,
-                                      subtotal_usd: gasto.subtotal_usd,
-                                      sales_tax_usd: gasto.sales_tax_usd,
-                                      propina_usd: gasto.propina_usd,
-                                      nombre_impuesto_local: gasto.nombre_impuesto_local,
-                                      tasa_impuesto_aplicada: gasto.tasa_impuesto_aplicada,
-                                      impuesto_local_monto: gasto.impuesto_local_monto,
-                                      subtotal_local: gasto.subtotal_local,
-                                      folio_fiscal_uuid: gasto.folio_fiscal_uuid,
-                                      es_deducible_fiscal: gasto.es_deducible_fiscal,
-                                      tiene_validez_fiscal: gasto.tiene_validez_fiscal,
-                                      tipo_documento: gasto.tipo_documento,
-                                    })
-                                  }
-                                  style={{
-                                    background: 'rgba(99, 102, 241, 0.15)',
-                                    color: 'var(--rendy-primary-light)',
-                                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                                    gap: '5px',
-                                    padding: '4px 10px',
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <Eye size={12} /> Ver Factura
-                                </button>
-                                <a
-                                  href={gasto.url_comprobante}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btn btn-ghost btn-sm"
-                                  style={{ padding: '4px 8px', fontSize: '11px', borderRadius: '6px' }}
-                                  title="Abrir en pestaña nueva"
-                                >
-                                  <ExternalLink size={12} />
-                                </a>
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                Sin imagen adjunta
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                  Restablecer filtros
+                </button>
               )}
             </div>
+          ) : (
+            filteredItems.map((item) => {
+              const m = computeProgressMetrics(item);
+              const isSelected = selectedItem?.id === item.id;
+              const prefix = getCurrencyPrefix(item.moneda);
+              const initial = (item.empleado?.charAt(0) || 'U').toUpperCase();
 
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: '16px 24px',
-                borderTop: '1px solid var(--bg-border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                background: 'var(--bg-elevated)',
-              }}
-            >
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {selectedSolicitud.gastos.length} comprobante{selectedSolicitud.gastos.length !== 1 ? 's' : ''} justificado{selectedSolicitud.gastos.length !== 1 ? 's' : ''}
-              </div>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => setSelectedSolicitud(null)}
-                style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 600 }}
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
+              let activeRingClass =
+                'border border-surface-container-high/50 hover:bg-surface-container-high hover:border-surface-container-highest';
+              if (isSelected) {
+                activeRingClass = m.isComplete
+                  ? 'border-l-4 border-l-primary ring-1 ring-primary/35 bg-surface-container-high'
+                  : m.isEmpty
+                  ? 'border-l-4 border-l-tertiary-container ring-1 ring-tertiary-container/35 bg-surface-container-high'
+                  : 'border-l-4 border-l-secondary ring-1 ring-secondary/35 bg-surface-container-high';
+              }
+
+              return (
+                <div
+                  key={item.id}
+                  id={`justificacion-${item.id}`}
+                  onClick={() => handleSelectCard(item.id)}
+                  className={`relative flex flex-col justify-between rounded-2xl bg-surface-container p-4 shadow-md transition-all cursor-pointer ${activeRingClass}`}
+                >
+                  {/* Card Top Row */}
+                  <div className="flex items-start justify-between gap-2.5 mb-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-xl font-bold text-sm flex items-center justify-center shrink-0 ${
+                          isSelected
+                            ? 'bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(0,229,153,0.28)]'
+                            : 'bg-surface-container-highest text-primary'
+                        }`}
+                      >
+                        {initial}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-bold text-on-surface tracking-tight leading-snug truncate">
+                          {item.empleado}
+                        </span>
+                        <span className="text-[11px] text-on-surface-variant flex items-center gap-1 truncate">
+                          <FolderKanban
+                            className={`w-3 h-3 shrink-0 ${
+                              m.isComplete ? 'text-primary' : 'text-secondary'
+                            }`}
+                          />
+                          <span className="truncate">{item.proyecto}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className={`text-[11px] font-mono font-semibold ${
+                          isSelected ? 'text-secondary' : 'text-on-surface-variant/80'
+                        }`}
+                      >
+                        #{item.id.slice(0, 8)}
+                      </span>
+                      {m.isComplete ? (
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1 whitespace-nowrap">
+                          <CheckCircle2 className="w-3 h-3" />
+                          100% Justificado
+                        </span>
+                      ) : m.isEmpty ? (
+                        <span className="px-2 py-0.5 rounded-full bg-tertiary-container/15 text-tertiary-container text-[10px] font-bold flex items-center gap-1 whitespace-nowrap">
+                          <AlertTriangle className="w-3 h-3" />
+                          Sin Comprobantes
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-secondary/15 text-secondary text-[10px] font-bold flex items-center gap-1 whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+                          En Progreso ({m.pct}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Calibrated Financial Triad Box */}
+                  <div className="grid grid-cols-3 gap-1.5 p-2.5 rounded-xl bg-surface-container-lowest mb-3 text-center border border-surface-container-high/40">
+                    <div className="flex flex-col items-center justify-center min-w-0 px-0.5">
+                      <span className="text-[10px] text-on-surface-variant font-semibold tracking-wider uppercase mb-0.5 truncate w-full">
+                        Otorgado
+                      </span>
+                      <span className="text-[11px] font-bold text-on-surface font-mono truncate w-full">
+                        {prefix}{formatMoney(item.monto_otorgado)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center border-l border-surface-container-high/60 min-w-0 px-0.5">
+                      <span
+                        className={`text-[10px] font-semibold tracking-wider uppercase mb-0.5 truncate w-full ${
+                          m.isComplete ? 'text-primary' : 'text-secondary'
+                        }`}
+                      >
+                        Rendido WA
+                      </span>
+                      <span
+                        className={`text-[11px] font-extrabold font-mono truncate w-full ${
+                          m.isComplete ? 'text-primary' : 'text-secondary'
+                        }`}
+                      >
+                        {prefix}{formatMoney(item.monto_gastado)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center border-l border-surface-container-high/60 min-w-0 px-0.5">
+                      <span
+                        className={`text-[10px] font-semibold tracking-wider uppercase mb-0.5 truncate w-full ${
+                          m.remaining > 0 ? 'text-tertiary-container' : 'text-on-surface-variant'
+                        }`}
+                      >
+                        Restante
+                      </span>
+                      <span
+                        className={`text-[11px] font-extrabold font-mono truncate w-full ${
+                          m.remaining > 0 ? 'text-tertiary-container' : 'text-on-surface'
+                        }`}
+                      >
+                        {prefix}{formatMoney(m.remaining)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress Track Bar */}
+                  <div
+                    className="w-full h-1.5 rounded-full bg-surface-container-highest overflow-hidden mb-2.5"
+                    role="progressbar"
+                    aria-valuenow={m.pct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${item.empleado}: ${m.pct}% justificado`}
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        m.isComplete
+                          ? 'bg-primary shadow-[0_0_8px_rgba(0,229,153,0.5)]'
+                          : m.isEmpty
+                          ? 'bg-tertiary-container/60'
+                          : 'bg-secondary shadow-[0_0_8px_rgba(76,215,246,0.6)]'
+                      }`}
+                      style={{ width: `${m.pct}%` }}
+                    />
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="flex items-center justify-between gap-2 text-on-surface-variant text-[11px]">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <ReceiptText
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          m.isComplete ? 'text-primary' : 'text-secondary'
+                        }`}
+                      />
+                      <span className="truncate">
+                        {item.gastos_count} comprobante{item.gastos_count !== 1 ? 's' : ''} registrado{item.gastos_count !== 1 ? 's' : ''}
+                      </span>
+                    </span>
+                    <span
+                      className={`font-semibold flex items-center gap-1 shrink-0 ${
+                        m.isComplete
+                          ? 'text-primary'
+                          : m.isEmpty
+                          ? 'text-tertiary-container'
+                          : 'text-secondary'
+                      }`}
+                    >
+                      {m.isComplete ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Completado</span>
+                        </>
+                      ) : m.isEmpty ? (
+                        <span>Sin rendir</span>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3 h-3" />
+                          <span>{item.fecha_aprobacion}</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
-      )}
 
-      {/* ── Digital Invoice Modal (eReceipt) ── */}
+        {/* Right Panel: Detail & WhatsApp Audit Inspector */}
+        <ExpedienteInspectorPanel
+          selectedItem={selectedItem}
+          onInspectGasto={(gasto) => setSelectedGastoInvoice(gasto)}
+          onCopyText={handleCopyText}
+          onScrollToMaster={handleScrollToMaster}
+        />
+      </div>
+
+      {/* Digital Invoice Modal (eReceipt) */}
       {selectedGastoInvoice && (
         <DigitalInvoice
           gasto={selectedGastoInvoice}
           onClose={handleCloseInvoice}
         />
       )}
-    </>
+    </div>
   );
 }

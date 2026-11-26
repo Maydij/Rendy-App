@@ -60,7 +60,7 @@ async function getJustificacionData(
     gastosQuery,
     supabaseServer
       .from('usuarios')
-      .select('id, nombre')
+      .select('id, nombre, email')
       .eq('empresa_id', empresaId),
     supabaseServer
       .from('proyectos')
@@ -69,6 +69,7 @@ async function getJustificacionData(
   ]);
 
   const usuMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.nombre]));
+  const usuEmailMap = Object.fromEntries((usuarios ?? []).map((u) => [u.id, u.email ?? '']));
   const proyMap = Object.fromEntries((proyectos ?? []).map((p) => [p.id, p.nombre]));
 
   // Agrupar gastos por solicitud_id o viatico_id
@@ -166,6 +167,7 @@ async function getJustificacionData(
     return {
       id: s.id,
       empleado: usuMap[s.usuario_id] ?? 'Usuario',
+      empleadoEmail: usuEmailMap[s.usuario_id] ?? '',
       proyecto: s.proyecto_id ? (proyMap[s.proyecto_id] ?? 'Sin proyecto') : 'Sin proyecto',
       monto_otorgado: s.monto_aprobado ?? s.monto_solicitado ?? 0,
       monto_gastado: Number(totalGastado.toFixed(2)),
