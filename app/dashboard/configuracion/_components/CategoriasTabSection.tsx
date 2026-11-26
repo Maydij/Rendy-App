@@ -63,8 +63,8 @@ function CategoryLimitInput({
               e.currentTarget.blur();
             }
           }}
-          className={`w-24 px-2.5 py-1.5 text-xs text-right font-bold font-mono rounded-lg bg-surface-container-lowest text-on-surface border transition-colors focus:outline-none ${
-            isEditing ? 'border-primary' : 'border-outline-variant/40'
+          className={`w-24 px-2.5 py-1.5 text-xs text-right font-bold font-mono rounded-lg bg-surface-container-lowest text-on-surface transition-all focus:outline-none ${
+            isEditing ? 'ring-1 ring-primary' : ''
           }`}
         />
         <span className="text-[11px] text-on-surface-variant">USD/día</span>
@@ -95,7 +95,7 @@ function CategoryRowItem({
 }) {
   return (
     <div
-      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-surface-container border border-outline-variant/25 gap-4 transition-all ${
+      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-surface-container gap-4 transition-all ${
         categoria.activa ? 'opacity-100' : 'opacity-60'
       }`}
     >
@@ -124,7 +124,7 @@ function CategoryRowItem({
         </div>
       </div>
 
-      <div className="flex items-center justify-between sm:justify-end gap-5 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-high/40">
+      <div className="flex items-center justify-between sm:justify-end gap-5 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-highest/20">
         <CategoryLimitInput
           initialLimit={categoria.limite_diario_usd}
           onSave={onUpdateLimit}
@@ -185,8 +185,8 @@ export function CategoriasTabSection({
   const systemCats = categorias.filter((c) => c.es_sistema);
 
   return (
-    <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex flex-col gap-6 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/20 pb-4">
+    <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex flex-col gap-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-container-highest/20 pb-4">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-on-surface">
             Catálogo de Categorías y Límites Diarios
@@ -238,7 +238,7 @@ export function CategoriasTabSection({
       </div>
 
       {/* System Official Categories */}
-      <div className="flex flex-col gap-3 pt-2 border-t border-outline-variant/20">
+      <div className="flex flex-col gap-3 pt-2 border-t border-surface-container-highest/20">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-on-surface">
             Categorías Oficiales por Defecto
@@ -314,10 +314,10 @@ export function ModalNuevaCategoria({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-surface-container border border-outline-variant/40 rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-surface-container rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-outline-variant/25 flex items-center justify-between bg-surface-container-low">
+        <div className="px-5 py-4 border-b border-surface-container-highest/20 flex items-center justify-between bg-surface-container-low">
           <span className="text-sm sm:text-base font-bold text-on-surface">
             Nueva Categoría Personalizada
           </span>
@@ -375,7 +375,7 @@ export function ModalNuevaCategoria({
               placeholder="ej. Envíos y Courier, Licencias Software"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/35 text-xs sm:text-sm text-on-surface focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-xl bg-surface-container-lowest text-xs sm:text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <span className="block text-[11px] text-on-surface-variant mt-1">
               Recomendado máx. 20 caracteres para visualización óptima en WhatsApp.
@@ -392,7 +392,7 @@ export function ModalNuevaCategoria({
               placeholder="ej. Paquetería local, despachos y encomiendas"
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/35 text-xs sm:text-sm text-on-surface focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-xl bg-surface-container-lowest text-xs sm:text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
@@ -408,7 +408,7 @@ export function ModalNuevaCategoria({
                 min="0"
                 value={limiteDiario}
                 onChange={(e) => setLimiteDiario(e.target.value)}
-                className="w-32 px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/35 text-xs sm:text-sm font-bold font-mono text-on-surface focus:outline-none focus:border-primary"
+                className="w-32 px-3 py-2 rounded-xl bg-surface-container-lowest text-xs sm:text-sm font-bold font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <span className="text-xs text-on-surface-variant">USD / día</span>
             </div>

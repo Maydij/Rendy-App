@@ -55,8 +55,8 @@ export function ProyectosTabSection({
   onEliminarProyecto: (id: string) => void;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/20 pb-4">
+    <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-container-highest/20 pb-4">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-on-surface">
             Proyectos y Centros de Costo
@@ -78,7 +78,7 @@ export function ProyectosTabSection({
               }
             }}
             placeholder="Nombre del proyecto…"
-            className="flex-1 sm:w-52 px-3.5 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary"
+            className="flex-1 sm:w-52 px-3.5 py-2 rounded-xl bg-surface-container-lowest text-xs sm:text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <button
             id="config-add-proyecto-btn"
@@ -94,7 +94,7 @@ export function ProyectosTabSection({
       </div>
 
       {proyectos.length === 0 ? (
-        <div className="py-10 text-center rounded-xl bg-surface-container-lowest/60 border border-dashed border-outline-variant/30 text-xs sm:text-sm text-on-surface-variant">
+        <div className="py-10 text-center rounded-xl bg-surface-container-lowest/60 border border-dashed border-surface-container-highest/40 text-xs sm:text-sm text-on-surface-variant">
           No hay proyectos registrados. Crea tu primer centro de costos arriba.
         </div>
       ) : (
@@ -102,7 +102,7 @@ export function ProyectosTabSection({
           {proyectos.map((p) => (
             <div
               key={p.id}
-              className="p-4 rounded-xl bg-surface-container border border-outline-variant/25 flex items-center justify-between gap-3 hover:bg-surface-container-high/70 transition-colors"
+              className="p-4 rounded-xl bg-surface-container flex items-center justify-between gap-3 hover:bg-surface-container-high/70 transition-colors"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div
@@ -179,8 +179,8 @@ export function MetodosTabSection({
   onEliminarMetodo: (id: string) => void;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/20 pb-4">
+    <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-container-highest/20 pb-4">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-on-surface">
             Métodos de Pago Corporativos
@@ -202,7 +202,7 @@ export function MetodosTabSection({
               }
             }}
             placeholder="Ej: Tarjeta Corporativa…"
-            className="flex-1 sm:w-56 px-3.5 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary"
+            className="flex-1 sm:w-56 px-3.5 py-2 rounded-xl bg-surface-container-lowest text-xs sm:text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <button
             id="config-add-metodo-btn"
@@ -218,7 +218,7 @@ export function MetodosTabSection({
       </div>
 
       {metodos.length === 0 ? (
-        <div className="py-10 text-center rounded-xl bg-surface-container-lowest/60 border border-dashed border-outline-variant/30 text-xs sm:text-sm text-on-surface-variant">
+        <div className="py-10 text-center rounded-xl bg-surface-container-lowest/60 border border-dashed border-surface-container-highest/40 text-xs sm:text-sm text-on-surface-variant">
           No hay métodos de pago registrados aún.
         </div>
       ) : (
@@ -237,7 +237,7 @@ export function MetodosTabSection({
             return (
               <div
                 key={m.id}
-                className="p-5 rounded-2xl bg-surface-container border border-outline-variant/25 hover:bg-surface-container-high/60 transition-all flex flex-col justify-between gap-5"
+                className="p-5 rounded-2xl bg-surface-container hover:bg-surface-container-high/60 transition-all flex flex-col justify-between gap-5"
               >
                 <div className="flex items-start justify-between">
                   <div
@@ -290,8 +290,8 @@ export function SuscripcionTabSection({
   onCancelSubscription: () => void;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
-      <div className="border-b border-outline-variant/20 pb-4">
+    <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
+      <div className="border-b border-surface-container-highest/20 pb-4">
         <h2 className="text-base sm:text-lg font-bold text-on-surface">
           Suscripción Corporativa y Prueba Gratuita
         </h2>
@@ -301,11 +301,11 @@ export function SuscripcionTabSection({
       </div>
 
       {!subscription ? (
-        <div className="p-6 rounded-xl bg-surface-container-lowest/60 border border-dashed border-outline-variant/30 text-xs sm:text-sm text-on-surface-variant text-center">
+        <div className="p-6 rounded-xl bg-surface-container-lowest/60 border border-dashed border-surface-container-highest/40 text-xs sm:text-sm text-on-surface-variant text-center">
           No se encontró información de suscripción vinculada a esta organización.
         </div>
       ) : (
-        <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/25 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="p-5 rounded-2xl bg-surface-container flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-base sm:text-lg font-bold text-on-surface">
@@ -341,7 +341,7 @@ export function SuscripcionTabSection({
               type="button"
               disabled={isPending}
               onClick={onCancelSubscription}
-              className="px-4 py-2.5 rounded-xl bg-error-container/25 border border-error/30 text-error hover:bg-error-container/40 text-xs font-bold transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-error-container/25 text-error hover:bg-error-container/40 text-xs font-bold transition-colors shrink-0 cursor-pointer disabled:opacity-50"
             >
               {subscription.status === 'TRIALING'
                 ? 'Cancelar Prueba Gratuita ($0.00)'
@@ -378,8 +378,8 @@ export function FiscalTabSection({
   onDeleteCertificate: () => void;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
-      <div className="border-b border-outline-variant/20 pb-4">
+    <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
+      <div className="border-b border-surface-container-highest/20 pb-4">
         <h2 className="text-base sm:text-lg font-bold text-on-surface">
           Certificado Fiscal EE. UU. (Opcional)
         </h2>
@@ -389,7 +389,7 @@ export function FiscalTabSection({
       </div>
 
       {/* Certificate Name & Upload Box */}
-      <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/25 flex flex-col gap-5">
+      <div className="p-5 rounded-2xl bg-surface-container flex flex-col gap-5">
         <div>
           <label className="block text-xs font-semibold text-on-surface mb-1.5">
             Nombre / Tipo de Certificado
@@ -400,13 +400,13 @@ export function FiscalTabSection({
               value={nombreCertificado}
               placeholder="ej. Certificado de Reventa (Resale Certificate) o Florida Tax-Exempt"
               onChange={(e) => onNombreChange(e.target.value)}
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant/35 text-xs sm:text-sm text-on-surface focus:outline-none focus:border-primary"
+              className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-container-lowest text-xs sm:text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <button
               type="button"
               disabled={isPending || isSavingCertName}
               onClick={onSaveName}
-              className="px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold border border-outline-variant/30 whitespace-nowrap cursor-pointer disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold whitespace-nowrap cursor-pointer disabled:opacity-50"
             >
               {isSavingCertName ? 'Guardando...' : 'Guardar Nombre'}
             </button>
@@ -420,7 +420,7 @@ export function FiscalTabSection({
           <span className="text-xs font-semibold text-on-surface">Archivo del Certificado</span>
 
           {urlCertificado ? (
-            <div className="p-4 rounded-xl bg-surface-container-lowest border border-primary/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 rounded-xl bg-surface-container-lowest flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
                   <FileCheck className="w-5 h-5" />
@@ -496,7 +496,7 @@ export function FiscalTabSection({
 
       {/* Info Guidelines Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 rounded-xl bg-surface-container border border-outline-variant/25">
+        <div className="p-4 rounded-xl bg-surface-container">
           <div className="flex items-center gap-2 text-primary mb-1.5">
             <ShieldCheck className="w-4 h-4" />
             <span className="text-xs font-bold">Consulta Inmediata en WhatsApp</span>
@@ -509,7 +509,7 @@ export function FiscalTabSection({
           </p>
         </div>
 
-        <div className="p-4 rounded-xl bg-surface-container border border-outline-variant/25">
+        <div className="p-4 rounded-xl bg-surface-container">
           <div className="flex items-center gap-2 text-secondary mb-1.5">
             <FileText className="w-4 h-4" />
             <span className="text-xs font-bold">Extracción Contable Universal</span>
@@ -556,7 +556,7 @@ export function EmployeeOrganizacionView({
       </div>
 
       {empresa && (
-        <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex items-center gap-4 flex-wrap relative z-10">
+        <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex items-center gap-4 flex-wrap relative z-10 shadow-sm">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-container-high to-surface-container flex items-center justify-center text-primary font-bold text-xl ring-1 ring-primary/30 shrink-0">
             {getCompanyMonogram(empresa.nombre)}
           </div>
@@ -571,14 +571,14 @@ export function EmployeeOrganizacionView({
       )}
 
       {/* My Profile */}
-      <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 relative z-10">
+      <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 relative z-10 shadow-sm">
         <h2 className="text-base font-bold text-on-surface">Mi Perfil</h2>
         <p className="text-xs text-on-surface-variant mb-4">
           Tu información registrada en la organización.
         </p>
 
         {myUser ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 p-4 rounded-xl bg-surface-container border border-outline-variant/20">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 p-4 rounded-xl bg-surface-container">
             <div className="min-w-0">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">
                 Nombre
@@ -622,7 +622,7 @@ export function EmployeeOrganizacionView({
       </div>
 
       {/* Expense Categories Read-Only */}
-      <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 relative z-10">
+      <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 relative z-10 shadow-sm">
         <h2 className="text-base font-bold text-on-surface">
           Categorías de Gastos y Límites Diarios
         </h2>
@@ -631,7 +631,7 @@ export function EmployeeOrganizacionView({
         </p>
 
         {activeCategories.length === 0 ? (
-          <div className="py-8 text-center text-xs text-on-surface-variant rounded-xl bg-surface-container-lowest/60 border border-dashed border-outline-variant/30">
+          <div className="py-8 text-center text-xs text-on-surface-variant rounded-xl bg-surface-container-lowest/60 border border-dashed border-surface-container-highest/40">
             No hay categorías activas configuradas.
           </div>
         ) : (
@@ -639,7 +639,7 @@ export function EmployeeOrganizacionView({
             {activeCategories.map((cat) => (
               <div
                 key={cat.id}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container border border-outline-variant/20 gap-3 flex-wrap"
+                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container gap-3 flex-wrap"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <span className="text-xl leading-none">{cat.icono || '🏷️'}</span>

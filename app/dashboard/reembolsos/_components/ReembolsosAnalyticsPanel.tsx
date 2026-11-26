@@ -85,7 +85,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 relative z-10">
       {/* Left Column: Multi-Currency & Category Distribution */}
-      <div className="rounded-2xl bg-surface-container-low border border-outline-variant/30 p-5 flex flex-col justify-between shadow-md gap-4">
+      <div className="rounded-2xl bg-surface-container-low p-5 flex flex-col justify-between shadow-md gap-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <PieChart className="w-5 h-5 text-secondary shrink-0" />
@@ -136,7 +136,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
 
         {/* Category Pills Breakdown */}
         {kpis.categoryBreakdown.length > 0 && (
-          <div className="pt-3 border-t border-outline-variant/20 flex flex-wrap items-center gap-2">
+          <div className="pt-3 border-t border-surface-container-highest/20 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold text-on-surface-variant mr-1">
               Categorías:
             </span>
@@ -165,7 +165,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
       </div>
 
       {/* Right Column: Treasury Settlement Control & Exchange Rate */}
-      <div className="rounded-2xl bg-surface-container-low border border-outline-variant/30 p-5 flex flex-col justify-between shadow-md gap-4">
+      <div className="rounded-2xl bg-surface-container-low p-5 flex flex-col justify-between shadow-md gap-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <Landmark className="w-5 h-5 text-primary-container shrink-0" />
@@ -181,7 +181,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Pending Liability Card */}
-          <div className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/20 flex flex-col gap-1 min-w-0">
+          <div className="p-3.5 rounded-xl bg-surface-container-lowest flex flex-col gap-1 min-w-0">
             <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold truncate">
               Compromiso por Liquidar
             </span>
@@ -201,7 +201,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
           </div>
 
           {/* Settlement Progress Card */}
-          <div className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/20 flex flex-col gap-1 min-w-0">
+          <div className="p-3.5 rounded-xl bg-surface-container-lowest flex flex-col gap-1 min-w-0">
             <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold truncate">
               Tasa de Liquidación
             </span>
@@ -220,7 +220,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
         </div>
 
         {/* Live BCV Parity Strip */}
-        <div className="p-3 rounded-xl bg-surface-container-high/60 border border-outline-variant/30 flex items-center justify-between gap-2 flex-wrap">
+        <div className="p-3 rounded-xl bg-surface-container-high/60 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <ArrowLeftRight className="w-4 h-4 text-secondary shrink-0" />
             <span className="text-xs text-on-surface font-medium truncate">
@@ -231,7 +231,7 @@ export function ReembolsosAnalyticsPanel({ kpis }: ReembolsosAnalyticsPanelProps
             <span className="text-xs font-bold text-secondary font-mono">
               Bs. {formatNum(bcvRate, 'es-VE')} / USD
             </span>
-            <span className="text-[10px] font-semibold text-on-surface-variant bg-surface-container-lowest px-2 py-0.5 rounded border border-outline-variant/30">
+            <span className="text-[10px] font-semibold text-on-surface-variant bg-surface-container-lowest px-2 py-0.5 rounded">
               Auto-Sync
             </span>
           </div>

@@ -114,12 +114,12 @@ export function ReportFilterPanel({
   };
 
   return (
-    <div className="bg-surface-container-low border border-outline-variant/25 rounded-2xl p-5 sm:p-8 flex flex-col gap-6 shadow-[0_4px_24px_rgba(0,0,0,0.35)] relative overflow-hidden z-10">
+    <div className="bg-surface-container-low rounded-2xl p-5 sm:p-8 flex flex-col gap-6 shadow-[0_4px_24px_rgba(0,0,0,0.35)] relative overflow-hidden z-10">
       {/* Decorative Glow Corner */}
       <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Generator Header & Format Toggles */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-surface-container-high/60 pb-5 relative z-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-surface-container-highest/20 pb-5 relative z-10">
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-2.5">
             <Table2 className="w-5 h-5 text-primary shrink-0" />
@@ -133,7 +133,7 @@ export function ReportFilterPanel({
         </div>
 
         {/* Format Selector Pills */}
-        <div className="flex items-center p-1 bg-surface-container rounded-full self-start lg:self-auto gap-1 shrink-0 border border-outline-variant/20">
+        <div className="flex items-center p-1 bg-surface-container rounded-full self-start lg:self-auto gap-1 shrink-0">
           <button
             type="button"
             onClick={() => onFormatChange('XLSX')}
@@ -175,7 +175,7 @@ export function ReportFilterPanel({
             type="date"
             value={filters.dateFrom || ''}
             onChange={(e) => onFilterChange('dateFrom', e.target.value)}
-            className="w-full h-10 px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/25 text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer [color-scheme:dark]"
+            className="w-full h-10 px-3 py-2 rounded-xl bg-surface-container text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer [color-scheme:dark]"
           />
         </div>
 
@@ -193,7 +193,7 @@ export function ReportFilterPanel({
             type="date"
             value={filters.dateTo || ''}
             onChange={(e) => onFilterChange('dateTo', e.target.value)}
-            className="w-full h-10 px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/25 text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer [color-scheme:dark]"
+            className="w-full h-10 px-3 py-2 rounded-xl bg-surface-container text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer [color-scheme:dark]"
           />
         </div>
 
@@ -211,7 +211,7 @@ export function ReportFilterPanel({
               id="filter-project"
               value={filters.projectId || 'ALL'}
               onChange={(e) => onFilterChange('projectId', e.target.value)}
-              className="w-full h-10 appearance-none px-3 py-2 pr-8 rounded-xl bg-surface-container border border-outline-variant/25 text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer truncate [color-scheme:dark]"
+              className="w-full h-10 appearance-none px-3 py-2 pr-8 rounded-xl bg-surface-container text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer truncate [color-scheme:dark]"
             >
               <option value="ALL">Todos los proyectos</option>
               {projects.map((p) => (
@@ -231,7 +231,7 @@ export function ReportFilterPanel({
               <Users className="w-3.5 h-3.5 text-tertiary shrink-0" />
               <span className="truncate">Colaborador</span>
             </label>
-            <div className="h-10 px-3 rounded-xl bg-primary/10 border border-primary/25 text-primary text-xs font-semibold flex items-center truncate">
+            <div className="h-10 px-3 rounded-xl bg-primary/10 text-primary text-xs font-semibold flex items-center truncate">
               Mis gastos personales
             </div>
           </div>
@@ -249,7 +249,7 @@ export function ReportFilterPanel({
                 id="filter-employee"
                 value={filters.employeeId || 'ALL'}
                 onChange={(e) => onFilterChange('employeeId', e.target.value)}
-                className="w-full h-10 appearance-none px-3 py-2 pr-8 rounded-xl bg-surface-container border border-outline-variant/25 text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer truncate [color-scheme:dark]"
+                className="w-full h-10 appearance-none px-3 py-2 pr-8 rounded-xl bg-surface-container text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer truncate [color-scheme:dark]"
               >
                 <option value="ALL">Todos los colaboradores</option>
                 {employees.map((e) => (
@@ -277,7 +277,7 @@ export function ReportFilterPanel({
               id="filter-currency"
               value={filters.currency || 'ALL'}
               onChange={(e) => onFilterChange('currency', e.target.value)}
-              className="w-full h-10 appearance-none px-3 py-2 pr-8 rounded-xl bg-surface-container border border-outline-variant/25 text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer truncate [color-scheme:dark]"
+              className="w-full h-10 appearance-none px-3 py-2 pr-8 rounded-xl bg-surface-container text-on-surface text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all cursor-pointer truncate [color-scheme:dark]"
             >
               <option value="ALL">Multidivisa (Todas)</option>
               {currencies.map((cur) => (
@@ -319,7 +319,7 @@ export function ReportFilterPanel({
                 onClick={() => handleApplyPreset(preset.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                   isSelected
-                    ? 'bg-surface-container-high text-primary font-semibold border border-primary/25'
+                    ? 'bg-surface-container-high text-primary font-semibold'
                     : 'bg-surface-container text-on-surface hover:bg-surface-container-high font-medium'
                 }`}
               >
@@ -334,7 +334,7 @@ export function ReportFilterPanel({
           <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold whitespace-nowrap mr-1">
             Tipo de Flujo:
           </span>
-          <div className="flex items-center p-1 bg-surface-container rounded-xl gap-1 border border-outline-variant/20">
+          <div className="flex items-center p-1 bg-surface-container rounded-xl gap-1">
             {(
               [
                 { id: 'ALL', label: 'Todos' },
@@ -364,14 +364,14 @@ export function ReportFilterPanel({
 
       {/* Feedback Alerts */}
       {errorMessage && (
-        <div className="bg-error-container/20 border border-error/30 rounded-xl p-3.5 flex items-center gap-2.5 text-error text-xs sm:text-sm relative z-10">
+        <div className="bg-error-container/20 rounded-xl p-3.5 flex items-center gap-2.5 text-error text-xs sm:text-sm relative z-10">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {lastResult && lastResult.success && (
-        <div className="bg-primary-container/15 border border-primary/30 rounded-xl p-3.5 flex items-center gap-2.5 text-primary text-xs sm:text-sm relative z-10">
+        <div className="bg-primary-container/15 rounded-xl p-3.5 flex items-center gap-2.5 text-primary text-xs sm:text-sm relative z-10">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>
             ¡Reporte generado con éxito! Se procesaron{' '}
@@ -391,7 +391,7 @@ export function ReportFilterPanel({
       )}
 
       {/* Action Footer */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-surface-container-high/60 relative z-10">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-surface-container-highest/20 relative z-10">
         <button
           type="button"
           onClick={onResetFilters}

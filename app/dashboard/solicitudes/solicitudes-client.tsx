@@ -726,10 +726,10 @@ export default function SolicitudesClient({
                 <div
                   key={sol.id}
                   onClick={() => setSelectedId(sol.id)}
-                  className={`group p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer shadow-sm flex flex-col gap-3 border ${
+                  className={`group p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer shadow-sm flex flex-col gap-3 ${
                     isSelected
-                      ? 'border-primary/50 bg-surface-container ring-1 ring-primary/30'
-                      : 'border-transparent hover:border-surface-container-high'
+                      ? 'bg-surface-container ring-1 ring-primary/40 shadow-[0_0_20px_rgba(0,229,153,0.08)]'
+                      : ''
                   }`}
                 >
                   {/* Card Top Row */}
@@ -779,7 +779,7 @@ export default function SolicitudesClient({
                   </div>
 
                   {/* Card Bottom Row */}
-                  <div className="flex items-center justify-between pt-2 border-t border-surface-container-high/50 flex-wrap gap-2">
+                  <div className="flex items-center justify-between pt-2 border-t border-surface-container-highest/20 flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <span className="px-2.5 py-1 rounded-lg bg-surface-container text-on-surface text-xs font-medium">
                         {sol.proyecto}
@@ -893,9 +893,9 @@ export default function SolicitudesClient({
         {/* Right Column (Span 5 - Sticky): Detalle de Solicitud (Audit Trail & Action Drawer) */}
         <div className="lg:col-span-5 lg:sticky lg:top-6 flex flex-col gap-4">
           {selectedSolicitud ? (
-            <div className="rounded-2xl bg-surface-container-low p-6 shadow-sm flex flex-col gap-5 border border-surface-container-high/40">
+            <div className="rounded-2xl bg-surface-container-low p-6 shadow-sm flex flex-col gap-5">
               {/* Detail Header */}
-              <div className="flex items-center justify-between border-b border-surface-container-high/60 pb-4">
+              <div className="flex items-center justify-between border-b border-surface-container-highest/20 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
                     <FileText className="w-5 h-5" />
@@ -1124,7 +1124,7 @@ export default function SolicitudesClient({
               )}
 
               {selectedSolicitud.estado === 'APROBADO' && selectedSolicitud.url_comprobante_transferencia && (
-                <div className="p-3.5 rounded-xl bg-surface-container-lowest border border-primary/20 flex items-center justify-between">
+                <div className="p-3.5 rounded-xl bg-surface-container-lowest flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-primary-container/20 text-primary flex items-center justify-center">
                       <CheckCircle2 className="w-4 h-4" />
@@ -1208,7 +1208,7 @@ export default function SolicitudesClient({
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl bg-surface-container-low p-8 text-center text-xs text-on-surface-variant border border-surface-container-high/40">
+            <div className="rounded-2xl bg-surface-container-low p-8 text-center text-xs text-on-surface-variant">
               Selecciona una solicitud para ver su detalle y auditoría.
             </div>
           )}
@@ -1240,7 +1240,7 @@ export default function SolicitudesClient({
           onClick={() => setRejectTarget(null)}
         >
           <div
-            className="bg-surface-container border border-surface-container-high rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+            className="bg-surface-container rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-bold text-on-surface mb-1">Rechazar Solicitud</h3>
@@ -1253,7 +1253,7 @@ export default function SolicitudesClient({
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Ej: Presupuesto del proyecto agotado..."
               rows={4}
-              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-all resize-y mb-4"
+              className="w-full bg-surface-container-lowest rounded-xl p-3 text-xs text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-y mb-4"
             />
             <div className="flex gap-2 justify-end">
               <button
@@ -1285,10 +1285,10 @@ export default function SolicitudesClient({
           onClick={() => setShowNewRequestModal(false)}
         >
           <div
-            className="bg-surface-container border border-surface-container-high rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-surface-container rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-surface-container-high/60 pb-3">
+            <div className="flex items-center justify-between border-b border-surface-container-highest/20 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-primary-container/20 text-primary flex items-center justify-center">
                   <MessageCircle className="w-5 h-5" />
@@ -1310,7 +1310,7 @@ export default function SolicitudesClient({
               En Rendy, las solicitudes de viáticos se registran de forma automatizada mediante nuestro bot conversacional en WhatsApp. Los colaboradores solo deben enviar un mensaje indicando el monto y el proyecto para que la solicitud aparezca de inmediato aquí para su aprobación y giro.
             </p>
 
-            <div className="p-3 rounded-xl bg-surface-container-lowest border border-surface-container-high flex flex-col gap-1 text-xs">
+            <div className="p-3 rounded-xl bg-surface-container-lowest flex flex-col gap-1 text-xs">
               <span className="font-semibold text-on-surface">Paso a paso para el empleado:</span>
               <span className="text-on-surface-variant">1. Escribir al bot oficial de WhatsApp de Rendy.</span>
               <span className="text-on-surface-variant">2. Escribir &ldquo;Solicitar viático&rdquo; o indicar el monto.</span>

@@ -28,7 +28,7 @@ export default function ReembolsosLoading() {
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-32 rounded-2xl bg-surface-container-low border border-outline-variant/20 p-5 flex flex-col justify-between"
+            className="h-32 rounded-2xl bg-surface-container-low p-5 flex flex-col justify-between"
           >
             <div className="w-2/3 h-3 rounded bg-surface-container-high" />
             <div className="w-1/2 h-7 rounded bg-surface-container-high" />
@@ -39,12 +39,12 @@ export default function ReembolsosLoading() {
 
       {/* 2-Column Analytics Skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="h-56 rounded-2xl bg-surface-container-low border border-outline-variant/20 p-5" />
-        <div className="h-56 rounded-2xl bg-surface-container-low border border-outline-variant/20 p-5" />
+        <div className="h-56 rounded-2xl bg-surface-container-low p-5" />
+        <div className="h-56 rounded-2xl bg-surface-container-low p-5" />
       </div>
 
       {/* Filters Skeleton */}
-      <div className="h-28 rounded-2xl bg-surface-container-low border border-outline-variant/20 p-4" />
+      <div className="h-28 rounded-2xl bg-surface-container-low p-4" />
 
       {/* Split-View Master-Detail Skeleton */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
@@ -52,11 +52,11 @@ export default function ReembolsosLoading() {
           {[0, 1, 2, 3].map((row) => (
             <div
               key={row}
-              className="h-28 rounded-2xl bg-surface-container-low border border-outline-variant/20 p-4"
+              className="h-28 rounded-2xl bg-surface-container-low p-4"
             />
           ))}
         </div>
-        <div className="xl:col-span-5 h-[520px] rounded-2xl bg-surface-container-low border border-outline-variant/20 p-5" />
+        <div className="xl:col-span-5 h-[520px] rounded-2xl bg-surface-container-low p-5" />
       </div>
     </div>
   );

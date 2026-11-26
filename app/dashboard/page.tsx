@@ -92,7 +92,7 @@ function DashboardStatusBadge({ estado, requiereRevisionFiscal }: { estado: stri
 
   if (norm.includes('REQUIERE_APROBACION') || norm.includes('ESPECIAL') || requiereRevisionFiscal) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-tertiary-container/15 text-tertiary-container text-[11px] font-medium tracking-normal border border-tertiary-container/25 whitespace-nowrap shrink-0">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-tertiary-container/15 text-tertiary-container text-[11px] font-medium tracking-normal whitespace-nowrap shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-tertiary-container animate-pulse shrink-0" />
         Aprobación especial
       </span>
@@ -102,7 +102,7 @@ function DashboardStatusBadge({ estado, requiereRevisionFiscal }: { estado: stri
   if (norm === 'APROBADO' || norm === 'TRANSFERIDO' || norm === 'PAGADO' || norm === 'PROCESADO' || norm === 'LIQUIDADO') {
     const displayLabel = norm === 'APROBADO' ? 'Aprobado' : norm === 'TRANSFERIDO' ? 'Transferido' : norm === 'PROCESADO' ? 'Procesado' : 'Liquidado';
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-container/15 text-primary text-[11px] font-medium tracking-normal border border-primary-container/25 whitespace-nowrap shrink-0">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-container/15 text-primary text-[11px] font-medium tracking-normal whitespace-nowrap shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
         {displayLabel}
       </span>
@@ -111,7 +111,7 @@ function DashboardStatusBadge({ estado, requiereRevisionFiscal }: { estado: stri
 
   if (norm === 'RECHAZADO' || norm === 'CANCELADO' || norm === 'ANULADO') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-error/15 text-error text-[11px] font-medium tracking-normal border border-error/25 whitespace-nowrap shrink-0">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-error/15 text-error text-[11px] font-medium tracking-normal whitespace-nowrap shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
         Rechazado
       </span>
@@ -119,7 +119,7 @@ function DashboardStatusBadge({ estado, requiereRevisionFiscal }: { estado: stri
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container/15 text-secondary text-[11px] font-medium tracking-normal border border-secondary-container/25 whitespace-nowrap shrink-0">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary text-[11px] font-medium tracking-normal whitespace-nowrap shrink-0">
       <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
       Pendiente
     </span>
@@ -348,10 +348,10 @@ export default async function DashboardPage() {
           <h1 className="font-headline-lg text-2xl sm:text-3xl lg:text-[38px] font-bold text-on-surface tracking-tight leading-none">
             Dashboard
           </h1>
-          <span className="px-2.5 py-1 rounded-full bg-surface-container-high text-primary font-label-sm text-[11px] sm:text-xs tracking-wide font-semibold border border-primary/20 shrink-0">
+          <span className="px-2.5 py-1 rounded-full bg-surface-container-high text-primary font-label-sm text-[11px] sm:text-xs tracking-wide font-semibold shrink-0">
             {empresa}
           </span>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low text-secondary font-label-sm text-[11px] sm:text-xs border border-secondary/20 shrink-0">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low text-secondary font-label-sm text-[11px] sm:text-xs shrink-0">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="font-medium text-[11px]">En vivo</span>
           </div>
@@ -370,7 +370,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" role="list" aria-label="Indicadores clave">
         {/* KPI 1: Total Registrado (Mint) */}
         <div
-          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group border border-outline-variant/20 min-w-0 overflow-hidden"
+          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group min-w-0 overflow-hidden"
           role="listitem"
           id="kpi-total-gastado"
         >
@@ -397,7 +397,7 @@ export default async function DashboardPage() {
               {fmt(kpis.totalGastado, moneda)}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl border-t border-outline-variant/10 text-primary">
+          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl text-primary">
             <TrendingUp size={13} className="shrink-0" />
             <span className="font-label-sm font-medium text-[10px] sm:text-[11px] truncate">Datos en tiempo real</span>
           </div>
@@ -405,7 +405,7 @@ export default async function DashboardPage() {
 
         {/* KPI 2: Viáticos Aprobados (Cyan) */}
         <div
-          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group border border-outline-variant/20 min-w-0 overflow-hidden"
+          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group min-w-0 overflow-hidden"
           role="listitem"
           id="kpi-viaticos-aprobados"
         >
@@ -432,7 +432,7 @@ export default async function DashboardPage() {
               {fmt(kpis.viaticosAprobados, moneda)}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl border-t border-outline-variant/10 text-secondary">
+          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl text-secondary">
             <CheckCircle2 size={13} className="shrink-0" />
             <span className="font-label-sm font-medium text-[10px] sm:text-[11px] truncate">Datos en tiempo real</span>
           </div>
@@ -440,7 +440,7 @@ export default async function DashboardPage() {
 
         {/* KPI 3: Gastos Justificados (WA) (Amber) */}
         <div
-          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group border border-outline-variant/20 min-w-0 overflow-hidden"
+          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group min-w-0 overflow-hidden"
           role="listitem"
           id="kpi-justificados"
         >
@@ -467,7 +467,7 @@ export default async function DashboardPage() {
               {fmt(kpis.mJustificados, moneda)}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl border-t border-outline-variant/10 text-tertiary-container">
+          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl text-tertiary-container">
             <RotateCcw size={13} className="shrink-0" />
             <span className="font-label-sm font-medium text-[10px] sm:text-[11px] truncate">Datos en tiempo real</span>
           </div>
@@ -475,7 +475,7 @@ export default async function DashboardPage() {
 
         {/* KPI 4: Reembolsos Pendientes (Coral / Error) */}
         <div
-          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group border border-outline-variant/20 min-w-0 overflow-hidden"
+          className="bg-surface-container-low hover:bg-surface-container rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-md transition-all group min-w-0 overflow-hidden"
           role="listitem"
           id="kpi-reembolsos-pendientes"
         >
@@ -502,7 +502,7 @@ export default async function DashboardPage() {
               {fmt(kpis.reembolsosPendientes, moneda)}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl border-t border-outline-variant/10 text-error">
+          <div className="flex items-center gap-1.5 mt-3 pt-3 bg-surface-container-lowest/40 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 px-4 sm:px-5 py-2.5 rounded-b-2xl text-error">
             <Clock size={13} className="shrink-0" />
             <span className="font-label-sm font-medium text-[10px] sm:text-[11px] truncate">Datos en tiempo real</span>
           </div>
@@ -514,7 +514,7 @@ export default async function DashboardPage() {
         {/* ─── LEFT COLUMN (Span 8): Activity & Transactions ─── */}
         <div className="xl:col-span-8 flex flex-col gap-6 lg:gap-8 min-w-0">
           {/* SECTION 1: Últimos Gastos (vía WhatsApp) */}
-          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 shadow-lg border border-outline-variant/20 min-w-0">
+          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 shadow-lg min-w-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
@@ -532,7 +532,7 @@ export default async function DashboardPage() {
               <Link
                 href="/dashboard/gastos"
                 id="dashboard-ver-todos-btn"
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-xs font-semibold transition-colors border border-outline-variant/20 shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-xs font-semibold transition-colors shrink-0"
               >
                 <span>Ver todos</span>
                 <ArrowUpRight size={14} />
@@ -542,7 +542,7 @@ export default async function DashboardPage() {
             {/* Transaction Ledger Items */}
             <div className="flex flex-col gap-2.5">
               {recentGastos.length === 0 ? (
-                <div className="p-8 rounded-xl bg-surface-container/60 border border-outline-variant/20 text-center flex flex-col items-center justify-center gap-2">
+                <div className="p-8 rounded-xl bg-surface-container/60 text-center flex flex-col items-center justify-center gap-2">
                   <Receipt size={28} className="text-on-surface-variant/50" />
                   <span className="text-on-surface font-semibold text-sm">Sin gastos corporativos registrados</span>
                   <span className="text-on-surface-variant text-xs">
@@ -561,11 +561,11 @@ export default async function DashboardPage() {
                   return (
                     <div
                       key={g.id}
-                      className="p-3.5 sm:p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 group border border-outline-variant/15 min-w-0"
+                      className="p-3.5 sm:p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 group min-w-0"
                     >
                       {/* Left: Store Icon + Commerce + Category + Project */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-tertiary-container shrink-0 border border-outline-variant/20">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-tertiary-container shrink-0">
                           <CategoryIcon size={18} className="sm:w-[19px] sm:h-[19px]" strokeWidth={2.1} />
                         </div>
                         <div className="flex flex-col min-w-0 flex-1">
@@ -576,7 +576,7 @@ export default async function DashboardPage() {
                             >
                               {commerceName}
                             </span>
-                            <span className="px-2 py-0.5 rounded-md bg-surface-container-highest text-on-surface-variant font-label-sm text-[10px] sm:text-[11px] font-medium border border-outline-variant/20 shrink-0">
+                            <span className="px-2 py-0.5 rounded-md bg-surface-container-highest text-on-surface-variant font-label-sm text-[10px] sm:text-[11px] font-medium shrink-0">
                               {g.categoria || 'Otros'}
                             </span>
                           </div>
@@ -591,7 +591,7 @@ export default async function DashboardPage() {
                       </div>
 
                       {/* Right: Amounts & Status Badge */}
-                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-outline-variant/15">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-highest/20">
                         <div className="text-left sm:text-right min-w-0">
                           <div className="font-label-md font-bold text-on-surface text-sm sm:text-base leading-snug truncate">
                             {fmt(g.monto ?? 0, gMoneda)}
@@ -615,7 +615,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* SECTION 2: Últimas Solicitudes de Reembolso (vía WhatsApp) */}
-          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 shadow-lg border border-outline-variant/20 min-w-0">
+          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 shadow-lg min-w-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-secondary shrink-0">
@@ -633,7 +633,7 @@ export default async function DashboardPage() {
               <Link
                 href="/dashboard/reembolsos"
                 id="dashboard-ver-reembolsos-btn"
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-xs font-semibold transition-colors border border-outline-variant/20 shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-xs font-semibold transition-colors shrink-0"
               >
                 <span>Ver todos</span>
                 <ArrowUpRight size={14} />
@@ -643,7 +643,7 @@ export default async function DashboardPage() {
             {/* Refund Card Items */}
             <div className="flex flex-col gap-3">
               {recentReembolsos.length === 0 ? (
-                <div className="p-8 rounded-xl bg-surface-container/60 border border-outline-variant/20 text-center flex flex-col items-center justify-center gap-2">
+                <div className="p-8 rounded-xl bg-surface-container/60 text-center flex flex-col items-center justify-center gap-2">
                   <RotateCcw size={28} className="text-on-surface-variant/50" />
                   <span className="text-on-surface font-semibold text-sm">Sin solicitudes de reembolso registradas</span>
                   <span className="text-on-surface-variant text-xs">
@@ -662,11 +662,11 @@ export default async function DashboardPage() {
                   return (
                     <div
                       key={r.id}
-                      className="p-3.5 sm:p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 border border-outline-variant/15 min-w-0"
+                      className="p-3.5 sm:p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 min-w-0"
                     >
                       {/* 1. Employee Identification: vertical stack with uniform spacing */}
                       <div className="flex items-center gap-3 min-w-0 w-full lg:w-[220px] xl:w-[250px] shrink-0">
-                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-secondary/15 text-secondary font-headline-sm flex items-center justify-center font-bold shrink-0 border border-secondary/25 text-sm sm:text-base">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-secondary/15 text-secondary font-headline-sm flex items-center justify-center font-bold shrink-0 text-sm sm:text-base">
                           {initials || 'EM'}
                         </div>
                         <div className="flex flex-col gap-1 min-w-0 flex-1 justify-center">
@@ -674,7 +674,7 @@ export default async function DashboardPage() {
                             {r.empleado}
                           </span>
                           <div className="leading-none">
-                            <span className="inline-block px-2 py-0.5 rounded-md bg-secondary/15 text-secondary font-label-sm text-[10px] sm:text-[11px] font-medium border border-secondary/20">
+                            <span className="inline-block px-2 py-0.5 rounded-md bg-secondary/15 text-secondary font-label-sm text-[10px] sm:text-[11px] font-medium">
                               {r.categoria || 'General'}
                             </span>
                           </div>
@@ -688,7 +688,7 @@ export default async function DashboardPage() {
                       </div>
 
                       {/* 2. Receipt & Merchant Metadata Box: uniform dimensions and alignment */}
-                      <div className="flex flex-col justify-center font-label-sm text-on-surface-variant bg-surface-container-lowest/70 px-3.5 py-2.5 rounded-xl border border-outline-variant/20 min-w-0 w-full lg:flex-1 lg:max-w-md min-h-[58px]">
+                      <div className="flex flex-col justify-center font-label-sm text-on-surface-variant bg-surface-container-lowest/70 px-3.5 py-2.5 rounded-xl min-w-0 w-full lg:flex-1 lg:max-w-md min-h-[58px]">
                         <div className="flex items-center gap-2 text-xs truncate">
                           <span className="font-semibold text-on-surface truncate" title={r.comercio}>
                             Comercio: {r.comercio}
@@ -704,7 +704,7 @@ export default async function DashboardPage() {
                       </div>
 
                       {/* 3. Amounts & Status */}
-                      <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-outline-variant/15 w-full lg:w-[200px] xl:w-[220px]">
+                      <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-surface-container-highest/20 w-full lg:w-[200px] xl:w-[220px]">
                         <div className="text-left lg:text-right min-w-0 flex-1 lg:flex-initial">
                           <div className="font-label-md font-bold text-secondary text-sm sm:text-base leading-snug truncate">
                             {fmt(r.monto_ves || r.monto, r.moneda)}
@@ -734,10 +734,10 @@ export default async function DashboardPage() {
         {/* ─── RIGHT COLUMN (Span 4): Distribution & Currency Analytics ─── */}
         <div className="xl:col-span-4 flex flex-col gap-6 min-w-0">
           {/* CARD 1: Gastos por Moneda */}
-          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 shadow-lg border border-outline-variant/20 min-w-0">
+          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 shadow-lg min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary border border-outline-variant/20 shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
                   <Coins size={16} strokeWidth={2.2} />
                 </div>
                 <h3 className="font-headline-sm text-base sm:text-lg font-semibold text-on-surface truncate">
@@ -762,7 +762,7 @@ export default async function DashboardPage() {
                   return (
                     <div
                       key={c.cur}
-                      className="flex flex-col gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors border border-outline-variant/15 min-w-0"
+                      className="flex flex-col gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors min-w-0"
                     >
                       <div className="flex items-center justify-between gap-2 min-w-0">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -788,10 +788,10 @@ export default async function DashboardPage() {
           </div>
 
           {/* CARD 2: Gasto por Proyecto (en USD) */}
-          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-5 sm:gap-6 shadow-lg border border-outline-variant/20 overflow-hidden min-w-0">
+          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-5 sm:gap-6 shadow-lg overflow-hidden min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-surface-container-highest flex items-center justify-center text-tertiary-container border border-outline-variant/20 shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-surface-container-highest flex items-center justify-center text-tertiary-container shrink-0">
                   <BarChart3 size={16} strokeWidth={2.2} />
                 </div>
                 <h3 className="font-headline-sm text-base sm:text-lg font-semibold text-on-surface truncate">
@@ -843,21 +843,21 @@ export default async function DashboardPage() {
             </div>
 
             {/* Quick Actions Panel */}
-            <div className="pt-4 bg-surface-container-lowest/50 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 p-4 sm:p-6 rounded-b-2xl flex flex-col gap-3 border-t border-outline-variant/20">
+            <div className="pt-4 bg-surface-container-lowest/50 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 p-4 sm:p-6 rounded-b-2xl flex flex-col gap-3">
               <span className="font-label-sm uppercase tracking-wider text-on-surface-variant text-[10px] sm:text-[11px] font-bold">
                 Acciones rápidas
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <Link
                   href="/dashboard/solicitudes"
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-xs font-semibold transition-colors border border-outline-variant/20"
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-xs font-semibold transition-colors"
                 >
                   <PlusCircle size={16} className="text-primary shrink-0" />
                   <span className="truncate">Asignar cupo</span>
                 </Link>
                 <Link
                   href="/dashboard/reportes"
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-xs font-semibold transition-colors border border-outline-variant/20"
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-xs font-semibold transition-colors"
                 >
                   <FileSpreadsheet size={16} className="text-secondary shrink-0" />
                   <span className="truncate">Exportar CSV</span>
@@ -867,10 +867,10 @@ export default async function DashboardPage() {
           </div>
 
           {/* CARD 3: Resumen de Reembolsos */}
-          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 shadow-lg border border-outline-variant/20 min-w-0">
+          <div className="bg-surface-container-low rounded-2xl p-4 sm:p-6 flex flex-col gap-4 shadow-lg min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-surface-container-highest flex items-center justify-center text-secondary border border-outline-variant/20 shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-surface-container-highest flex items-center justify-center text-secondary shrink-0">
                   <RotateCcw size={16} strokeWidth={2.2} />
                 </div>
                 <h3 className="font-headline-sm text-base sm:text-lg font-semibold text-on-surface truncate">
@@ -892,7 +892,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="flex flex-col gap-3">
                 {/* Total Acumulado */}
-                <div className="flex justify-between items-baseline pb-3 border-b border-outline-variant/20 gap-2">
+                <div className="flex justify-between items-baseline pb-3 border-b border-surface-container-highest/20 gap-2">
                   <div className="min-w-0">
                     <span className="font-label-sm uppercase tracking-wider text-on-surface-variant text-[10px] font-semibold truncate block">
                       Volumen Total
@@ -907,7 +907,7 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Pagados / Transferidos */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/20 gap-2 min-w-0">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 gap-2 min-w-0">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className="w-7 h-7 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
                       <SendHorizontal size={14} strokeWidth={2.2} />
@@ -925,7 +925,7 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Listos para Transferir */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/10 border border-secondary/20 gap-2 min-w-0">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/10 gap-2 min-w-0">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className="w-7 h-7 rounded-lg bg-secondary/20 text-secondary flex items-center justify-center shrink-0">
                       <CheckCircle2 size={14} strokeWidth={2.2} />
@@ -943,7 +943,7 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Pendientes de Revisión */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-tertiary-container/10 border border-tertiary-container/20 gap-2 min-w-0">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-tertiary-container/10 gap-2 min-w-0">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className="w-7 h-7 rounded-lg bg-tertiary-container/20 text-tertiary-container flex items-center justify-center shrink-0">
                       <Clock size={14} strokeWidth={2.2} />

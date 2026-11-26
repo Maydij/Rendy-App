@@ -55,10 +55,8 @@ export function JustificacionKpiGrid({
       <button
         type="button"
         onClick={() => onSelectFilter('TODOS')}
-        className={`text-left relative overflow-hidden rounded-2xl bg-surface-container p-5 shadow-md hover:bg-surface-container-high transition-all cursor-pointer flex flex-col justify-between ${
-          activeFilter === 'TODOS'
-            ? 'ring-1 ring-primary/40'
-            : 'border border-transparent hover:border-surface-container-highest'
+        className={`text-left relative overflow-hidden rounded-2xl bg-surface-container-low p-5 shadow-md hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between ${
+          activeFilter === 'TODOS' ? 'ring-1 ring-primary/40 bg-surface-container' : ''
         }`}
       >
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -80,7 +78,7 @@ export function JustificacionKpiGrid({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-high/60">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-highest/20">
           <span className="truncate">Monto total otorgado:</span>
           <span className="text-primary font-bold font-mono shrink-0">
             {prefix}{formatMoney(totalOtorgado)} {primaryCurrency}
@@ -92,10 +90,8 @@ export function JustificacionKpiGrid({
       <button
         type="button"
         onClick={() => onSelectFilter('COMPLETOS')}
-        className={`text-left relative overflow-hidden rounded-2xl bg-surface-container p-5 shadow-md hover:bg-surface-container-high transition-all cursor-pointer flex flex-col justify-between ${
-          activeFilter === 'COMPLETOS'
-            ? 'ring-1 ring-primary-fixed/50'
-            : 'border border-transparent hover:border-surface-container-highest'
+        className={`text-left relative overflow-hidden rounded-2xl bg-surface-container-low p-5 shadow-md hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between ${
+          activeFilter === 'COMPLETOS' ? 'ring-1 ring-primary-fixed/50 bg-surface-container' : ''
         }`}
       >
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -117,7 +113,7 @@ export function JustificacionKpiGrid({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-high/60">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-highest/20">
           <span className="truncate">Tasa de éxito / cierre:</span>
           <span className="text-secondary font-bold font-mono shrink-0">
             {closureRate}% total
@@ -129,10 +125,10 @@ export function JustificacionKpiGrid({
       <button
         type="button"
         onClick={() => onSelectFilter(incompleteTargetFilter)}
-        className={`text-left relative overflow-hidden rounded-2xl bg-surface-container p-5 shadow-md hover:bg-surface-container-high transition-all cursor-pointer flex flex-col justify-between sm:col-span-2 md:col-span-1 ${
+        className={`text-left relative overflow-hidden rounded-2xl bg-surface-container-low p-5 shadow-md hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between sm:col-span-2 md:col-span-1 ${
           activeFilter === 'EN_PROGRESO' || activeFilter === 'SIN_COMPROBANTES'
-            ? 'ring-1 ring-tertiary-container/50'
-            : 'border border-transparent hover:border-surface-container-highest'
+            ? 'ring-1 ring-tertiary-container/50 bg-surface-container'
+            : ''
         }`}
       >
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -154,7 +150,7 @@ export function JustificacionKpiGrid({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-high/60">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-on-surface-variant pt-2.5 border-t border-surface-container-highest/20">
           {topPendingItem ? (
             <>
               <span className="truncate">{topPendingItem.empleado}:</span>

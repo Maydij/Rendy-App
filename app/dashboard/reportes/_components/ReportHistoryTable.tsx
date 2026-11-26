@@ -71,7 +71,7 @@ export function ReportHistoryTable({
   );
 
   return (
-    <div className="bg-surface-container-low border border-outline-variant/25 rounded-2xl p-5 sm:p-8 flex flex-col gap-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)] relative z-10">
+    <div className="bg-surface-container-low rounded-2xl p-5 sm:p-8 flex flex-col gap-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)] relative z-10">
       {/* Header & Controls */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex flex-col min-w-0">
@@ -87,7 +87,7 @@ export function ReportHistoryTable({
         </div>
 
         <div className="flex items-center gap-2.5 self-start lg:self-auto shrink-0">
-          <span className="text-xs text-on-surface-variant font-medium px-3 py-1.5 rounded-full bg-surface-container border border-outline-variant/20">
+          <span className="text-xs text-on-surface-variant font-medium px-3 py-1.5 rounded-full bg-surface-container">
             Últimos {history.length} {history.length === 1 ? 'reporte' : 'reportes'}
           </span>
           {onRefresh && (
@@ -133,7 +133,7 @@ export function ReportHistoryTable({
                   <th className="py-3.5 px-4 rounded-r-xl text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container-high/40 text-on-surface text-xs sm:text-sm">
+              <tbody className="divide-y divide-surface-container-highest/20 text-on-surface text-xs sm:text-sm">
                 {paginatedHistory.map((item) => {
                   const { date, time } = formatDateTimeParts(item.createdAt);
                   const initials = getInitials(item.userName);
@@ -268,7 +268,7 @@ export function ReportHistoryTable({
               return (
                 <div
                   key={item.id}
-                  className="p-4 rounded-xl bg-surface-container border border-outline-variant/25 flex flex-col gap-3"
+                  className="p-4 rounded-xl bg-surface-container flex flex-col gap-3"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -305,7 +305,7 @@ export function ReportHistoryTable({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-surface-container-high/50">
+                  <div className="flex items-center justify-between pt-2 border-t border-surface-container-highest/20">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-6 h-6 rounded-full bg-surface-container-highest text-secondary font-bold text-[10px] flex items-center justify-center shrink-0">
                         {initials}

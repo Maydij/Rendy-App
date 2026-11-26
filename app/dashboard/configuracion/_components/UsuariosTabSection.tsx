@@ -100,7 +100,7 @@ export function UsuariosTabSection({
       {/* 3 Executive Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
         {/* Card 1: Total Collaborators */}
-        <div className="p-5 rounded-2xl bg-surface-container-low border border-outline-variant/25 flex items-center justify-between gap-3">
+        <div className="p-5 rounded-2xl bg-surface-container-low flex items-center justify-between gap-3 shadow-sm">
           <div className="flex flex-col min-w-0">
             <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold truncate">
               Colaboradores Totales
@@ -119,7 +119,7 @@ export function UsuariosTabSection({
         </div>
 
         {/* Card 2: Principal Administrators */}
-        <div className="p-5 rounded-2xl bg-surface-container-low border border-outline-variant/25 flex items-center justify-between gap-3">
+        <div className="p-5 rounded-2xl bg-surface-container-low flex items-center justify-between gap-3 shadow-sm">
           <div className="flex flex-col min-w-0">
             <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold truncate">
               Administradores
@@ -138,7 +138,7 @@ export function UsuariosTabSection({
         </div>
 
         {/* Card 3: WhatsApp Bot Enabled */}
-        <div className="p-5 rounded-2xl bg-surface-container-low border border-outline-variant/25 flex items-center justify-between gap-3">
+        <div className="p-5 rounded-2xl bg-surface-container-low flex items-center justify-between gap-3 shadow-sm">
           <div className="flex flex-col min-w-0">
             <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold truncate">
               WhatsApp Bot Rendy
@@ -158,7 +158,7 @@ export function UsuariosTabSection({
       </div>
 
       {/* Main Collaborators Directory Card */}
-      <div className="rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
+      <div className="rounded-2xl bg-surface-container-low p-5 sm:p-6 flex flex-col gap-5 shadow-sm">
         {/* Filters, Search Bar & Invite CTA */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5">
           <div className="flex flex-1 items-center gap-3 flex-wrap sm:flex-nowrap">
@@ -169,7 +169,7 @@ export function UsuariosTabSection({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nombre, correo o departamento..."
-                className="w-full bg-surface-container-lowest border border-outline-variant/25 text-on-surface text-xs sm:text-sm pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline transition-all"
+                className="w-full bg-surface-container-lowest text-on-surface text-xs sm:text-sm pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline transition-all"
               />
             </div>
 
@@ -178,7 +178,7 @@ export function UsuariosTabSection({
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value as 'ALL' | 'ADMIN' | 'EMPLOYEE')}
-                className="bg-surface-container-lowest border border-outline-variant/25 pl-9 pr-8 py-2.5 rounded-xl text-xs font-medium text-on-surface cursor-pointer hover:bg-surface-container-highest transition-colors focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
+                className="bg-surface-container-lowest pl-9 pr-8 py-2.5 rounded-xl text-xs font-medium text-on-surface cursor-pointer hover:bg-surface-container-highest transition-colors focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
               >
                 <option value="ALL">Todos los roles</option>
                 <option value="ADMIN">Administradores</option>
@@ -335,7 +335,7 @@ export function UsuariosTabSection({
                 return (
                   <div
                     key={u.id}
-                    className="p-4 rounded-xl bg-surface-container border border-outline-variant/25 flex flex-col gap-3"
+                    className="p-4 rounded-xl bg-surface-container flex flex-col gap-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
@@ -354,7 +354,7 @@ export function UsuariosTabSection({
                       <RolBadge rol={effectiveRole} />
                     </div>
 
-                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs pt-2 border-t border-surface-container-high/50">
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs pt-2 border-t border-surface-container-highest/20">
                       <span className="text-on-surface-variant">
                         Depto: <strong className="text-on-surface">{u.department || 'General'}</strong>
                       </span>
@@ -424,7 +424,7 @@ export function UsuariosTabSection({
 
         {/* Pending Invitations Section */}
         {pendingInvitations.length > 0 && (
-          <div className="mt-2 pt-5 border-t border-outline-variant/25 flex flex-col gap-3">
+          <div className="mt-2 pt-5 border-t border-surface-container-highest/20 flex flex-col gap-3">
             <div className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-2">
               <Clock className="w-4 h-4 text-tertiary-fixed-dim" />
               <span>Invitaciones Pendientes de Activación ({pendingInvitations.length})</span>
@@ -433,7 +433,7 @@ export function UsuariosTabSection({
               {pendingInvitations.map((inv) => (
                 <div
                   key={inv.id}
-                  className="bg-surface-container border border-outline-variant/25 rounded-xl px-4 py-3 flex items-center justify-between gap-2 text-xs"
+                  className="bg-surface-container rounded-xl px-4 py-3 flex items-center justify-between gap-2 text-xs"
                 >
                   <div className="min-w-0">
                     <div className="font-semibold text-on-surface truncate">
@@ -480,7 +480,7 @@ export function UsuariosTabSection({
                 <div
                   key={m.id}
                   onClick={onNavigateToMetodos}
-                  className="p-5 rounded-2xl bg-surface-container-low border border-outline-variant/25 hover:bg-surface-container transition-all flex flex-col justify-between gap-5 group cursor-pointer"
+                  className="p-5 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-all flex flex-col justify-between gap-5 group cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
                     <div

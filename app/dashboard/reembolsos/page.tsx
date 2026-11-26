@@ -86,7 +86,7 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 relative z-10">
         <div className="flex items-start gap-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-primary-container/15 border border-primary/30 flex items-center justify-center text-primary-container shadow-[0_0_20px_rgba(0,229,153,0.15)] shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-primary-container/15 flex items-center justify-center text-primary-container shadow-[0_0_20px_rgba(0,229,153,0.15)] shrink-0">
             <ArrowLeftRight className="w-6 h-6" />
           </div>
           <div className="flex flex-col min-w-0">
@@ -94,7 +94,7 @@ export default async function ReembolsosPage({ searchParams }: PageProps) {
               <h1 className="text-2xl sm:text-[26px] text-on-surface tracking-tight font-bold">
                 Liquidación de Reembolsos
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-container/15 border border-tertiary-fixed-dim/30 text-tertiary-fixed-dim inline-flex items-center gap-1.5">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-container/15 text-tertiary-fixed-dim inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim animate-pulse" />
                 Auditoría Activa
               </span>

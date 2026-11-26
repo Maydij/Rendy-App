@@ -95,7 +95,7 @@ export function ReembolsosHeaderActions({
         type="button"
         onClick={handleExportCsv}
         disabled={data.length === 0}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/40 text-on-surface text-xs font-semibold transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
       >
         <Download className="w-4 h-4 text-secondary" />
         <span>Exportar Conciliación</span>
