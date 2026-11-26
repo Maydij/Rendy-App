@@ -2,13 +2,13 @@
 
 /**
  * @name ReembolsosTable
- * @description [UI Component]: High-performance table rendering personal reimbursement records,
- * supporting status transitions (Pendiente -> Procesado -> Transferido / Rechazado), dual proof inspection
- * (merchant invoice + bank transfer receipt), sticky header within scrollable viewport, portal-based
- * action menus that never clip inside overflow containers, and URL-driven server pagination.
+ * @description [UI Component]: Stitch Split-View Master-Detail workspace rendering corporate
+ * reimbursement claims. Features high-density interactive cards on the left (`xl:col-span-7`)
+ * with server-side pagination, paired with a sticky Audit & Settlement Inspector (`xl:col-span-5`),
+ * quick portal action menus, digital e-receipt modal (`DigitalInvoice`), and proof upload modals.
  */
 
-import React, { useState, useTransition, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useTransition, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -30,6 +30,10 @@ import DigitalInvoice from '@/app/dashboard/gastos/digital-invoice';
 import { useEscapeClose } from '@/lib/hooks/use-escape-close';
 import { ModalRechazoReembolso } from './ModalRechazoReembolso';
 import { ModalTransferirReembolso } from './ModalTransferirReembolso';
+import {
+  InspectorStatusPill,
+  ReembolsoInspectorPanel,
+} from './ReembolsoInspectorPanel';
 import {
   marcarReembolsoComoProcesadoAction,
   rechazarReembolsoAction,
@@ -54,6 +58,67 @@ type ActionMenuState = {
 
 const ACTION_MENU_ESTIMATED_HEIGHT = 168;
 
+function formatNumber(num: number, locale: string = 'es-VE'): string {
+  return Number(num || 0).toLocaleString(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0] ? parts[0].substring(0, 2) : 'US').toUpperCase();
+}
+
+function mapReembolsoToGasto(r: ReembolsoItem): Gasto {
+  return {
+    id: r.id,
+    empleado: r.usuario.nombre,
+    categoria: r.categoria,
+    comercio: r.comercio,
+    monto: r.monto,
+    moneda: r.moneda,
+    tasa_cambio: r.tasa_cambio,
+    monto_convertido: r.monto_usd,
+    moneda_viatico: 'USD',
+    fecha_gasto: r.fecha_gasto,
+    creado_en: r.creado_en,
+    proyecto: 'Reembolso Personal',
+    metodo_pago: 'Fondos Personales',
+    estado: r.estado,
+    url_comprobante: r.url_comprobante,
+    concepto: r.concepto,
+    datos_ocr: (r.datos_ocr as Record<string, unknown>) || undefined,
+    moneda_original: r.moneda,
+    origen_tasa: r.origen_tasa,
+    base_imponible_ves: r.base_imponible_ves,
+    iva_ves: r.iva_ves,
+    exento_ves: r.exento_ves,
+    igtf_ves: r.igtf_ves,
+    monto_ves: r.monto_ves,
+    monto_usd: r.monto_usd,
+    rif_comercio: r.rif_comercio,
+    numero_factura: r.numero_factura,
+    requiere_revision_fiscal: r.requiere_revision_fiscal,
+    pais_gasto: r.pais_gasto,
+    estado_region: r.estado_region,
+    ciudad: r.ciudad,
+    codigo_postal: r.codigo_postal,
+    tiene_sales_tax: r.tiene_sales_tax,
+    subtotal_usd: r.subtotal_usd,
+    sales_tax_usd: r.sales_tax_usd,
+    propina_usd: r.propina_usd,
+    nombre_impuesto_local: r.nombre_impuesto_local,
+    tasa_impuesto_aplicada: r.tasa_impuesto_aplicada,
+    impuesto_local_monto: r.impuesto_local_monto,
+    subtotal_local: r.subtotal_local,
+    folio_fiscal_uuid: r.folio_fiscal_uuid,
+    tiene_validez_fiscal: r.tiene_validez_fiscal,
+    tipo_documento: r.tipo_documento,
+  };
+}
+
 export function ReembolsosTable({
   data,
   totalCount,
@@ -68,23 +133,45 @@ export function ReembolsosTable({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Receipt modal state (original invoice eReceipt)
+  // Master-Detail active selection
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedItem = useMemo(() => {
+    if (selectedId) {
+      const found = data.find((d) => d.id === selectedId);
+      if (found) return found;
+    }
+    return data[0] ?? null;
+  }, [data, selectedId]);
+
+  // Original merchant receipt modal (`DigitalInvoice`)
   const [selectedGasto, setSelectedGasto] = useState<Gasto | null>(null);
   const handleCloseModal = useCallback(() => setSelectedGasto(null), []);
   useEscapeClose(handleCloseModal, selectedGasto !== null);
 
-  // Transfer settlement modal state
+  // Transfer settlement & rejection modals
   const [transferTarget, setTransferTarget] = useState<ReembolsoItem | null>(null);
-
-  // Rejection modal state
   const [rejectionTarget, setRejectionTarget] = useState<ReembolsoItem | null>(null);
 
-  // Action menu rendered via portal so overflow containers never clip it
+  // Portal action menu
   const [actionMenu, setActionMenu] = useState<ActionMenuState | null>(null);
-  const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Feedback banner state
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // Feedback banner/toast state
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    null
+  );
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
+  const showFeedback = useCallback((type: 'success' | 'error', message: string) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setFeedback({ type, message });
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 4500);
+  }, []);
 
   const closeActionMenu = useCallback(() => setActionMenu(null), []);
 
@@ -106,21 +193,15 @@ export function ReembolsosTable({
     });
   }, []);
 
-  // Keep menu usable: dismiss on scroll/resize so fixed coords never go stale
+  // Dismiss floating portal menu on scroll/resize
   useEffect(() => {
     if (!actionMenu) return;
-
     const dismiss = () => setActionMenu(null);
-    const scrollEl = tableScrollRef.current;
-
     window.addEventListener('resize', dismiss);
     window.addEventListener('scroll', dismiss, true);
-    scrollEl?.addEventListener('scroll', dismiss);
-
     return () => {
       window.removeEventListener('resize', dismiss);
       window.removeEventListener('scroll', dismiss, true);
-      scrollEl?.removeEventListener('scroll', dismiss);
     };
   }, [actionMenu]);
 
@@ -133,36 +214,24 @@ export function ReembolsosTable({
     });
   };
 
-  /**
-   * @name handleMarcarProcesado
-   * @description Advances an expense claim from 'PENDIENTE' to 'PROCESADO' and dispatches WhatsApp alert.
-   */
   const handleMarcarProcesado = (item: ReembolsoItem) => {
     closeActionMenu();
     setFeedback(null);
 
     startTransition(async () => {
       const result = await marcarReembolsoComoProcesadoAction(item.id);
-
       if (result.success) {
-        setFeedback({
-          type: 'success',
-          message: `Reembolso de ${item.comercio} marcado como PROCESADO. Notificación enviada a ${item.usuario.nombre}.`,
-        });
+        showFeedback(
+          'success',
+          `Reembolso de ${item.comercio} marcado como PROCESADO. Notificación enviada a ${item.usuario.nombre}.`
+        );
         router.refresh();
       } else {
-        setFeedback({
-          type: 'error',
-          message: result.error || 'No se pudo actualizar el estado.',
-        });
+        showFeedback('error', result.error || 'No se pudo actualizar el estado.');
       }
     });
   };
 
-  /**
-   * @name handleRechazarConfirm
-   * @description Confirms expense invalidation with audit comment and notifies employee.
-   */
   const handleRechazarConfirm = (motivo: string) => {
     if (!rejectionTarget) return;
     const target = rejectionTarget;
@@ -175,25 +244,18 @@ export function ReembolsosTable({
       });
 
       if (result.success) {
-        setFeedback({
-          type: 'success',
-          message: `Reembolso de ${target.comercio} rechazado. Se informó al colaborador por WhatsApp.`,
-        });
+        showFeedback(
+          'success',
+          `Reembolso de ${target.comercio} rechazado. Se informó al colaborador por WhatsApp.`
+        );
         setRejectionTarget(null);
         router.refresh();
       } else {
-        setFeedback({
-          type: 'error',
-          message: result.error || 'No se pudo rechazar el reembolso.',
-        });
+        showFeedback('error', result.error || 'No se pudo rechazar el reembolso.');
       }
     });
   };
 
-  /**
-   * @name handleRevertirEstado
-   * @description Restores an expense claim to a prior lifecycle state.
-   */
   const handleRevertirEstado = (item: ReembolsoItem, nuevoEstado: EstadoReembolso) => {
     closeActionMenu();
     setFeedback(null);
@@ -205,76 +267,45 @@ export function ReembolsosTable({
       });
 
       if (result.success) {
-        setFeedback({
-          type: 'success',
-          message: `Estado de ${item.comercio} revertido a ${nuevoEstado}.`,
-        });
+        showFeedback('success', `Estado de ${item.comercio} revertido a ${nuevoEstado}.`);
         router.refresh();
       } else {
-        setFeedback({
-          type: 'error',
-          message: result.error || 'No se pudo revertir el estado.',
-        });
+        showFeedback('error', result.error || 'No se pudo revertir el estado.');
       }
     });
   };
 
-  // Maps a ReembolsoItem into the universal Gasto contract for DigitalInvoice
-  const openInvoiceModal = (r: ReembolsoItem) => {
-    const gastoAdapted: Gasto = {
-      id: r.id,
-      empleado: r.usuario.nombre,
-      categoria: r.categoria,
-      comercio: r.comercio,
-      monto: r.monto,
-      moneda: r.moneda,
-      tasa_cambio: r.tasa_cambio,
-      monto_convertido: r.monto_usd,
-      moneda_viatico: 'USD',
-      fecha_gasto: r.fecha_gasto,
-      creado_en: r.creado_en,
-      proyecto: 'Reembolso Personal',
-      metodo_pago: 'Fondos Personales',
-      estado: r.estado,
-      url_comprobante: r.url_comprobante,
-      concepto: r.concepto,
-      datos_ocr: (r.datos_ocr as Record<string, unknown>) || undefined,
-      moneda_original: r.moneda,
-      origen_tasa: r.origen_tasa,
-      base_imponible_ves: r.base_imponible_ves,
-      iva_ves: r.iva_ves,
-      exento_ves: r.exento_ves,
-      igtf_ves: r.igtf_ves,
-      monto_ves: r.monto_ves,
-      monto_usd: r.monto_usd,
-      rif_comercio: r.rif_comercio,
-      numero_factura: r.numero_factura,
-      requiere_revision_fiscal: r.requiere_revision_fiscal,
-      pais_gasto: r.pais_gasto,
-      estado_region: r.estado_region,
-      ciudad: r.ciudad,
-      codigo_postal: r.codigo_postal,
-      tiene_sales_tax: r.tiene_sales_tax,
-      subtotal_usd: r.subtotal_usd,
-      sales_tax_usd: r.sales_tax_usd,
-      propina_usd: r.propina_usd,
-      nombre_impuesto_local: r.nombre_impuesto_local,
-      tasa_impuesto_aplicada: r.tasa_impuesto_aplicada,
-      impuesto_local_monto: r.impuesto_local_monto,
-      subtotal_local: r.subtotal_local,
-      folio_fiscal_uuid: r.folio_fiscal_uuid,
-    };
-    setSelectedGasto(gastoAdapted);
+  const handleCopyText = useCallback(
+    (text: string, label: string) => {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
+        showFeedback('success', `${label} copiado al portapapeles.`);
+      }
+    },
+    [showFeedback]
+  );
+
+  const handleSelectCard = (id: string) => {
+    setSelectedId(id);
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      document
+        .getElementById('reembolso-inspector-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
-  const getInitials = (name: string): string => {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    return (parts[0] ? parts[0].substring(0, 2) : 'US').toUpperCase();
+  const handleScrollToList = () => {
+    if (typeof window !== 'undefined') {
+      document
+        .getElementById('reembolsos-master-list')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
-  const formatNumber = (num: number): string =>
-    num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const listUsdSum = useMemo(
+    () => data.reduce((acc, item) => acc + Number(item.monto_usd || 0), 0),
+    [data]
+  );
 
   const activeMenuItem = actionMenu ? data.find((item) => item.id === actionMenu.id) ?? null : null;
 
@@ -284,7 +315,7 @@ export function ReembolsosTable({
         <>
           <MenuActionButton
             icon={CheckCircle2}
-            color="var(--rendy-primary-light)"
+            color="var(--rendy-primary)"
             label="Marcar Procesado"
             onClick={() => handleMarcarProcesado(r)}
             disabled={isPending}
@@ -357,7 +388,7 @@ export function ReembolsosTable({
       {!['PENDIENTE', 'PROCESADO', 'TRANSFERIDO', 'RECHAZADO'].includes(r.estado) && (
         <MenuActionButton
           icon={CheckCircle2}
-          color="var(--rendy-primary-light)"
+          color="var(--rendy-primary)"
           label="Validar como Procesado"
           onClick={() => handleMarcarProcesado(r)}
           disabled={isPending}
@@ -368,13 +399,13 @@ export function ReembolsosTable({
 
   return (
     <>
-      {/* Portal menu: escapes table overflow so it never clips across filters/pages */}
+      {/* Portal Floating Action Menu */}
       {actionMenu &&
         activeMenuItem &&
         createPortal(
           <>
             <div
-              style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'transparent' }}
+              className="fixed inset-0 z-[90] bg-transparent"
               onClick={closeActionMenu}
               aria-hidden
             />
@@ -385,18 +416,8 @@ export function ReembolsosTable({
                 top: actionMenu.top,
                 left: actionMenu.left,
                 transform: actionMenu.openUp ? 'translate(-100%, -100%)' : 'translateX(-100%)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--bg-border)',
-                borderRadius: '10px',
-                padding: '6px',
-                minWidth: '200px',
-                zIndex: 100,
-                boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '3px',
-                textAlign: 'left',
               }}
+              className="z-[100] min-w-[210px] rounded-xl bg-surface-container-highest border border-outline-variant/40 p-1.5 shadow-2xl flex flex-col gap-0.5 text-left"
             >
               {renderActionMenuItems(activeMenuItem)}
             </div>
@@ -404,349 +425,245 @@ export function ReembolsosTable({
           document.body
         )}
 
-      {/* Feedback Alert */}
+      {/* Feedback Banner */}
       {feedback && (
         <div
-          style={{
-            padding: '10px 16px',
-            borderRadius: '8px',
-            fontSize: '13px',
-            fontWeight: 500,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background:
-              feedback.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-            color: feedback.type === 'success' ? 'var(--rendy-accent)' : 'var(--rendy-danger)',
-            border:
-              feedback.type === 'success'
-                ? '1px solid rgba(16, 185, 129, 0.3)'
-                : '1px solid rgba(239, 68, 68, 0.3)',
-            animation: 'fadeIn 0.2s ease',
-          }}
+          className={`p-3.5 rounded-xl text-xs sm:text-sm font-medium flex items-center justify-between gap-3 border relative z-10 animate-in fade-in duration-150 ${
+            feedback.type === 'success'
+              ? 'bg-primary-container/15 text-primary border-primary/30'
+              : 'bg-error-container/20 text-error border-error/30'
+          }`}
         >
           <span>{feedback.message}</span>
           <button
             type="button"
             onClick={() => setFeedback(null)}
-            style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
+            className="text-current hover:opacity-75 px-1 cursor-pointer"
           >
             ×
           </button>
         </div>
       )}
 
-      {/* Main Table Card */}
-      <div className="card" style={{ position: 'relative' }}>
-        {data.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <Receipt size={24} />
+      {/* Split-View Master-Detail Operational Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start relative z-10">
+        {/* Left Column: High-Density Reimbursement Cards + Pagination */}
+        <div id="reembolsos-master-list" className="xl:col-span-7 flex flex-col gap-3">
+          {data.length === 0 ? (
+            <div className="rounded-2xl bg-surface-container-low border border-outline-variant/30 p-10 text-center flex flex-col items-center justify-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+                <Receipt className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-on-surface">
+                No hay reembolsos coincidentes
+              </h3>
+              <p className="text-xs text-on-surface-variant max-w-sm">
+                No se encontraron comprobantes cubiertos con fondos personales para los filtros aplicados.
+              </p>
             </div>
-            <div className="empty-state-title">No hay reembolsos coincidentes</div>
-            <div className="empty-state-desc">
-              No se encontraron comprobantes cubiertos con fondos personales para los filtros aplicados.
-            </div>
-          </div>
-        ) : (
-          /* Scrollable Container with Sticky Table Header */
-          <div
-            ref={tableScrollRef}
-            style={{
-              maxHeight: '650px',
-              overflowY: 'auto',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              position: 'relative',
-            }}
-          >
-            <table className="rendy-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead
-                style={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 20,
-                  background: 'var(--bg-surface)',
-                  boxShadow: '0 1px 0 var(--bg-border)',
-                }}
-              >
-                <tr>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20 }}>Empleado</th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20 }}>Fecha</th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20 }}>Comercio / Factura</th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20 }}>Categoría</th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20 }}>Importe</th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20 }}>Estado</th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20, textAlign: 'center' }}>
-                    Comprobante
-                  </th>
-                  <th style={{ background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 20, textAlign: 'right' }}>
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((r) => {
-                  const initials = getInitials(r.usuario.nombre);
+          ) : (
+            data.map((r) => {
+              const initials = getInitials(r.usuario.nombre);
+              const isSelected = selectedItem?.id === r.id;
 
-                  return (
-                    <tr key={r.id}>
-                      {/* Employee Info */}
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              background: 'rgba(99, 102, 241, 0.2)',
-                              color: 'var(--rendy-primary-light)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              flexShrink: 0,
-                            }}
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => handleSelectCard(r.id)}
+                  className={`group relative rounded-2xl p-4 transition-all cursor-pointer flex flex-col gap-3 ${
+                    isSelected
+                      ? 'bg-surface-container border-2 border-primary/50 shadow-[0_0_20px_rgba(0,229,153,0.12)]'
+                      : 'bg-surface-container-low border border-outline-variant/30 hover:bg-surface-container hover:border-outline-variant/60 shadow-sm'
+                  }`}
+                >
+                  {/* Top Row: Avatar, Collaborator, Merchant Info & Status Pill */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-bold shrink-0 ${
+                          isSelected
+                            ? 'bg-secondary/15 text-secondary border-secondary/30'
+                            : 'bg-surface-container-highest text-primary border-primary/20'
+                        }`}
+                      >
+                        {initials}
+                      </div>
+
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`text-xs sm:text-sm font-bold truncate ${
+                              isSelected
+                                ? 'text-primary'
+                                : 'text-on-surface group-hover:text-primary transition-colors'
+                            }`}
                           >
-                            {initials}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
-                              {r.usuario.nombre}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                              {r.usuario.email || `+${r.usuario.telefono_whatsapp}`}
-                            </div>
-                          </div>
+                            {r.usuario.nombre}
+                          </span>
+                          <span className="text-[11px] font-normal text-on-surface-variant truncate">
+                            {r.usuario.email || `+${r.usuario.telefono_whatsapp}`}
+                          </span>
                         </div>
-                      </td>
-
-                      {/* Date */}
-                      <td style={{ verticalAlign: 'middle', whiteSpace: 'nowrap', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        {r.fecha_gasto}
-                      </td>
-
-                      {/* Merchant & Tax ID */}
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
-                          {r.comercio}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {r.rif_comercio ? `RIF/ID: ${r.rif_comercio}` : ''}
-                          {r.numero_factura ? ` • Fac: #${r.numero_factura}` : ''}
-                          {!r.rif_comercio && !r.numero_factura ? 'Ticket general' : ''}
-                        </div>
-                      </td>
-
-                      {/* Category */}
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <span
-                          style={{
-                            background: 'var(--bg-elevated)',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: 'var(--text-accent)',
-                            letterSpacing: '0.3px',
-                          }}
-                        >
-                          {r.categoria}
+                        <span className="text-[11px] text-on-surface-variant truncate mt-0.5">
+                          Comercio:{' '}
+                          <strong className="text-on-surface font-semibold">
+                            {r.comercio}
+                          </strong>
+                          {r.rif_comercio ? ` · RIF: ${r.rif_comercio}` : ''}
+                          {r.numero_factura ? ` · Fac: #${r.numero_factura}` : ''}
+                          {!r.rif_comercio && !r.numero_factura ? ' · Ticket general' : ''}
                         </span>
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Amount: original receipt primary + USD conversion secondary */}
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--rendy-accent)', fontSize: '14px' }}>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <InspectorStatusPill estado={r.estado} />
+                      {!isEmployee && (
+                        <button
+                          type="button"
+                          aria-haspopup="menu"
+                          aria-expanded={actionMenu?.id === r.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openActionMenu(r.id, e.currentTarget);
+                          }}
+                          className={`p-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer ${
+                            actionMenu?.id === r.id
+                              ? 'bg-surface-container-highest text-on-surface'
+                              : 'bg-surface-container hover:bg-surface-container-high'
+                          }`}
+                          title="Acciones rápidas"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: Category, Date, Amount & Inspection Buttons */}
+                  <div className="flex items-center justify-between pt-2.5 border-t border-outline-variant/25 flex-wrap gap-2.5 text-[11px] text-on-surface-variant">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md font-semibold bg-surface-container-high text-primary border border-outline-variant/30 truncate max-w-[150px]">
+                        {r.categoria}
+                      </span>
+                      <span className="whitespace-nowrap">· {r.fecha_gasto}</span>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap shrink-0 ml-auto">
+                      <div className="flex flex-col text-right">
+                        <span className="text-sm font-bold text-secondary font-mono whitespace-nowrap">
                           {r.moneda === 'VES'
                             ? `${formatNumber(r.monto_ves || r.monto)} Bs`
                             : r.moneda === 'USD'
-                              ? `$${formatNumber(r.monto)} USD`
-                              : `${formatNumber(r.monto)} ${r.moneda}`}
-                        </div>
+                            ? `$${formatNumber(r.monto, 'en-US')} USD`
+                            : `${formatNumber(r.monto)} ${r.moneda}`}
+                        </span>
                         {r.moneda !== 'USD' && (
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            ${formatNumber(r.monto_usd)} USD
-                            {r.tasa_cambio ? ` • Tasa: ${formatNumber(r.tasa_cambio)}` : ''}
-                          </div>
+                          <span className="text-[10px] text-on-surface-variant font-mono whitespace-nowrap">
+                            ~${formatNumber(r.monto_usd, 'en-US')} USD
+                            {r.tasa_cambio ? ` · Tasa: ${formatNumber(r.tasa_cambio)}` : ''}
+                          </span>
                         )}
-                      </td>
+                      </div>
 
-                      {/* Status Badge */}
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <RenderStatusBadge estado={r.estado} comentarioRechazo={r.comentario_rechazo} />
-                      </td>
-
-                      {/* Dual Proof View Buttons */}
-                      <td style={{ verticalAlign: 'middle', textAlign: 'center' }}>
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            justifyContent: 'center',
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedGasto(mapReembolsoToGasto(r));
                           }}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-primary-container text-on-primary-container hover:bg-primary-fixed shadow-sm'
+                              : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant/30'
+                          }`}
+                          title="Inspeccionar factura digital y foto"
                         >
-                          {/* 1. Original Merchant Receipt / Invoice */}
-                          <button
-                            type="button"
-                            onClick={() => openInvoiceModal(r)}
-                            title="Inspeccionar factura fiscal y foto original"
-                            style={{
-                              background: 'var(--bg-elevated)',
-                              border: '1px solid var(--bg-border)',
-                              borderRadius: '8px',
-                              padding: '5px 9px',
-                              color: 'var(--text-accent)',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              transition: 'background 150ms ease',
-                            }}
-                          >
-                            <Eye size={13} />
-                            <span>Factura</span>
-                          </button>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Auditar Factura</span>
+                        </button>
 
-                          {/* 2. Bank Transfer Receipt (if settled with transfer proof) */}
-                          {r.estado === 'TRANSFERIDO' && r.url_comprobante_pago && (
-                            <a
-                              href={r.url_comprobante_pago}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Ver comprobante de transferencia bancaria"
-                              style={{
-                                background: 'rgba(16, 185, 129, 0.12)',
-                                border: '1px solid rgba(16, 185, 129, 0.3)',
-                                borderRadius: '8px',
-                                padding: '5px 9px',
-                                color: 'var(--rendy-accent)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                textDecoration: 'none',
-                                transition: 'background 150ms ease',
-                              }}
-                            >
-                              <ReceiptText size={13} />
-                              <span>Pago</span>
-                              <ExternalLink size={10} style={{ opacity: 0.7 }} />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Action Menu trigger (menu itself is portaled to document.body, hidden for employees) */}
-                      <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                        {isEmployee ? (
-                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
-                        ) : (
-                          <button
-                            type="button"
-                            aria-haspopup="menu"
-                            aria-expanded={actionMenu?.id === r.id}
-                            onClick={(e) => openActionMenu(r.id, e.currentTarget)}
-                            style={{
-                              background: actionMenu?.id === r.id ? 'var(--bg-overlay)' : 'transparent',
-                              border: '1px solid var(--bg-border)',
-                              borderRadius: '8px',
-                              padding: '6px 8px',
-                              color: 'var(--text-primary)',
-                              cursor: 'pointer',
-                            }}
+                        {r.estado === 'TRANSFERIDO' && r.url_comprobante_pago && (
+                          <a
+                            href={r.url_comprobante_pago}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2.5 py-1.5 rounded-lg bg-primary-container/15 border border-primary/30 text-primary hover:bg-primary-container/25 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                            title="Ver comprobante de transferencia bancaria"
                           >
-                            <MoreVertical size={15} />
-                          </button>
+                            <ReceiptText className="w-3.5 h-3.5" />
+                            <span>Pago</span>
+                            <ExternalLink className="w-3 h-3 opacity-75" />
+                          </a>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
 
-        {/* Server-Side Pagination Footer */}
-        {totalCount > 0 && (
-          <div
-            style={{
-              padding: '14px 20px',
-              borderTop: '1px solid var(--bg-border)',
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              fontSize: '13px',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <div>
-              Mostrando{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>
-                {(currentPage - 1) * pageSize + 1}
-              </strong>{' '}
-              a{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>
-                {Math.min(currentPage * pageSize, totalCount)}
-              </strong>{' '}
-              de <strong style={{ color: 'var(--text-primary)' }}>{totalCount}</strong> reembolsos
+          {/* Server-Side Pagination Footer */}
+          {totalCount > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-on-surface-variant text-xs">
+              <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+                <span className="font-medium text-on-surface">
+                  Mostrando {(currentPage - 1) * pageSize + 1} a{' '}
+                  {Math.min(currentPage * pageSize, totalCount)} de {totalCount}
+                </span>
+                <span className="text-outline-variant">·</span>
+                <span>
+                  Suma en página:{' '}
+                  <strong className="text-secondary font-semibold font-mono">
+                    ${formatNumber(listUsdSum, 'en-US')} USD
+                  </strong>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1 || isPending}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Anterior</span>
+                </button>
+                <span className="px-2.5 py-1 rounded-md bg-surface-container-high text-primary font-bold font-mono">
+                  {currentPage}
+                </span>
+                <span className="px-1 text-on-surface-variant">de {totalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages || isPending}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <span>Siguiente</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+          )}
+        </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage <= 1 || isPending}
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '6px',
-                  padding: '5px 10px',
-                  color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                  cursor: currentPage <= 1 || isPending ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <ChevronLeft size={14} />
-                Anterior
-              </button>
-
-              <span style={{ padding: '0 8px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                Página {currentPage} de {totalPages}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage >= totalPages || isPending}
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '6px',
-                  padding: '5px 10px',
-                  color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                  cursor: currentPage >= totalPages || isPending ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                Siguiente
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Right Column: Sticky Detail & Settlement Inspector */}
+        <ReembolsoInspectorPanel
+          selectedItem={selectedItem}
+          isEmployee={isEmployee}
+          isPending={isPending}
+          onOpenInvoiceModal={(item) => setSelectedGasto(mapReembolsoToGasto(item))}
+          onMarcarProcesado={handleMarcarProcesado}
+          onOpenTransferModal={setTransferTarget}
+          onOpenRejectionModal={setRejectionTarget}
+          onRevertirEstado={handleRevertirEstado}
+          onCopyText={handleCopyText}
+          onScrollToList={handleScrollToList}
+        />
       </div>
 
       {/* Digital Receipt Modal (Original Invoice) */}
@@ -760,10 +677,7 @@ export function ReembolsosTable({
         onClose={() => setTransferTarget(null)}
         onSuccess={(msg) => {
           setTransferTarget(null);
-          setFeedback({
-            type: 'success',
-            message: msg,
-          });
+          showFeedback('success', msg);
           router.refresh();
         }}
       />
@@ -772,96 +686,13 @@ export function ReembolsosTable({
       <ModalRechazoReembolso
         isOpen={rejectionTarget !== null}
         comercio={rejectionTarget?.comercio || ''}
-        montoLabel={`$${rejectionTarget?.monto_usd.toFixed(2)} USD`}
+        montoLabel={`$${(rejectionTarget?.monto_usd || 0).toFixed(2)} USD`}
         isPending={isPending}
         onClose={() => setRejectionTarget(null)}
         onConfirm={handleRechazarConfirm}
       />
     </>
   );
-}
-
-/* ─────────────────────────────────────────────────────────────
- * Subcomponents & Helpers
- * ───────────────────────────────────────────────────────────── */
-
-function RenderStatusBadge({
-  estado,
-  comentarioRechazo,
-}: {
-  estado: string;
-  comentarioRechazo: string | null;
-}) {
-  switch (estado) {
-    case 'PENDIENTE':
-    case 'REQUIERE_APROBACION_ESPECIAL':
-      return (
-        <span className="badge pendiente">
-          <span className="badge-dot" />
-          Pendiente
-        </span>
-      );
-    case 'PROCESADO':
-    case 'APROBADO':
-      return (
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '3px 10px',
-            borderRadius: '20px',
-            fontSize: '11px',
-            fontWeight: 700,
-            background: 'rgba(99, 102, 241, 0.15)',
-            color: 'var(--rendy-primary-light)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-          }}
-        >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--rendy-primary-light)' }} />
-          Procesado
-        </span>
-      );
-    case 'TRANSFERIDO':
-      return (
-        <span className="badge aprobado">
-          <span className="badge-dot" />
-          Transferido
-        </span>
-      );
-    case 'RECHAZADO':
-      return (
-        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-          <span className="badge rechazado">
-            <span className="badge-dot" />
-            Rechazado
-          </span>
-          {comentarioRechazo && (
-            <span
-              title={comentarioRechazo}
-              style={{
-                fontSize: '10px',
-                color: 'var(--rendy-danger)',
-                marginTop: '3px',
-                maxWidth: '120px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {comentarioRechazo}
-            </span>
-          )}
-        </div>
-      );
-    default:
-      return (
-        <span className="badge pendiente">
-          <span className="badge-dot" />
-          {estado}
-        </span>
-      );
-  }
 }
 
 function MenuActionButton({
@@ -882,27 +713,10 @@ function MenuActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '7px 10px',
-        background: 'transparent',
-        border: 'none',
-        borderRadius: '6px',
-        color: 'var(--text-primary)',
-        fontSize: '12px',
-        fontWeight: 500,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        textAlign: 'left',
-        width: '100%',
-        transition: 'background 120ms ease',
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-overlay)')}
-      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+      className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-transparent hover:bg-surface-container-high text-on-surface text-xs font-medium text-left w-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
     >
       <Icon size={14} style={{ color }} />
-      {label}
+      <span>{label}</span>
     </button>
   );
 }

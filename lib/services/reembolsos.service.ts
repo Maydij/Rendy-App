@@ -17,6 +17,7 @@ export type EstadoReembolso = 'PENDIENTE' | 'PROCESADO' | 'TRANSFERIDO' | 'RECHA
 export interface FiltrosReembolso {
   empleadoId?: string;
   estado?: EstadoReembolso | 'TODOS';
+  moneda?: string;
   fechaDesde?: string;
   fechaHasta?: string;
   busqueda?: string;
@@ -86,6 +87,21 @@ export interface ReembolsosPaginadosResponse {
   pageSize: number;
 }
 
+export interface ReembolsoCurrencyBreakdown {
+  currency: string;
+  nominalTotal: number;
+  usdTotal: number;
+  percent: number;
+  count: number;
+}
+
+export interface ReembolsoCategoryBreakdown {
+  category: string;
+  usdTotal: number;
+  percent: number;
+  count: number;
+}
+
 export interface ReembolsosKpisResponse {
   totalCount: number;
   totalMontoUsd: number;
@@ -97,6 +113,9 @@ export interface ReembolsosKpisResponse {
   transferidosMontoUsd: number;
   rechazadosCount: number;
   rechazadosMontoUsd: number;
+  bcvRate: number;
+  currencyBreakdown: ReembolsoCurrencyBreakdown[];
+  categoryBreakdown: ReembolsoCategoryBreakdown[];
 }
 
 export interface EmpleadoOption {
@@ -179,6 +198,21 @@ export async function obtenerReembolsosPaginados(
 
   if (filtros.estado && filtros.estado !== 'TODOS') {
     query = query.eq('estado', filtros.estado);
+  }
+
+  if (filtros.moneda && filtros.moneda !== 'TODOS') {
+    const curUpper = filtros.moneda.toUpperCase();
+    if (curUpper === 'VES') {
+      query = query.in('moneda', ['VES', 'BS', 'Bs', 'Bs.', 'bs', 'VED', 'BOLIVARES']);
+    } else if (curUpper === 'USD') {
+      query = query.in('moneda', ['USD', 'usd', '$', 'US$']);
+    } else if (curUpper === 'MXN') {
+      query = query.in('moneda', ['MXN', 'mxn', 'MX$']);
+    } else if (curUpper === 'EUR') {
+      query = query.in('moneda', ['EUR', 'eur', '€']);
+    } else {
+      query = query.eq('moneda', curUpper);
+    }
   }
 
   if (filtros.fechaDesde) {
@@ -412,7 +446,7 @@ export async function obtenerKpisReembolsos(
 ): Promise<ReembolsosKpisResponse> {
   let query = supabaseServer
     .from('gastos')
-    .select('id, estado, monto, moneda, monto_usd, tasa_cambio, datos_ocr')
+    .select('id, estado, monto, moneda, monto_usd, monto_ves, categoria, tasa_cambio, datos_ocr')
     .eq('empresa_id', empresaId)
     .eq('es_reembolso', true);
 
@@ -426,6 +460,7 @@ export async function obtenerKpisReembolsos(
   ]);
 
   const { data, error } = dataResult;
+  const bcvRate = Number(rates['VES'] || 0);
 
   if (error) {
     console.error('❌ [ReembolsosService] Error computing KPIs:', error);
@@ -440,6 +475,9 @@ export async function obtenerKpisReembolsos(
       transferidosMontoUsd: 0,
       rechazadosCount: 0,
       rechazadosMontoUsd: 0,
+      bcvRate,
+      currencyBreakdown: [],
+      categoryBreakdown: [],
     };
   }
 
@@ -452,6 +490,9 @@ export async function obtenerKpisReembolsos(
   let transferidosMontoUsd = 0;
   let rechazadosCount = 0;
   let rechazadosMontoUsd = 0;
+
+  const currencyAgg: Record<string, { nominalTotal: number; usdTotal: number; count: number }> = {};
+  const categoryAgg: Record<string, { usdTotal: number; count: number }> = {};
 
   for (const item of data || []) {
     const rawMoneda = (item.moneda || (item.datos_ocr as Record<string, unknown>)?.moneda || 'VES').toString();
@@ -481,6 +522,25 @@ export async function obtenerKpisReembolsos(
 
     totalMontoUsd += usd;
 
+    const nominalForCurrency =
+      normalizedMoneda === 'VES' && item.monto_ves && Number(item.monto_ves) > 0
+        ? Number(item.monto_ves)
+        : nominalAmount;
+
+    if (!currencyAgg[normalizedMoneda]) {
+      currencyAgg[normalizedMoneda] = { nominalTotal: 0, usdTotal: 0, count: 0 };
+    }
+    currencyAgg[normalizedMoneda].nominalTotal += nominalForCurrency;
+    currencyAgg[normalizedMoneda].usdTotal += usd;
+    currencyAgg[normalizedMoneda].count += 1;
+
+    const categoryName = item.categoria || 'Otros';
+    if (!categoryAgg[categoryName]) {
+      categoryAgg[categoryName] = { usdTotal: 0, count: 0 };
+    }
+    categoryAgg[categoryName].usdTotal += usd;
+    categoryAgg[categoryName].count += 1;
+
     switch (item.estado) {
       case 'PENDIENTE':
       case 'REQUIERE_APROBACION_ESPECIAL':
@@ -508,6 +568,25 @@ export async function obtenerKpisReembolsos(
     }
   }
 
+  const currencyBreakdown: ReembolsoCurrencyBreakdown[] = Object.entries(currencyAgg)
+    .map(([currency, agg]) => ({
+      currency,
+      nominalTotal: Number(agg.nominalTotal.toFixed(2)),
+      usdTotal: Number(agg.usdTotal.toFixed(2)),
+      percent: totalMontoUsd > 0 ? Math.round((agg.usdTotal / totalMontoUsd) * 100) : 0,
+      count: agg.count,
+    }))
+    .sort((a, b) => b.usdTotal - a.usdTotal);
+
+  const categoryBreakdown: ReembolsoCategoryBreakdown[] = Object.entries(categoryAgg)
+    .map(([category, agg]) => ({
+      category,
+      usdTotal: Number(agg.usdTotal.toFixed(2)),
+      percent: totalMontoUsd > 0 ? Math.round((agg.usdTotal / totalMontoUsd) * 100) : 0,
+      count: agg.count,
+    }))
+    .sort((a, b) => b.usdTotal - a.usdTotal);
+
   return {
     totalCount: (data || []).length,
     totalMontoUsd: Number(totalMontoUsd.toFixed(2)),
@@ -519,6 +598,9 @@ export async function obtenerKpisReembolsos(
     transferidosMontoUsd: Number(transferidosMontoUsd.toFixed(2)),
     rechazadosCount,
     rechazadosMontoUsd: Number(rechazadosMontoUsd.toFixed(2)),
+    bcvRate,
+    currencyBreakdown,
+    categoryBreakdown,
   };
 }
 
