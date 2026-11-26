@@ -1,22 +1,29 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+/**
+ * @file configuracion-client.tsx
+ * @description [UI Orchestrator]: Stitch "Gestión de Organización" view orchestrating
+ * organization identity, multi-currency selection, collaborators lifecycle, expense categories
+ * with daily caps, cost-center projects, corporate payment methods, Stripe subscription controls,
+ * and optional US fiscal certificates with strict role separation (ADMIN vs EMPLOYEE).
+ */
+
+import React, { useState, useTransition, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  Settings,
+  Building2,
   Users,
+  Tags,
   FolderKanban,
   CreditCard,
-  Plus,
-  Trash2,
-  Check,
-  X,
   ShieldCheck,
-  Clock,
   FileText,
-  UploadCloud,
-  ExternalLink,
-  FileCheck,
-  Tag,
+  CheckCircle2,
+  AlertCircle,
+  Lock,
+  Calendar,
+  Hash,
+  Globe2,
 } from 'lucide-react';
 import {
   crearProyecto,
@@ -25,9 +32,6 @@ import {
   crearMetodoPago,
   eliminarMetodoPago,
   actualizarMonedaEmpresa,
-  actualizarExencionFiscalUsa,
-  subirCertificadoTaxExempt,
-  eliminarCertificadoTaxExempt,
   guardarCertificadoFiscalUsa,
   eliminarCertificadoFiscalUsa,
   crearCategoriaPersonalizada,
@@ -40,516 +44,27 @@ import {
 import { cancelTrialOrSubscriptionAction } from '@/app/actions/subscription.actions';
 import { InviteEmployeeModal } from '@/components/dashboard/InviteEmployeeModal';
 import type { CategoriaGasto } from '@/lib/types/categoria';
+import {
+  getCompanyMonogram,
+  type ConfigTabId,
+  type Empresa,
+  type Metodo,
+  type PendingInvitation,
+  type Proyecto,
+  type SubscriptionInfo,
+  type Usuario,
+} from './_components/types';
+import { UsuariosTabSection } from './_components/UsuariosTabSection';
+import { CategoriasTabSection, ModalNuevaCategoria } from './_components/CategoriasTabSection';
+import {
+  EmployeeOrganizacionView,
+  FiscalTabSection,
+  MetodosTabSection,
+  ProyectosTabSection,
+  SuscripcionTabSection,
+} from './_components/ConfigSubSections';
 
-type Empresa = {
-  id: string;
-  nombre: string;
-  moneda: string;
-  creado_en: string;
-  us_tax_exempt?: boolean;
-  url_certificado_tax_exempt?: string | null;
-  nombre_certificado_usa?: string | null;
-  url_certificado_usa?: string | null;
-};
-type Usuario = {
-  id: string;
-  nombre: string;
-  email: string | null;
-  telefono_whatsapp: string | null;
-  rol?: string;
-  role?: string;
-  department?: string | null;
-  creado_en: string;
-  activo?: boolean;
-};
-type Proyecto = { id: string; nombre: string; activo: boolean; creado_en: string };
-type Metodo = { id: string; nombre: string; creado_en: string };
-type SubscriptionInfo = {
-  id: string;
-  plan_id: string;
-  billing_cycle: string;
-  status: string;
-  trial_end: string;
-  cancel_at_period_end: boolean;
-  card_brand: string | null;
-  card_last4: string | null;
-};
-type PendingInvitation = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  department: string;
-  status: string;
-  expires_at: string;
-};
-
-function SectionHeader({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '16px',
-        gap: '12px',
-        flexWrap: 'wrap',
-      }}
-    >
-      <div>
-        <div
-          style={{
-            fontSize: '15px',
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            marginBottom: '3px',
-          }}
-        >
-          {title}
-        </div>
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{subtitle}</div>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function RolBadge({ rol }: { rol: string }) {
-  const isAdmin = rol === 'ADMIN';
-  return (
-    <span className={`badge ${isAdmin ? 'pagado' : 'aprobado'}`}>
-      <span className="badge-dot" />
-      {isAdmin ? 'Admin' : 'Empleado'}
-    </span>
-  );
-}
-
-function CategoryLimitInput({
-  initialLimit,
-  onSave,
-  disabled,
-}: {
-  initialLimit: number;
-  onSave: (val: number) => void;
-  disabled?: boolean;
-}) {
-  const [val, setVal] = useState(initialLimit.toString());
-  const [isEditing, setIsEditing] = useState(false);
-
-  useEffect(() => {
-    setVal(initialLimit.toString());
-  }, [initialLimit]);
-
-  const commitChange = () => {
-    setIsEditing(false);
-    const parsed = Math.max(0, parseFloat(val) || 0);
-    if (parsed !== initialLimit) {
-      onSave(parsed);
-    }
-  };
-
-  const num = parseFloat(val) || 0;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: '150px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>$</span>
-        <input
-          type="number"
-          step="any"
-          min="0"
-          value={val}
-          disabled={disabled}
-          onFocus={() => setIsEditing(true)}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={commitChange}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.currentTarget.blur();
-            }
-          }}
-          className="input-field"
-          style={{
-            width: '90px',
-            padding: '4px 8px',
-            fontSize: '13px',
-            textAlign: 'right',
-            fontWeight: 600,
-            borderRadius: '6px',
-            borderColor: isEditing ? 'var(--rendy-primary)' : 'var(--bg-border)',
-          }}
-        />
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>USD/día</span>
-      </div>
-      <span
-        style={{
-          fontSize: '10px',
-          fontWeight: 600,
-          marginTop: '3px',
-          color: num > 0 ? '#00e599' : 'var(--text-muted)',
-        }}
-      >
-        {num > 0 ? `Tope: $${num.toFixed(2)} / día` : 'Sin límite diario'}
-      </span>
-    </div>
-  );
-}
-
-function CategoryRowItem({
-  categoria,
-  onUpdateLimit,
-  onToggleActive,
-  onDelete,
-  disabled,
-}: {
-  categoria: CategoriaGasto;
-  onUpdateLimit: (val: number) => void;
-  onToggleActive: (activa: boolean) => void;
-  onDelete?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '12px 16px',
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--bg-border)',
-        borderRadius: '10px',
-        gap: '16px',
-        flexWrap: 'wrap',
-        opacity: categoria.activa ? 1 : 0.6,
-        transition: 'var(--transition-fast)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px', flex: 1 }}>
-        <span style={{ fontSize: '20px', lineHeight: 1 }}>{categoria.icono || '🏷️'}</span>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {categoria.nombre}
-            </span>
-            {categoria.es_sistema ? (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  padding: '1px 6px',
-                  borderRadius: '6px',
-                  background: 'rgba(100, 116, 139, 0.15)',
-                  color: 'var(--text-muted)',
-                }}
-              >
-                Oficial Rendy
-              </span>
-            ) : (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  padding: '1px 6px',
-                  borderRadius: '6px',
-                  background: 'rgba(0, 168, 107, 0.15)',
-                  color: 'var(--rendy-success, #00A86B)',
-                }}
-              >
-                Personalizada
-              </span>
-            )}
-          </div>
-          {categoria.descripcion && (
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {categoria.descripcion}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-        {/* Inline Daily Limit Input */}
-        <CategoryLimitInput
-          initialLimit={categoria.limite_diario_usd}
-          onSave={onUpdateLimit}
-          disabled={disabled || !categoria.activa}
-        />
-
-        {/* Switch Activa */}
-        <label
-          style={{
-            position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            cursor: disabled ? 'wait' : 'pointer',
-            gap: '8px',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={categoria.activa}
-            disabled={disabled}
-            onChange={(e) => onToggleActive(e.target.checked)}
-            style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
-          />
-          <span
-            style={{
-              width: '38px',
-              height: '20px',
-              backgroundColor: categoria.activa ? 'var(--rendy-primary)' : 'var(--bg-overlay)',
-              borderRadius: '20px',
-              transition: 'var(--transition-fast)',
-              position: 'relative',
-              display: 'inline-block',
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: '2px',
-                left: categoria.activa ? '20px' : '2px',
-                width: '16px',
-                height: '16px',
-                backgroundColor: 'white',
-                borderRadius: '50%',
-                transition: 'var(--transition-fast)',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              }}
-            />
-          </span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: categoria.activa ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-            {categoria.activa ? 'Activa' : 'Pausada'}
-          </span>
-        </label>
-
-        {/* Delete Button (Only custom categories) */}
-        {!categoria.es_sistema && onDelete && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onDelete}
-            className="btn btn-icon btn-danger btn-sm"
-            title="Eliminar categoría personalizada"
-            style={{ padding: '6px' }}
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ModalNuevaCategoria({
-  isOpen,
-  onClose,
-  onSubmit,
-  isSubmitting,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: { nombre: string; descripcion: string; icono: string; limiteDiarioUsd: number }) => void;
-  isSubmitting: boolean;
-}) {
-  const [nombre, setNombre] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [icono, setIcono] = useState('🏷️');
-  const [limiteDiario, setLimiteDiario] = useState('0');
-
-  if (!isOpen) return null;
-
-  const EMOJIS = ['🏷️', '📦', '🛠️', '💻', '🩺', '🎓', '⚖️', '📑', '🚚', '💡', '📱', '🎟️', '🛒', '☕', '🏢'];
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(4px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: '16px',
-      }}
-    >
-      <div
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--bg-border)',
-          borderRadius: '14px',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            padding: '18px 20px',
-            borderBottom: '1px solid var(--bg-border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Nueva Categoría Personalizada
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn btn-secondary btn-sm"
-            style={{ padding: '4px 8px' }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSubmit({
-              nombre,
-              descripcion,
-              icono,
-              limiteDiarioUsd: parseFloat(limiteDiario) || 0,
-            });
-          }}
-          style={{ padding: '20px' }}
-        >
-          {/* Selector de Icono / Emoji */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-              Icono / Emoji
-            </label>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {EMOJIS.map((em) => (
-                <button
-                  key={em}
-                  type="button"
-                  onClick={() => setIcono(em)}
-                  style={{
-                    fontSize: '18px',
-                    padding: '6px 8px',
-                    borderRadius: '8px',
-                    border: '1px solid',
-                    borderColor: icono === em ? 'var(--rendy-primary)' : 'var(--bg-border)',
-                    background: icono === em ? 'rgba(0, 168, 107, 0.15)' : 'var(--bg-surface)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {em}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Nombre de la Categoría */}
-          <div style={{ marginBottom: '14px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Nombre de la Categoría *
-            </label>
-            <input
-              type="text"
-              required
-              maxLength={30}
-              placeholder="ej. Envíos y Currier, Licencias Software"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              className="input-field"
-              style={{ width: '100%' }}
-            />
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-              Recomendado máx. 20 caracteres para visualización óptima en WhatsApp.
-            </div>
-          </div>
-
-          {/* Descripción */}
-          <div style={{ marginBottom: '14px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Descripción (Opcional)
-            </label>
-            <input
-              type="text"
-              maxLength={80}
-              placeholder="ej. Paquetería local, despachos y encomiendas"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              className="input-field"
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          {/* Límite Diario en USD */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Límite Diario en USD (Opcional)
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>$</span>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                value={limiteDiario}
-                onChange={(e) => setLimiteDiario(e.target.value)}
-                className="input-field"
-                style={{ width: '130px', fontWeight: 600 }}
-              />
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>USD / día</span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-              Deja en 0 para permitir gastos en esta categoría sin límite diario ni alertas.
-            </div>
-          </div>
-
-          {/* Botones de acción */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="btn btn-secondary btn-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !nombre.trim()}
-              className="btn btn-primary btn-sm"
-            >
-              {isSubmitting ? 'Guardando...' : 'Crear Categoría'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-export default function ConfiguracionClient({
-  empresa,
-  usuarios,
-  proyectos: initProyectos,
-  metodos: initMetodos,
-  subscription,
-  pendingInvitations,
-  categorias: initCategorias = [],
-  isAdmin = true,
-  currentUserId,
-  currentUserName,
-}: {
+interface ConfiguracionClientProps {
   empresa: Empresa | null;
   usuarios: Usuario[];
   proyectos: Proyecto[];
@@ -560,40 +75,179 @@ export default function ConfiguracionClient({
   isAdmin?: boolean;
   currentUserId?: string;
   currentUserName?: string;
-}) {
-  const [activeTab, setActiveTab] = useState<'usuarios' | 'proyectos' | 'metodos' | 'suscripcion' | 'fiscal' | 'categorias'>(
-    'usuarios'
-  );
-  const [proyectos, setProyectos] = useState(initProyectos);
-  const [metodos, setMetodos] = useState(initMetodos);
+}
+
+const CURRENCY_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
+  { code: 'USD', label: 'USD — Dólar Estadounidense ($)' },
+  { code: 'VES', label: 'VES — Bolívar Venezolano (Bs.)' },
+  { code: 'EUR', label: 'EUR — Euro (€)' },
+  { code: 'COP', label: 'COP — Peso Colombiano ($)' },
+  { code: 'MXN', label: 'MXN — Peso Mexicano ($)' },
+  { code: 'PEN', label: 'PEN — Sol Peruano (S/)' },
+  { code: 'CLP', label: 'CLP — Peso Chileno ($)' },
+  { code: 'ARS', label: 'ARS — Peso Argentino ($)' },
+];
+
+/**
+ * @name resolveSubscriptionPill
+ * @description [Business Logic]: Maps Stripe subscription lifecycle statuses into
+ * stakeholder-friendly status badges for the organization hero header.
+ */
+function resolveSubscriptionPill(sub: SubscriptionInfo | null): {
+  label: string;
+  className: string;
+} {
+  if (!sub) {
+    return {
+      label: 'Plan Corporativo',
+      className: 'bg-primary/10 text-primary border border-primary/25',
+    };
+  }
+  const status = sub.status.toUpperCase();
+  if (status === 'ACTIVE') {
+    return {
+      label: `Suscripción Activa · ${sub.plan_id}`,
+      className: 'bg-primary/15 text-primary border border-primary/30',
+    };
+  }
+  if (status === 'TRIALING') {
+    return {
+      label: `Prueba Gratuita · ${sub.plan_id}`,
+      className: 'bg-secondary/15 text-secondary border border-secondary/30',
+    };
+  }
+  if (status === 'PAST_DUE' || status === 'UNPAID') {
+    return {
+      label: 'Pago Pendiente',
+      className: 'bg-tertiary-container/30 text-tertiary-fixed border border-tertiary-fixed/30',
+    };
+  }
+  return {
+    label: status === 'CANCELED' ? 'Suscripción Cancelada' : status,
+    className: 'bg-error-container/25 text-error border border-error/30',
+  };
+}
+
+/**
+ * @name ConfiguracionClient
+ * @description [Business Logic]: Main administrative portal for configuring tenant-wide rules,
+ * staff access via WhatsApp, spending category limits, cost centers, payment methods, billing,
+ * and US fiscal compliance certificates. Renders a read-only policy portal for non-admin staff.
+ */
+export default function ConfiguracionClient({
+  empresa,
+  usuarios: initUsuarios,
+  proyectos: initProyectos,
+  metodos: initMetodos,
+  subscription: initSubscription,
+  pendingInvitations,
+  categorias: initCategorias = [],
+  isAdmin = true,
+  currentUserId,
+}: ConfiguracionClientProps) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<ConfigTabId>('usuarios');
+  const [moneda, setMoneda] = useState<string>(empresa?.moneda || 'USD');
+  const [usuarios, setUsuarios] = useState<Usuario[]>(initUsuarios);
+  const [proyectos, setProyectos] = useState<Proyecto[]>(initProyectos);
+  const [metodos, setMetodos] = useState<Metodo[]>(initMetodos);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(initSubscription);
   const [categorias, setCategorias] = useState<CategoriaGasto[]>(initCategorias);
+
   const [isNewCategoryModalOpen, setIsNewCategoryModalOpen] = useState(false);
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+
   const [newProyecto, setNewProyecto] = useState('');
   const [newMetodo, setNewMetodo] = useState('');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
-  // USA Fiscal Certificate State (Optional)
-  const [nombreCertificado, setNombreCertificado] = useState<string>(
-    ((empresa as Record<string, unknown>)?.nombre_certificado_usa as string) || ''
+  const [nombreCertificado, setNombreCertificado] = useState(
+    empresa?.nombre_certificado_usa || ''
   );
   const [urlCertificado, setUrlCertificado] = useState<string | null>(
-    ((empresa as Record<string, unknown>)?.url_certificado_usa as string | null) ||
-    empresa?.url_certificado_tax_exempt ||
-    null
+    empresa?.url_certificado_usa || empresa?.url_certificado_tax_exempt || null
   );
   const [isUploadingCert, setIsUploadingCert] = useState(false);
   const [isSavingCertName, setIsSavingCertName] = useState(false);
 
-  function toast(msg: string) {
+  // Sync hydrated lists if server refresh updates props
+  useEffect(() => {
+    setUsuarios(initUsuarios);
+  }, [initUsuarios]);
+
+  useEffect(() => {
+    setProyectos(initProyectos);
+  }, [initProyectos]);
+
+  useEffect(() => {
+    setMetodos(initMetodos);
+  }, [initMetodos]);
+
+  useEffect(() => {
+    setCategorias(initCategorias);
+  }, [initCategorias]);
+
+  useEffect(() => {
+    setSubscription(initSubscription);
+  }, [initSubscription]);
+
+  useEffect(() => {
+    if (empresa?.moneda) {
+      setMoneda(empresa.moneda);
+    }
+  }, [empresa?.moneda]);
+
+  const toast = (msg: string) => {
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 3500);
+  };
+
+  // Non-admin collaborators see their profile and active policies only
+  if (!isAdmin) {
+    const myUser = usuarios.find((u) => u.id === currentUserId);
+    return (
+      <EmployeeOrganizacionView
+        empresa={empresa}
+        myUser={myUser}
+        categorias={categorias}
+      />
+    );
   }
 
-  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
+  /**
+   * @name handleCurrencyChange
+   * @description [Business Logic]: Updates the organization's default operating currency
+   * used across financial reporting dashboards and WhatsApp expense receipts.
+   */
+  const handleCurrencyChange = (nextCurrency: string) => {
+    const previous = moneda;
+    setMoneda(nextCurrency);
+    startTransition(async () => {
+      try {
+        const res = await actualizarMonedaEmpresa(nextCurrency);
+        if (res?.error) {
+          setMoneda(previous);
+          toast(`❌ ${res.error}`);
+        } else {
+          toast(`✅ Moneda principal actualizada a ${nextCurrency}.`);
+          router.refresh();
+        }
+      } catch {
+        setMoneda(previous);
+        toast('❌ No se pudo actualizar la moneda de la organización.');
+      }
+    });
+  };
 
+  /**
+   * @name handleDarDeBaja
+   * @description [Business Logic]: Deactivates a collaborator and releases their bound WhatsApp
+   * phone number so they can no longer log corporate expenses or be blocked in another tenant.
+   */
   const handleDarDeBaja = async (usuario: Usuario) => {
     if (
       !confirm(
@@ -603,26 +257,51 @@ export default function ConfiguracionClient({
       return;
     }
     setMemberActionLoading(usuario.id);
-    const res = await darDeBajaMiembro(usuario.id);
-    setMemberActionLoading(null);
-    if (res.error) {
-      alert(res.error);
-    } else {
-      toast('Colaborador dado de baja. Su número ha sido liberado.');
+    try {
+      const res = await darDeBajaMiembro(usuario.id);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        setUsuarios((prev) =>
+          prev.map((u) =>
+            u.id === usuario.id ? { ...u, activo: false, telefono_whatsapp: null } : u
+          )
+        );
+        toast('✅ Colaborador dado de baja y número de WhatsApp liberado.');
+        router.refresh();
+      }
+    } finally {
+      setMemberActionLoading(null);
     }
   };
 
+  /**
+   * @name handleReactivar
+   * @description [Business Logic]: Restores active status for a previously deactivated employee.
+   */
   const handleReactivar = async (usuario: Usuario) => {
     setMemberActionLoading(usuario.id);
-    const res = await reactivarMiembro(usuario.id);
-    setMemberActionLoading(null);
-    if (res.error) {
-      alert(res.error);
-    } else {
-      toast('Colaborador reactivado con éxito.');
+    try {
+      const res = await reactivarMiembro(usuario.id);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        setUsuarios((prev) =>
+          prev.map((u) => (u.id === usuario.id ? { ...u, activo: true } : u))
+        );
+        toast('✅ Colaborador reactivado con éxito.');
+        router.refresh();
+      }
+    } finally {
+      setMemberActionLoading(null);
     }
   };
 
+  /**
+   * @name handleUpdateDailyLimit
+   * @description [Business Logic]: Saves the daily USD expenditure cap for a category
+   * to enforce real-time out-of-policy alerts when receipts are submitted via WhatsApp.
+   */
   const handleUpdateDailyLimit = (catId: string, limitVal: number) => {
     startTransition(async () => {
       try {
@@ -636,18 +315,18 @@ export default function ConfiguracionClient({
           setCategorias((prev) =>
             prev.map((c) => (c.id === catId ? { ...c, limite_diario_usd: limitVal } : c))
           );
-          toast(
-            limitVal > 0
-              ? `✅ Límite diario actualizado a $${limitVal.toFixed(2)} USD`
-              : '✅ Categoría configurada sin límite diario'
-          );
+          toast('✅ Límite diario actualizado.');
         }
       } catch {
-        toast('❌ Error al actualizar el límite diario');
+        toast('❌ Error al guardar límite diario.');
       }
     });
   };
 
+  /**
+   * @name handleToggleCategoria
+   * @description [Business Logic]: Enables or pauses an expense category across WhatsApp menus.
+   */
   const handleToggleCategoria = (catId: string, currentActiva: boolean) => {
     const nextActiva = !currentActiva;
     startTransition(async () => {
@@ -662,14 +341,22 @@ export default function ConfiguracionClient({
           setCategorias((prev) =>
             prev.map((c) => (c.id === catId ? { ...c, activa: nextActiva } : c))
           );
-          toast(nextActiva ? '✅ Categoría activada' : '⏸️ Categoría desactivada');
+          toast(
+            nextActiva
+              ? '✅ Categoría habilitada para reportes.'
+              : '⏸️ Categoría pausada temporalmente.'
+          );
         }
       } catch {
-        toast('❌ Error al cambiar el estado de la categoría');
+        toast('❌ Error al cambiar el estado de la categoría.');
       }
     });
   };
 
+  /**
+   * @name handleDeleteCategoria
+   * @description [Business Logic]: Permanently removes a custom company expense category.
+   */
   const handleDeleteCategoria = (catId: string, nombre: string) => {
     if (!confirm(`¿Estás seguro de eliminar la categoría personalizada "${nombre}"?`)) {
       return;
@@ -684,16 +371,21 @@ export default function ConfiguracionClient({
           toast(`🗑️ Categoría "${nombre}" eliminada.`);
         }
       } catch {
-        toast('❌ Error al eliminar la categoría');
+        toast('❌ No se pudo eliminar la categoría.');
       }
     });
   };
 
+  /**
+   * @name handleCreateCategoria
+   * @description [Business Logic]: Creates a custom corporate expense category with optional
+   * icon, description, and daily USD threshold.
+   */
   const handleCreateCategoria = async (input: {
     nombre: string;
     descripcion?: string;
     icono?: string;
-    limite_diario_usd?: number;
+    limiteDiarioUsd?: number;
   }) => {
     setIsSubmittingCategory(true);
     try {
@@ -701,22 +393,182 @@ export default function ConfiguracionClient({
         nombre: input.nombre,
         descripcion: input.descripcion,
         icono: input.icono,
-        limiteDiarioUsd: input.limite_diario_usd,
+        limiteDiarioUsd: input.limiteDiarioUsd ?? 0,
       });
       if (res?.error) {
         toast(`❌ ${res.error}`);
       } else if (res?.data) {
         setCategorias((prev) => [...prev, res.data as CategoriaGasto]);
         setIsNewCategoryModalOpen(false);
-        toast(`✅ Categoría "${res.data.nombre}" creada con éxito.`);
+        toast(`✅ Categoría "${input.nombre}" creada correctamente.`);
+        router.refresh();
+      } else {
+        setIsNewCategoryModalOpen(false);
+        toast(`✅ Categoría "${input.nombre}" creada.`);
+        router.refresh();
       }
     } catch {
-      toast('❌ Error al crear la categoría');
+      toast('❌ Ocurrió un error al crear la categoría.');
     } finally {
       setIsSubmittingCategory(false);
     }
   };
 
+  /**
+   * @name handleCrearProyecto
+   * @description [Business Logic]: Registers a new project/cost center for expense tagging.
+   */
+  const handleCrearProyecto = () => {
+    const trimmed = newProyecto.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      try {
+        const res = await crearProyecto(trimmed);
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          if (res?.data) {
+            setProyectos((prev) => [res.data as Proyecto, ...prev]);
+          }
+          setNewProyecto('');
+          toast(`✅ Proyecto "${trimmed}" creado.`);
+          router.refresh();
+        }
+      } catch {
+        toast('❌ Error al crear el proyecto.');
+      }
+    });
+  };
+
+  /**
+   * @name handleToggleProyecto
+   * @description [Business Logic]: Toggles active availability of a project in WhatsApp menus.
+   */
+  const handleToggleProyecto = (id: string, nextActive: boolean) => {
+    startTransition(async () => {
+      try {
+        const res = await toggleProyecto(id, nextActive);
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setProyectos((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, activo: nextActive } : p))
+          );
+          toast(nextActive ? '✅ Proyecto activado.' : '⏸️ Proyecto pausado.');
+        }
+      } catch {
+        toast('❌ Error al actualizar el proyecto.');
+      }
+    });
+  };
+
+  /**
+   * @name handleEliminarProyecto
+   * @description [Business Logic]: Deletes a project cost center when it has no blocking links.
+   */
+  const handleEliminarProyecto = (id: string) => {
+    startTransition(async () => {
+      try {
+        const res = await eliminarProyecto(id);
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setProyectos((prev) => prev.filter((p) => p.id !== id));
+          toast('🗑️ Proyecto eliminado.');
+        }
+      } catch {
+        toast('❌ No se pudo eliminar el proyecto.');
+      }
+    });
+  };
+
+  /**
+   * @name handleCrearMetodo
+   * @description [Business Logic]: Registers a corporate payment method for WhatsApp expense tagging.
+   */
+  const handleCrearMetodo = () => {
+    const trimmed = newMetodo.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      try {
+        const res = await crearMetodoPago(trimmed);
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          if (res?.data) {
+            setMetodos((prev) => [res.data as Metodo, ...prev]);
+          }
+          setNewMetodo('');
+          toast(`✅ Método "${trimmed}" agregado.`);
+          router.refresh();
+        }
+      } catch {
+        toast('❌ Error al agregar el método de pago.');
+      }
+    });
+  };
+
+  /**
+   * @name handleEliminarMetodo
+   * @description [Business Logic]: Deletes a payment method option from the organization catalog.
+   */
+  const handleEliminarMetodo = (id: string) => {
+    startTransition(async () => {
+      try {
+        const res = await eliminarMetodoPago(id);
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setMetodos((prev) => prev.filter((m) => m.id !== id));
+          toast('🗑️ Método de pago eliminado.');
+        }
+      } catch {
+        toast('❌ No se pudo eliminar el método de pago.');
+      }
+    });
+  };
+
+  /**
+   * @name handleCancelSubscription
+   * @description [Business Logic]: Triggers subscription or free-trial cancellation via Stripe.
+   */
+  const handleCancelSubscription = () => {
+    if (
+      !confirm(
+        '¿Estás seguro de que deseas cancelar la suscripción? Tu acceso continuará según las condiciones del período actual o finalizará de inmediato si estás en prueba gratuita.'
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const res = await cancelTrialOrSubscriptionAction();
+        if (!res.success) {
+          toast(`❌ ${res.error || 'No se pudo cancelar la suscripción.'}`);
+        } else {
+          setSubscription((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: prev.status === 'TRIALING' ? 'CANCELED' : prev.status,
+                  cancel_at_period_end: true,
+                }
+              : null
+          );
+          toast('✅ Suscripción cancelada correctamente.');
+          router.refresh();
+        }
+      } catch {
+        toast('❌ Error al procesar la cancelación de suscripción.');
+      }
+    });
+  };
+
+  /**
+   * @name handleUploadCertificate
+   * @description [Business Logic]: Uploads a US Fiscal Certificate (Resale, 501(c)(3), W-9)
+   * into secure storage for instant employee access on WhatsApp.
+   */
   const handleUploadCertificate = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -733,1221 +585,323 @@ export default function ConfiguracionClient({
       if (res?.error) {
         toast(`❌ ${res.error}`);
       } else {
-        if (res?.url) setUrlCertificado(res.url);
-        toast('✅ Certificado fiscal cargado exitosamente.');
+        if ('url' in res && typeof res.url === 'string') {
+          setUrlCertificado(res.url);
+        }
+        toast('✅ Certificado fiscal guardado con éxito.');
+        router.refresh();
       }
     } catch {
-      toast('❌ Error inesperado al subir el certificado.');
+      toast('❌ Error al subir el certificado fiscal.');
     } finally {
       setIsUploadingCert(false);
       e.target.value = '';
     }
   };
 
-  const handleSaveCertificateName = () => {
+  /**
+   * @name handleSaveCertName
+   * @description [Business Logic]: Persists only the descriptive display name for the US
+   * fiscal certificate without requiring a new file upload.
+   */
+  const handleSaveCertName = async () => {
     const formData = new FormData();
     formData.append('nombre', nombreCertificado.trim());
 
     setIsSavingCertName(true);
-    startTransition(async () => {
-      try {
-        const res = await guardarCertificadoFiscalUsa(formData);
-        if (res?.error) {
-          toast(`❌ ${res.error}`);
-        } else {
-          toast('✅ Nombre del certificado actualizado.');
-        }
-      } catch {
-        toast('❌ Error al actualizar el nombre del certificado.');
-      } finally {
-        setIsSavingCertName(false);
-      }
-    });
-  };
-
-  const handleDeleteCertificate = () => {
-    startTransition(async () => {
-      const res = await eliminarCertificadoFiscalUsa();
+    try {
+      const res = await guardarCertificadoFiscalUsa(formData);
       if (res?.error) {
         toast(`❌ ${res.error}`);
       } else {
-        setUrlCertificado(null);
-        setNombreCertificado('');
-        toast('🗑️ Certificado fiscal eliminado.');
+        toast('✅ Nombre del certificado actualizado.');
+        router.refresh();
+      }
+    } catch {
+      toast('❌ Error al guardar el nombre del certificado.');
+    } finally {
+      setIsSavingCertName(false);
+    }
+  };
+
+  /**
+   * @name handleDeleteCertificate
+   * @description [Business Logic]: Removes the stored US fiscal certificate from the tenant.
+   */
+  const handleDeleteCertificate = () => {
+    startTransition(async () => {
+      try {
+        const res = await eliminarCertificadoFiscalUsa();
+        if (res?.error) {
+          toast(`❌ ${res.error}`);
+        } else {
+          setUrlCertificado(null);
+          setNombreCertificado('');
+          toast('🗑️ Certificado fiscal eliminado.');
+          router.refresh();
+        }
+      } catch {
+        toast('❌ Error al eliminar el certificado fiscal.');
       }
     });
   };
 
-  /* ─────────────────────────────────────────────────────────────
-   * Employee Read-Only View
-   * ───────────────────────────────────────────────────────────── */
-  if (!isAdmin) {
-    const myUser = usuarios.find((u) => u.id === currentUserId);
+  const subPill = resolveSubscriptionPill(subscription);
+  const activeMembersCount = usuarios.filter((u) => u.activo !== false).length;
+  const activeProjectsCount = proyectos.filter((p) => p.activo).length;
 
-    return (
-      <>
-        <div className="page-header">
-          <h1 className="page-title">
-            <Settings size={24} strokeWidth={2} />
-            Información de mi Organización
-          </h1>
-          <p className="page-subtitle">
-            Vista informativa de tu empresa, tu perfil y las políticas de gastos vigentes.
-          </p>
-        </div>
-
-        {feedback && (
-          <div
-            style={{
-              position: 'fixed',
-              top: '20px',
-              right: '24px',
-              zIndex: 200,
-              background: feedback.startsWith('❌') ? 'var(--rendy-danger)' : 'var(--rendy-accent)',
-              color: 'white',
-              padding: '12px 20px',
-              borderRadius: '10px',
-              fontSize: '13px',
-              fontWeight: 600,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-            }}
-          >
-            {feedback}
-          </div>
-        )}
-
-        {/* Organization Info Card */}
-        {empresa && (
-          <div className="card" style={{ marginBottom: '24px' }}>
-            <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div
-                style={{
-                  width: '52px',
-                  height: '52px',
-                  borderRadius: '14px',
-                  flexShrink: 0,
-                  background: 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px',
-                  fontWeight: 800,
-                  color: 'white',
-                }}
-              >
-                {empresa.nombre.charAt(0).toUpperCase()}
-                {empresa.nombre.split(' ')[1]?.charAt(0).toUpperCase() ?? ''}
-              </div>
-              <div style={{ flex: 1, minWidth: '220px' }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>{empresa.nombre}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Moneda de operación: <strong style={{ color: 'var(--text-secondary)' }}>{empresa.moneda || 'USD'}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* My Profile */}
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div style={{ padding: '20px 24px' }}>
-            <SectionHeader
-              title="Mi Perfil"
-              subtitle="Tu información registrada en la organización."
-            />
-            {myUser ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nombre</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{myUser.nombre}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</div>
-                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{myUser.email || '—'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Teléfono WhatsApp</div>
-                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{myUser.telefono_whatsapp ? `+${myUser.telefono_whatsapp}` : '—'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rol</div>
-                  <RolBadge rol={myUser.rol || myUser.role || 'EMPLOYEE'} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Departamento</div>
-                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{myUser.department || 'General'}</div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>No se encontró tu perfil de usuario.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Expense Categories & Daily Limits (Read-Only) */}
-        <div className="card">
-          <div style={{ padding: '20px 24px' }}>
-            <SectionHeader
-              title="Categorías de Gastos y Límites Diarios"
-              subtitle="Políticas de gastos vigentes definidas por tu administrador."
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-              {categorias.filter((c) => c.activa).map((cat) => (
-                <div
-                  key={cat.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--bg-border)',
-                    borderRadius: '10px',
-                    gap: '16px',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px', flex: 1 }}>
-                    <span style={{ fontSize: '20px', lineHeight: 1 }}>{cat.icono || '🏷️'}</span>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{cat.nombre}</div>
-                      {cat.descripcion && (
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{cat.descripcion}</div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', minWidth: '120px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: cat.limite_diario_usd > 0 ? 'var(--rendy-accent)' : 'var(--text-muted)' }}>
-                      {cat.limite_diario_usd > 0 ? `$${cat.limite_diario_usd.toFixed(2)} USD / día` : 'Sin límite'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {categorias.filter((c) => c.activa).length === 0 && (
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
-                  No hay categorías activas configuradas.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  /* ─────────────────────────────────────────────────────────────
-   * Admin Full View (original)
-   * ───────────────────────────────────────────────────────────── */
-
-  const TABS = [
-    { id: 'usuarios' as const, label: 'Usuarios', icon: Users, count: usuarios.length },
-    { id: 'categorias' as const, label: 'Categorías y Límites', icon: Tag, count: categorias.length },
-    { id: 'proyectos' as const, label: 'Proyectos', icon: FolderKanban, count: proyectos.length },
-    { id: 'metodos' as const, label: 'Métodos de Pago', icon: CreditCard, count: metodos.length },
-    { id: 'suscripcion' as const, label: 'Suscripción y Plan', icon: ShieldCheck, count: 1 },
-    { id: 'fiscal' as const, label: 'Certificado Fiscal USA', icon: FileText, count: urlCertificado ? 'Cargado' : 'Opcional' },
+  const tabs: ReadonlyArray<{
+    id: ConfigTabId;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    count?: number;
+  }> = [
+    { id: 'usuarios', label: 'Usuarios y Colaboradores', icon: Users, count: usuarios.length },
+    { id: 'categorias', label: 'Categorías y Límites', icon: Tags, count: categorias.length },
+    {
+      id: 'proyectos',
+      label: 'Proyectos y Centros de Costo',
+      icon: FolderKanban,
+      count: proyectos.length,
+    },
+    { id: 'metodos', label: 'Métodos de Pago', icon: CreditCard, count: metodos.length },
+    { id: 'suscripcion', label: 'Suscripción y Facturación', icon: ShieldCheck },
+    { id: 'fiscal', label: 'Certificados Fiscales & Cumplimiento', icon: FileText },
   ];
 
   return (
-    <>
-      <div className="page-header">
-        <h1 className="page-title">
-          <Settings size={24} strokeWidth={2} />
-          Gestión de Organización
-        </h1>
-        <p className="page-subtitle">
-          Administra usuarios, permisos por categoría, proyectos y tu suscripción corporativa.
+    <div className="relative w-full max-w-[1440px] mx-auto flex flex-col gap-6 pb-14 text-on-surface select-text">
+      {/* Subtle Ambient Accent Glows */}
+      <div className="absolute -top-24 -right-12 w-96 h-96 rounded-full bg-primary-container/5 blur-3xl pointer-events-none" />
+      <div className="absolute top-40 -left-16 w-72 h-72 rounded-full bg-secondary/5 blur-3xl pointer-events-none" />
+
+      {/* ── Header Banner ── */}
+      <div className="flex flex-col gap-1.5 pt-2 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-sm ring-1 ring-outline-variant/25 shrink-0">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
+            Gestión de Organización
+          </h1>
+        </div>
+        <p className="text-xs sm:text-sm text-on-surface-variant sm:pl-[52px]">
+          Administra la identidad corporativa, colaboradores activos, categorías de gastos, centros de costos y cumplimiento fiscal.
         </p>
       </div>
 
-      {feedback && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '24px',
-            zIndex: 200,
-            background: feedback.startsWith('❌') ? 'var(--rendy-danger)' : 'var(--rendy-accent)',
-            color: 'white',
-            padding: '12px 20px',
-            borderRadius: '10px',
-            fontSize: '13px',
-            fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-          }}
-        >
-          {feedback}
-        </div>
-      )}
+      {/* ── Organization Hero Overview Card ── */}
+      <section className="relative z-10 rounded-2xl bg-surface-container-low border border-outline-variant/25 p-5 sm:p-6 shadow-sm overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/35 to-transparent" />
 
-      {/* Org Card con Selector de Moneda */}
-      {empresa && (
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div
-            style={{
-              padding: '20px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              flexWrap: 'wrap',
-            }}
-          >
-            <div
-              style={{
-                width: '52px',
-                height: '52px',
-                borderRadius: '14px',
-                flexShrink: 0,
-                background:
-                  'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '20px',
-                fontWeight: 800,
-                color: 'white',
-              }}
-            >
-              {empresa.nombre.charAt(0).toUpperCase()}
-              {empresa.nombre.split(' ')[1]?.charAt(0).toUpperCase() ?? ''}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Identity & Metadata */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-surface-container-high to-surface-container flex items-center justify-center text-primary font-bold text-xl sm:text-2xl ring-1 ring-primary/35 shadow-[0_0_24px_rgba(0,229,153,0.12)] shrink-0">
+              {getCompanyMonogram(empresa?.nombre || 'Rendy')}
             </div>
-            <div style={{ flex: 1, minWidth: '220px' }}>
-              <div
-                style={{
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  marginBottom: '4px',
-                }}
-              >
-                {empresa.nombre}
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                ID:{' '}
-                <span style={{ fontFamily: 'monospace', color: 'var(--text-accent)' }}>
-                  {empresa.id.slice(0, 18)}…
+
+            <div className="flex flex-col gap-2 min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-bold text-on-surface truncate">
+                  {empresa?.nombre || 'Organización Corporativa'}
+                </h2>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${subPill.className}`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                  {subPill.label}
                 </span>
-                {' · '}Activo desde {new Date(empresa.creado_en).toLocaleDateString('es-VE')}
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-secondary/10 text-secondary border border-secondary/20">
+                  <Lock className="w-3 h-3" />
+                  Multi-tenant Seguro
+                </span>
               </div>
-            </div>
 
-            {/* Selector de Moneda Local de la Organización */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: 'var(--bg-elevated)',
-                padding: '8px 14px',
-                borderRadius: '10px',
-                border: '1px solid var(--bg-border)',
-                flexWrap: 'wrap',
-              }}
-            >
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
-                Moneda Principal:
-              </span>
-              <select
-                id="select-moneda-empresa"
-                defaultValue={empresa.moneda || 'USD'}
-                disabled={isPending}
-                onChange={(e) => {
-                  const nuevaMoneda = e.target.value;
-                  startTransition(async () => {
-                    const res = await actualizarMonedaEmpresa(nuevaMoneda);
-                    if (!res.error) toast(`✅ Moneda actualizada a ${nuevaMoneda}`);
-                    else toast(`❌ ${res.error}`);
-                  });
-                }}
-                style={{
-                  background: 'var(--bg-surface)',
-                  color: 'var(--rendy-accent)',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '6px',
-                  padding: '4px 8px',
-                  outline: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                <option value="USD">USD (Dólares)</option>
-                <option value="VES">VES (Bolívares)</option>
-                <option value="COP">COP (Pesos Col.)</option>
-                <option value="MXN">MXN (Pesos Mex.)</option>
-                <option value="EUR">EUR (Euros)</option>
-              </select>
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant">
+                <span className="inline-flex items-center gap-1.5 font-mono">
+                  <Hash className="w-3.5 h-3.5 text-on-surface-variant/80" />
+                  ID: {empresa?.id ? empresa.id.slice(0, 8).toUpperCase() : 'ORG'}
+                </span>
+                {empresa?.creado_en && (
+                  <span
+                    className="inline-flex items-center gap-1.5"
+                    suppressHydrationWarning
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-on-surface-variant/80" />
+                    Alta:{' '}
+                    {new Date(empresa.creado_en).toLocaleDateString('es-VE', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 text-on-surface/80 font-medium">
+                  {activeMembersCount} activos · {activeProjectsCount} proyectos
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '4px',
-          marginBottom: '20px',
-          background: 'var(--bg-surface)',
-          padding: '6px',
-          borderRadius: '10px',
-          border: '1px solid var(--bg-border)',
-          width: 'fit-content',
-          maxWidth: '100%',
-          overflowX: 'auto',
-        }}
+          {/* Primary Operating Currency Selector */}
+          <div className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-surface-container border border-outline-variant/30 w-full lg:w-auto lg:min-w-[260px] shrink-0">
+            <label
+              htmlFor="select-moneda-empresa"
+              className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant"
+            >
+              <Globe2 className="w-3.5 h-3.5 text-primary" />
+              Moneda Principal
+            </label>
+            <select
+              id="select-moneda-empresa"
+              value={moneda}
+              disabled={isPending}
+              onChange={(e) => handleCurrencyChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest border border-outline-variant/35 text-xs sm:text-sm font-semibold text-on-surface [color-scheme:dark] focus:outline-none focus:border-primary transition-colors cursor-pointer disabled:opacity-60"
+            >
+              {CURRENCY_OPTIONS.map((curr) => (
+                <option key={curr.code} value={curr.code}>
+                  {curr.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Scrollable Navigation Tabs ── */}
+      <nav
+        aria-label="Secciones de configuración de organización"
+        className="relative z-10 flex items-center gap-2 overflow-x-auto pb-2 border-b border-outline-variant/25"
       >
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
+        {tabs.map((tab) => {
+          const IconComp = tab.icon;
+          const isActive = activeTab === tab.id;
+
           return (
             <button
               key={tab.id}
               id={`config-tab-${tab.id}`}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 16px',
-                borderRadius: '7px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 600,
-                transition: 'all 150ms ease',
-                background: activeTab === tab.id ? 'rgba(99,102,241,0.2)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--rendy-primary-light)' : 'var(--text-muted)',
-                whiteSpace: 'nowrap',
-              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
+                isActive
+                  ? 'bg-surface-container-high text-primary border-primary/40 shadow-[0_0_16px_rgba(0,229,153,0.1)]'
+                  : 'bg-surface-container-low/60 text-on-surface-variant border-outline-variant/15 hover:text-on-surface hover:bg-surface-container'
+              }`}
             >
-              <Icon size={15} />
-              {tab.label}
-              <span
-                style={{
-                  background: activeTab === tab.id ? 'var(--rendy-primary)' : 'var(--bg-elevated)',
-                  color: activeTab === tab.id ? 'white' : 'var(--text-muted)',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  padding: '1px 6px',
-                  borderRadius: '10px',
-                }}
-              >
-                {tab.count}
-              </span>
+              <IconComp
+                className={`w-4 h-4 shrink-0 ${
+                  isActive ? 'text-primary' : 'text-on-surface-variant'
+                }`}
+              />
+              <span>{tab.label}</span>
+              {typeof tab.count === 'number' && (
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
+                    isActive
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-surface-container-highest/50 text-on-surface-variant'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
+      </nav>
+
+      {/* ── Active Section Content ── */}
+      <div className="relative z-10">
+        {activeTab === 'usuarios' && (
+          <UsuariosTabSection
+            usuarios={usuarios}
+            pendingInvitations={pendingInvitations}
+            metodos={metodos}
+            memberActionLoading={memberActionLoading}
+            onInviteClick={() => setIsInviteModalOpen(true)}
+            onDarDeBaja={handleDarDeBaja}
+            onReactivar={handleReactivar}
+            onNavigateToMetodos={() => setActiveTab('metodos')}
+          />
+        )}
+
+        {activeTab === 'categorias' && (
+          <CategoriasTabSection
+            categorias={categorias}
+            isPending={isPending}
+            onUpdateDailyLimit={handleUpdateDailyLimit}
+            onToggleCategoria={handleToggleCategoria}
+            onDeleteCategoria={handleDeleteCategoria}
+            onOpenNewModal={() => setIsNewCategoryModalOpen(true)}
+          />
+        )}
+
+        {activeTab === 'proyectos' && (
+          <ProyectosTabSection
+            proyectos={proyectos}
+            newProyecto={newProyecto}
+            isPending={isPending}
+            onNewProyectoChange={setNewProyecto}
+            onCrearProyecto={handleCrearProyecto}
+            onToggleProyecto={handleToggleProyecto}
+            onEliminarProyecto={handleEliminarProyecto}
+          />
+        )}
+
+        {activeTab === 'metodos' && (
+          <MetodosTabSection
+            metodos={metodos}
+            newMetodo={newMetodo}
+            isPending={isPending}
+            onNewMetodoChange={setNewMetodo}
+            onCrearMetodo={handleCrearMetodo}
+            onEliminarMetodo={handleEliminarMetodo}
+          />
+        )}
+
+        {activeTab === 'suscripcion' && (
+          <SuscripcionTabSection
+            subscription={subscription}
+            isPending={isPending}
+            onCancelSubscription={handleCancelSubscription}
+          />
+        )}
+
+        {activeTab === 'fiscal' && (
+          <FiscalTabSection
+            nombreCertificado={nombreCertificado}
+            urlCertificado={urlCertificado}
+            isPending={isPending}
+            isUploadingCert={isUploadingCert}
+            isSavingCertName={isSavingCertName}
+            onNombreChange={setNombreCertificado}
+            onSaveName={handleSaveCertName}
+            onUploadFile={handleUploadCertificate}
+            onDeleteCertificate={handleDeleteCertificate}
+          />
+        )}
       </div>
 
-      {/* ── Usuarios e Invitaciones ── */}
-      {activeTab === 'usuarios' && (
-        <div className="card">
-          <div style={{ padding: '20px 24px 0' }}>
-            <SectionHeader
-              title="Usuarios de la Organización"
-              subtitle="Invita empleados con Magic Link, código QR y permisos configurables por categoría."
-              action={
-                <button
-                  id="config-add-usuario-btn"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => setIsInviteModalOpen(true)}
-                >
-                  <Plus size={13} /> Invitar Empleado
-                </button>
-              }
-            />
-          </div>
-          <div style={{ padding: '0 24px 24px' }}>
-            {usuarios.length === 0 ? (
-              <div className="empty-state" style={{ padding: '40px' }}>
-                <div className="empty-state-title">Sin usuarios registrados</div>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="rendy-table" aria-label="Usuarios de la organización">
-                  <thead>
-                    <tr>
-                      <th>Nombre</th>
-                      <th>Email</th>
-                      <th>Departamento</th>
-                      <th>Rol</th>
-                      <th>Estado</th>
-                      <th>Alta</th>
-                      <th style={{ textAlign: 'right' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usuarios.map((u) => {
-                      const effectiveRole = u.role || u.rol || 'EMPLOYEE';
-                      return (
-                        <tr key={u.id}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div
-                                style={{
-                                  width: '30px',
-                                  height: '30px',
-                                  borderRadius: '50%',
-                                  background:
-                                    effectiveRole === 'ADMIN'
-                                      ? 'linear-gradient(135deg, var(--rendy-primary), var(--rendy-primary-light))'
-                                      : 'linear-gradient(135deg, var(--rendy-accent-dark), var(--rendy-accent))',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                  color: 'white',
-                                }}
-                              >
-                                {u.nombre.charAt(0)}
-                              </div>
-                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {u.nombre}
-                              </span>
-                            </div>
-                          </td>
-                          <td>{u.email ?? '—'}</td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                            {u.department || 'General'}
-                          </td>
-                          <td>
-                            <RolBadge rol={effectiveRole} />
-                          </td>
-                          <td>
-                            {u.activo !== false ? (
-                              <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '9999px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                                Activo
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '9999px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                                Inactivo (Baja)
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                            {new Date(u.creado_en).toLocaleDateString('es-VE')}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            {effectiveRole !== 'ADMIN' && (
-                              u.activo !== false ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDarDeBaja(u)}
-                                  disabled={memberActionLoading === u.id}
-                                  className="btn btn-ghost btn-sm"
-                                  style={{
-                                    fontSize: '11px',
-                                    color: 'var(--rendy-danger, #ef4444)',
-                                    background: 'rgba(239, 68, 68, 0.08)',
-                                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
-                                  }}
-                                  title="Dar de baja y liberar número de teléfono"
-                                >
-                                  {memberActionLoading === u.id ? '...' : 'Dar de baja'}
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleReactivar(u)}
-                                  disabled={memberActionLoading === u.id}
-                                  className="btn btn-ghost btn-sm"
-                                  style={{
-                                    fontSize: '11px',
-                                    color: '#10b981',
-                                    background: 'rgba(16, 185, 129, 0.08)',
-                                    border: '1px solid rgba(16, 185, 129, 0.2)',
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
-                                  }}
-                                  title="Reactivar usuario"
-                                >
-                                  {memberActionLoading === u.id ? '...' : 'Reactivar'}
-                                </button>
-                              )
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Invitaciones Pendientes */}
-            {pendingInvitations.length > 0 && (
-              <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--bg-border)' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Clock size={14} /> Invitaciones Pendientes de Activación ({pendingInvitations.length})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {pendingInvitations.map((inv) => (
-                    <div
-                      key={inv.id}
-                      style={{
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--bg-border)',
-                        borderRadius: '8px',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '12px',
-                      }}
-                    >
-                      <div>
-                        <strong style={{ color: 'var(--text-primary)' }}>
-                          {inv.first_name} {inv.last_name}
-                        </strong>{' '}
-                        <span style={{ color: 'var(--text-muted)' }}>
-                          ({inv.email}) • {inv.department}
-                        </span>
-                      </div>
-                      <span className="badge pendiente">
-                        <span className="badge-dot" />
-                        Expira {new Date(inv.expires_at).toLocaleDateString('es-VE')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+      {/* ── Floating Feedback Toast ── */}
+      {feedback && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 rounded-xl bg-surface-container-highest border border-outline-variant/40 text-xs sm:text-sm font-medium text-on-surface shadow-2xl flex items-center gap-2.5"
+        >
+          {feedback.startsWith('❌') ? (
+            <AlertCircle className="w-4 h-4 text-error shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+          )}
+          <span>{feedback.replace(/^[✅❌🗑️⏸️]\s*/u, '')}</span>
         </div>
       )}
 
-      {/* ── Categorías y Límites Diarios ── */}
-      {activeTab === 'categorias' && (
-        <div className="card" style={{ padding: '24px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '20px',
-              flexWrap: 'wrap',
-              gap: '12px',
-            }}
-          >
-            <div>
-              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Catálogo de Categorías y Límites Diarios
-              </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                Configura las categorías de gastos y establece topes diarios en USD por categoría para tus colaboradores.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsNewCategoryModalOpen(true)}
-              className="btn btn-primary btn-sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              + Nueva Categoría
-            </button>
-          </div>
-
-          {/* Bloque 1: Categorías Personalizadas */}
-          <div style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Categorías Personalizadas
-              </h3>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  background: 'rgba(56, 189, 248, 0.15)',
-                  color: '#38bdf8',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                }}
-              >
-                {categorias.filter((c) => !c.es_sistema).length}
-              </span>
-            </div>
-
-            {categorias.filter((c) => !c.es_sistema).length === 0 ? (
-              <div
-                style={{
-                  padding: '24px',
-                  background: 'var(--bg-elevated)',
-                  border: '1px dashed var(--bg-border)',
-                  borderRadius: '10px',
-                  textAlign: 'center',
-                  color: 'var(--text-muted)',
-                  fontSize: '13px',
-                }}
-              >
-                No has creado categorías personalizadas aún. Haz clic en <strong>&quot;+ Nueva Categoría&quot;</strong> para añadir categorías específicas de tu negocio.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {categorias
-                  .filter((c) => !c.es_sistema)
-                  .map((cat) => (
-                    <CategoryRowItem
-                      key={cat.id}
-                      categoria={cat}
-                      onUpdateLimit={(val) => handleUpdateDailyLimit(cat.id, val)}
-                      onToggleActive={() => handleToggleCategoria(cat.id, cat.activa)}
-                      onDelete={() => handleDeleteCategoria(cat.id, cat.nombre)}
-                      disabled={isPending}
-                    />
-                  ))}
-              </div>
-            )}
-          </div>
-
-          {/* Bloque 2: Categorías Oficiales por Defecto */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Categorías Oficiales por Defecto
-              </h3>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  background: 'rgba(0, 229, 153, 0.15)',
-                  color: '#00e599',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                }}
-              >
-                {categorias.filter((c) => c.es_sistema).length}
-              </span>
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-              Las 8 categorías universales de Rendy. Puedes ajustar su límite diario o desactivarlas si tu empresa no las utiliza.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {categorias
-                .filter((c) => c.es_sistema)
-                .map((cat) => (
-                  <CategoryRowItem
-                    key={cat.id}
-                    categoria={cat}
-                    onUpdateLimit={(val) => handleUpdateDailyLimit(cat.id, val)}
-                    onToggleActive={() => handleToggleCategoria(cat.id, cat.activa)}
-                    disabled={isPending}
-                  />
-                ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Proyectos ── */}
-      {activeTab === 'proyectos' && (
-        <div className="card">
-          <div style={{ padding: '20px 24px 0' }}>
-            <SectionHeader
-              title="Proyectos"
-              subtitle="Los proyectos activos aparecen en los desplegables de WhatsApp en tiempo real."
-              action={
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    id="config-new-proyecto-input"
-                    value={newProyecto}
-                    onChange={(e) => setNewProyecto(e.target.value)}
-                    placeholder="Nombre del proyecto…"
-                    style={{
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--bg-border)',
-                      borderRadius: '7px',
-                      padding: '6px 12px',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      outline: 'none',
-                      width: '200px',
-                    }}
-                  />
-                  <button
-                    id="config-add-proyecto-btn"
-                    className="btn btn-primary btn-sm"
-                    disabled={isPending}
-                    onClick={() => {
-                      if (!newProyecto.trim()) return;
-                      startTransition(async () => {
-                        const res = await crearProyecto(newProyecto.trim());
-                        if (res.data) {
-                          setProyectos((ps) => [...ps, res.data!]);
-                          setNewProyecto('');
-                          toast('✅ Proyecto creado');
-                        } else toast(`❌ ${res.error}`);
-                      });
-                    }}
-                  >
-                    <Plus size={13} /> Crear
-                  </button>
-                </div>
-              }
-            />
-          </div>
-          <div
-            style={{
-              padding: '0 24px 24px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-              gap: '12px',
-            }}
-          >
-            {proyectos.map((p) => (
-              <div
-                key={p.id}
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '10px',
-                  padding: '14px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: p.activo ? 'var(--rendy-accent)' : 'var(--text-muted)',
-                    }}
-                  />
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {p.nombre}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    disabled={isPending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        const res = await toggleProyecto(p.id, !p.activo);
-                        if (!res.error)
-                          setProyectos((ps) =>
-                            ps.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x))
-                          );
-                        else toast(`❌ ${res.error}`);
-                      });
-                    }}
-                  >
-                    {p.activo ? <X size={12} /> : <Check size={12} />}
-                  </button>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    disabled={isPending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        const res = await eliminarProyecto(p.id);
-                        if (!res.error) {
-                          setProyectos((ps) => ps.filter((x) => x.id !== p.id));
-                          toast('✅ Proyecto eliminado');
-                        } else toast(`❌ ${res.error}`);
-                      });
-                    }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Métodos de Pago ── */}
-      {activeTab === 'metodos' && (
-        <div className="card">
-          <div style={{ padding: '20px 24px 0' }}>
-            <SectionHeader
-              title="Métodos de Pago"
-              subtitle="Los métodos configurados aquí aparecen en los desplegables de WhatsApp al registrar un gasto."
-              action={
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    id="config-new-metodo-input"
-                    value={newMetodo}
-                    onChange={(e) => setNewMetodo(e.target.value)}
-                    placeholder="Ej: Tarjeta Corporativa…"
-                    style={{
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--bg-border)',
-                      borderRadius: '7px',
-                      padding: '6px 12px',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      outline: 'none',
-                      width: '200px',
-                    }}
-                  />
-                  <button
-                    id="config-add-metodo-btn"
-                    className="btn btn-primary btn-sm"
-                    disabled={isPending}
-                    onClick={() => {
-                      if (!newMetodo.trim()) return;
-                      startTransition(async () => {
-                        const res = await crearMetodoPago(newMetodo.trim());
-                        if (res.data) {
-                          setMetodos((ms) => [...ms, res.data!]);
-                          setNewMetodo('');
-                          toast('✅ Método creado');
-                        } else toast(`❌ ${res.error}`);
-                      });
-                    }}
-                  >
-                    <Plus size={13} /> Agregar
-                  </button>
-                </div>
-              }
-            />
-          </div>
-          <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {metodos.map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '10px',
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <CreditCard size={15} style={{ color: 'var(--text-accent)' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {m.nombre}
-                  </span>
-                </div>
-                <button
-                  className="btn btn-danger btn-sm"
-                  disabled={isPending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const res = await eliminarMetodoPago(m.id);
-                      if (!res.error) {
-                        setMetodos((ms) => ms.filter((x) => x.id !== m.id));
-                        toast('✅ Método eliminado');
-                      } else toast(`❌ ${res.error}`);
-                    });
-                  }}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Suscripción y Prueba Gratuita (Netflix-Style) ── */}
-      {activeTab === 'suscripcion' && (
-        <div className="card">
-          <div style={{ padding: '24px' }}>
-            <SectionHeader
-              title="Suscripción Corporativa y Prueba Gratuita"
-              subtitle="Gestiona tu plan activo, método de pago PCI-DSS o cancela antes del día 8 sin ningún cargo."
-            />
-
-            {!subscription ? (
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                No se encontró información de suscripción vinculada.
-              </p>
-            ) : (
-              <div
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '16px',
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Plan {subscription.plan_id} ({subscription.billing_cycle})
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    Estado: <strong>{subscription.status}</strong>
-                    {subscription.status === 'TRIALING' && (
-                      <>
-                        {' '}
-                        • Prueba gratuita finaliza el{' '}
-                        <strong>
-                          {new Date(subscription.trial_end).toLocaleDateString('es-VE')}
-                        </strong>{' '}
-                        (primer cobro automático ese día)
-                      </>
-                    )}
-                  </div>
-                  {subscription.card_last4 && (
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Método de pago: {subscription.card_brand?.toUpperCase()} ••••{' '}
-                      {subscription.card_last4}
-                    </div>
-                  )}
-                </div>
-
-                {subscription.status !== 'CANCELED' && !subscription.cancel_at_period_end && (
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    className="btn btn-danger btn-sm"
-                    onClick={() => {
-                      startTransition(async () => {
-                        const res = await cancelTrialOrSubscriptionAction();
-                        if (res.success) {
-                          toast('✅ Suscripción cancelada. No se realizarán cobros.');
-                        } else {
-                          toast(`❌ ${res.error}`);
-                        }
-                      });
-                    }}
-                  >
-                    {subscription.status === 'TRIALING'
-                      ? 'Cancelar Prueba Gratuita ($0.00)'
-                      : 'Cancelar Suscripción'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Certificado Fiscal EE. UU. (Opcional) ── */}
-      {activeTab === 'fiscal' && (
-        <div className="card">
-          <div style={{ padding: '24px' }}>
-            <SectionHeader
-              title="Certificado Fiscal EE. UU. (Opcional)"
-              subtitle="Configura opcionalmente el documento fiscal de tu empresa en EE. UU. (Resale Certificate, Exención 501(c)(3), Formulario W-9, etc.) para que tus colaboradores puedan consultarlo o descargarlo rápidamente desde WhatsApp."
-            />
-
-            {/* Document Name & Upload Configuration Card */}
-            <div
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--bg-border)',
-                borderRadius: '12px',
-                padding: '20px',
-                marginBottom: '20px',
-              }}
-            >
-              <div style={{ marginBottom: '18px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Nombre / Tipo de Certificado
-                </label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    value={nombreCertificado}
-                    placeholder="ej. Certificado de Reventa (Resale Certificate) o Florida Tax-Exempt"
-                    onChange={(e) => setNombreCertificado(e.target.value)}
-                    className="input-field"
-                    style={{ flex: 1, minWidth: '280px' }}
-                  />
-                  <button
-                    type="button"
-                    disabled={isPending || isSavingCertName}
-                    onClick={handleSaveCertificateName}
-                    className="btn btn-secondary btn-sm"
-                    style={{ whiteSpace: 'nowrap' }}
-                  >
-                    {isSavingCertName ? 'Guardando...' : 'Guardar Nombre'}
-                  </button>
-                </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', margin: 0 }}>
-                  Este nombre aparecerá como título descriptivo cuando los colaboradores consulten el documento en WhatsApp.
-                </p>
-              </div>
-
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                Archivo del Certificado
-              </div>
-
-              {urlCertificado ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '16px',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid rgba(0, 168, 107, 0.3)',
-                    borderRadius: '10px',
-                    flexWrap: 'wrap',
-                    gap: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '8px',
-                        background: 'rgba(0, 168, 107, 0.15)',
-                        color: 'var(--rendy-success, #00A86B)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <FileCheck size={20} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {nombreCertificado || 'Certificado Fiscal EE. UU.'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--rendy-success, #00A86B)' }}>
-                        ✓ Documento disponible para consulta vía WhatsApp
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <a
-                      href={urlCertificado}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-secondary btn-sm"
-                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <ExternalLink size={14} />
-                      Ver / Descargar
-                    </a>
-
-                    <label
-                      className="btn btn-secondary btn-sm"
-                      style={{ cursor: isUploadingCert ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <UploadCloud size={14} />
-                      {isUploadingCert ? 'Subiendo...' : 'Reemplazar'}
-                      <input
-                        type="file"
-                        accept=".pdf,image/png,image/jpeg,image/webp"
-                        disabled={isUploadingCert}
-                        onChange={handleUploadCertificate}
-                        style={{ display: 'none' }}
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      disabled={isPending || isUploadingCert}
-                      className="btn btn-danger btn-sm"
-                      onClick={handleDeleteCertificate}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <Trash2 size={14} />
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    border: '2px dashed var(--bg-border)',
-                    borderRadius: '10px',
-                    padding: '30px 20px',
-                    textAlign: 'center',
-                    background: 'var(--bg-surface)',
-                  }}
-                >
-                  <UploadCloud size={36} style={{ color: 'var(--text-muted)', marginBottom: '10px' }} />
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    Ningún certificado fiscal cargado (Opcional)
-                  </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '460px', margin: '0 auto 16px auto' }}>
-                    Si tu empresa posee un certificado de reventa, exención tributaria o W-9, puedes subirlo aquí (PDF, PNG, JPG, máx 10 MB).
-                  </p>
-                  <label
-                    className="btn btn-primary btn-sm"
-                    style={{ cursor: isUploadingCert ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                  >
-                    <UploadCloud size={15} />
-                    {isUploadingCert ? 'Subiendo documento...' : 'Seleccionar Certificado'}
-                    <input
-                      type="file"
-                      accept=".pdf,image/png,image/jpeg,image/webp"
-                      disabled={isUploadingCert}
-                      onChange={handleUploadCertificate}
-                      style={{ display: 'none' }}
-                    />
-                  </label>
-                </div>
-              )}
-            </div>
-
-            {/* Informational Architecture Guidelines */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '14px',
-              }}
-            >
-              <div
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '10px',
-                  padding: '16px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--rendy-primary-light)' }}>
-                  <ShieldCheck size={16} />
-                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Consulta Inmediata en WhatsApp</span>
-                </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Cargar este certificado es 100% opcional. Si está cargado, tus empleados pueden escribir <strong>&quot;Certificado&quot;</strong>, <strong>&quot;Tax Exempt&quot;</strong> o <strong>&quot;Resale&quot;</strong> en el chat de WhatsApp para recibirlo al instante y presentarlo en caja.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  borderRadius: '10px',
-                  padding: '16px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--rendy-success)' }}>
-                  <FileText size={16} />
-                  <span style={{ fontSize: '13px', fontWeight: 700 }}>Extracción Contable Universal</span>
-                </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Rendy clasifica automáticamente cada gasto en EE. UU. (Estado, Subtotal, Sales Tax y Propina) y habilita la pestaña <strong>&quot;Desglose Taxes USA&quot;</strong> con fórmulas dinámicas en tus reportes contables Excel, tenga o no certificado la empresa.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Creación de Categoría Personalizada */}
+      {/* ── Custom Category Modal ── */}
       <ModalNuevaCategoria
         isOpen={isNewCategoryModalOpen}
         onClose={() => setIsNewCategoryModalOpen(false)}
@@ -1955,11 +909,14 @@ export default function ConfiguracionClient({
         isSubmitting={isSubmittingCategory}
       />
 
-      {/* Modal de Alta e Invitación de Empleados */}
+      {/* ── Collaborator Invitation Modal ── */}
       <InviteEmployeeModal
         isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
+        onClose={() => {
+          setIsInviteModalOpen(false);
+          router.refresh();
+        }}
       />
-    </>
+    </div>
   );
 }
